@@ -130,7 +130,8 @@ rtc_source_set("rtp_sender") {
     "../api:network_state_predictor_api",
     "../api:transport_api",
     "../api/transport:field_trial_based_config",
-    "../api/transport:goog_cc",
+    # Revision for enabling AlphaCC and disabling GCC
+    "../api/transport:alpha_cc",
     "../api/transport:network_control",
     "../api/units:data_rate",
     "../api/units:time_delta",
