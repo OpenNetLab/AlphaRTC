@@ -61,11 +61,12 @@ WindowsCommandLineArguments::WindowsCommandLineArguments() {
   LPWSTR* wide_argv = ::CommandLineToArgvW(command_line, &argc);
 
   // iterate over the returned wide strings;
-  for (int i = 0; i < argc; ++i) {
+  for (int i = 0; i < argc; ++i)
     args_.push_back(rtc::ToUtf8(wide_argv[i], wcslen(wide_argv[i])));
+
+  for (int i = 0; i < argc; ++i)
     // make sure the argv array points to the string data.
-    argv_.push_back(args_.back().c_str());
-  }
+    argv_.push_back(args_[i].c_str());
   LocalFree(wide_argv);
 }
 
