@@ -21,6 +21,8 @@
 #include "api/peer_connection_interface.h"
 #include "examples/peerconnection/client/main_wnd.h"
 #include "examples/peerconnection/client/peer_connection_client.h"
+#include "pc/test/fake_video_track_source.h"
+
 
 namespace webrtc {
 class VideoCaptureModule;
@@ -48,6 +50,8 @@ class Conductor : public webrtc::PeerConnectionObserver,
   bool connection_active() const;
 
   void Close() override;
+
+  void DisableWebcam();
 
  protected:
   ~Conductor();
@@ -129,6 +133,7 @@ class Conductor : public webrtc::PeerConnectionObserver,
   MainWindow* main_wnd_;
   std::deque<std::string*> pending_messages_;
   std::string server_;
+  bool webcam_enabled_;
 };
 
 #endif  // EXAMPLES_PEERCONNECTION_CLIENT_CONDUCTOR_H_

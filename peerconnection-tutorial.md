@@ -14,16 +14,28 @@
 ````
 * The options of peerconnection_client are shown blow.
 
-Options         | Description         | Default Value
-----------------|---------------------|-----------------------
-`server`        | `The ip of peerconnection_client`| "localhost"
-`port`          | `The port of peerconnection_port`| 8888
-`autoconnect`   | `Connect to the server without user intervention`| false
-`autocall`      | `Call the first available other client without user intervention`  | false
-
+Options           | Description         | Default Value
+------------------|---------------------|-----------------------
+`server`          | `The ip of peerconnection_client`| "localhost"
+`port`            | `The port of peerconnection_port`| 8888
+`autoconnect`     | `Connect to the server without user intervention`| false
+`autocall`        | `Call the first available other client without user intervention`  | false
+`webcam_disabled` | `Disable the client's webcam. This is useful for running two clients on one machine. See more details below` | false
 * Run two peerconnection_clients. *Note: Only one of the clients can set the `autocall` option*
 ```
  >peerconnection_client.exe --server=[server_ip] --port=[server_port] --autoconnect --autocall
  >peerconnection_client.exe --server=[server_ip] --port=[server_port] --autoconnect
  ````
  * Now two clients will connect to each other automatically. You can try to kill the second client and restart it. 
+
+ ## **The `webcam_disabled` option**
+ * `Peerconnection_client` uses your webcam by default. This makes trouble when two clients run on same machine and contend for the only webcam physical device. 
+ * Using the `webcam_disabled` option, `peerconnection_client` disables its webcam. Then, two clients can run with only one webcam available. The client with the `webcam_disabled` option will not send its video to the other client, but is still able to receive the video from the other client.  
+ * Now you can run two clients on one machine. More exactly, you can run two clients with only one webcam available. Run the cmd below to have a try.
+ ```
+ >peerconnection_client.exe --server=[server_ip] --port=[server_port] --autoconnect --autocall --webcam_disabled
+ >peerconnection_client.exe --server=[server_ip] --port=[server_port] --autoconnect
+ ````
+
+ 
+

@@ -35,6 +35,12 @@ WEBRTC_DEFINE_bool(
     "the server without user intervention.  Note: this flag should only be set "
     "to true on one of the two clients.");
 
+WEBRTC_DEFINE_bool(
+    webcam_disabled,
+    false,
+    "Disable the webcam.");
+
+
 WEBRTC_DEFINE_string(
     force_fieldtrials,
     "",

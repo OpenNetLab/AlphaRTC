@@ -107,7 +107,7 @@ class CapturerTrackSource : public webrtc::VideoTrackSource {
 }  // namespace
 
 Conductor::Conductor(PeerConnectionClient* client, MainWindow* main_wnd)
-    : peer_id_(-1), loopback_(false), client_(client), main_wnd_(main_wnd) {
+    : peer_id_(-1), loopback_(false), client_(client), main_wnd_(main_wnd), webcam_enabled_(true) {
   client_->RegisterObserver(this);
   main_wnd->RegisterObserver(this);
 }
@@ -124,6 +124,11 @@ void Conductor::Close() {
   client_->SignOut();
   DeletePeerConnection();
 }
+
+void Conductor::DisableWebcam() {
+  webcam_enabled_ = false;
+}
+
 
 bool Conductor::InitializePeerConnection() {
   RTC_DCHECK(!peer_connection_factory_);
@@ -443,8 +448,13 @@ void Conductor::AddTracks() {
                       << result_or_error.error().message();
   }
 
-  rtc::scoped_refptr<CapturerTrackSource> video_device =
-      CapturerTrackSource::Create();
+  rtc::scoped_refptr<webrtc::VideoTrackSource> video_device;
+  if (!webcam_enabled_)
+    video_device = webrtc::FakeVideoTrackSource::Create();
+  else
+    video_device = CapturerTrackSource::Create();
+  
+
   if (video_device) {
     rtc::scoped_refptr<webrtc::VideoTrackInterface> video_track_(
         peer_connection_factory_->CreateVideoTrack(kVideoLabel, video_device));

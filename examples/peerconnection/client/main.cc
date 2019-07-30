@@ -111,6 +111,8 @@ int PASCAL wWinMain(HINSTANCE instance,
   PeerConnectionClient client;
   rtc::scoped_refptr<Conductor> conductor(
       new rtc::RefCountedObject<Conductor>(&client, &wnd));
+  if (FLAG_webcam_disabled)
+    conductor->DisableWebcam();
 
   // Main loop.
   MSG msg;
