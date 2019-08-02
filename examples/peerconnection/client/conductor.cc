@@ -1,4 +1,4 @@
-/*
+﻿/*
  *  Copyright 2012 The WebRTC Project Authors. All rights reserved.
  *
  *  Use of this source code is governed by a BSD-style license
@@ -54,6 +54,9 @@ const char kCandidateSdpName[] = "candidate";
 const char kSessionDescriptionTypeName[] = "type";
 const char kSessionDescriptionSdpName[] = "sdp";
 
+// The value of auto close time for disabling auto close 
+const int kAutoCloseDisableValue = 0;
+
 class DummySetSessionDescriptionObserver
     : public webrtc::SetSessionDescriptionObserver {
  public:
@@ -107,7 +110,8 @@ class CapturerTrackSource : public webrtc::VideoTrackSource {
 }  // namespace
 
 Conductor::Conductor(PeerConnectionClient* client, MainWindow* main_wnd)
-    : peer_id_(-1), loopback_(false), client_(client), main_wnd_(main_wnd), webcam_enabled_(true) {
+    : peer_id_(-1), loopback_(false), client_(client), main_wnd_(main_wnd), webcam_enabled_(true),
+      autoclose_time_ms_(kAutoCloseDisableValue) {
   client_->RegisterObserver(this);
   main_wnd->RegisterObserver(this);
 }
@@ -129,6 +133,10 @@ void Conductor::DisableWebcam() {
   webcam_enabled_ = false;
 }
 
+void Conductor::SetAutoCloseTime(int autoclose_time_seconds) {
+  RTC_CHECK_GE(autoclose_time_seconds, kAutoCloseDisableValue);
+  autoclose_time_ms_ = autoclose_time_seconds * 1000;
+}
 
 bool Conductor::InitializePeerConnection() {
   RTC_DCHECK(!peer_connection_factory_);
@@ -157,6 +165,10 @@ bool Conductor::InitializePeerConnection() {
 
   AddTracks();
 
+  // Start the timer for auto close.
+  if (autoclose_time_ms_ != kAutoCloseDisableValue)
+    main_wnd_->StartAutoCloseTimer(autoclose_time_ms_);
+
   return peer_connection_ != nullptr;
 }
 
@@ -179,7 +191,7 @@ bool Conductor::CreatePeerConnection(bool dtls) {
   RTC_DCHECK(peer_connection_factory_);
   RTC_DCHECK(!peer_connection_);
 
-  webrtc::PeerConnectionInterface::RTCConfiguration config;
+  webrtc::PeerConnectionInterface::RTCConfiguration config;  
   config.sdp_semantics = webrtc::SdpSemantics::kUnifiedPlan;
   config.enable_dtls_srtp = dtls;
   webrtc::PeerConnectionInterface::IceServer server;
@@ -271,6 +283,7 @@ void Conductor::OnDisconnected() {
 
 void Conductor::OnPeerConnected(int id, const std::string& name) {
   RTC_LOG(INFO) << __FUNCTION__;
+
   // Refresh the list if we're showing it.
   if (main_wnd_->current_ui() == MainWindow::LIST_PEERS)
     main_wnd_->SwitchToPeerList(client_->peers());
@@ -453,7 +466,7 @@ void Conductor::AddTracks() {
     video_device = webrtc::FakeVideoTrackSource::Create();
   else
     video_device = CapturerTrackSource::Create();
-  
+
 
   if (video_device) {
     rtc::scoped_refptr<webrtc::VideoTrackInterface> video_track_(

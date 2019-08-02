@@ -231,6 +231,10 @@ void MainWnd::QueueUIThreadCallback(int msg_id, void* data) {
                       reinterpret_cast<LPARAM>(data));
 }
 
+void MainWnd::StartAutoCloseTimer(int interval_ms) {
+  ::SetTimer(wnd_, kAutoCloseTimerIDEvent, interval_ms, (TIMERPROC)NULL);
+}
+
 void MainWnd::OnPaint() {
   PAINTSTRUCT ps;
   ::BeginPaint(handle(), &ps);
@@ -391,6 +395,13 @@ bool MainWnd::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT* result) {
         }
       }
       return true;
+
+    case WM_TIMER:
+      if (wp == kAutoCloseTimerIDEvent) {
+        ::PostMessage(wnd_, WM_CLOSE, 0, 0);
+        return true;
+      }
+      break;
 
     case WM_CLOSE:
       if (callback_)

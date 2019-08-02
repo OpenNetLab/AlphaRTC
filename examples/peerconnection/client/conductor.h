@@ -53,6 +53,8 @@ class Conductor : public webrtc::PeerConnectionObserver,
 
   void DisableWebcam();
 
+  void SetAutoCloseTime(int autoclose_time_seconds);
+
  protected:
   ~Conductor();
   bool InitializePeerConnection();
@@ -134,6 +136,8 @@ class Conductor : public webrtc::PeerConnectionObserver,
   std::deque<std::string*> pending_messages_;
   std::string server_;
   bool webcam_enabled_;
+  // Running time in milliseconds from finishing peer connection to stop.
+  int autoclose_time_ms_;
 };
 
 #endif  // EXAMPLES_PEERCONNECTION_CLIENT_CONDUCTOR_H_

@@ -114,6 +114,8 @@ int PASCAL wWinMain(HINSTANCE instance,
   if (FLAG_webcam_disabled)
     conductor->DisableWebcam();
 
+  conductor->SetAutoCloseTime(FLAG_autoclose);
+
   // Main loop.
   MSG msg;
   BOOL gm;
