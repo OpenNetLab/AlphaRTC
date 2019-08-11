@@ -428,6 +428,8 @@ class RtpRtcp : public Module, public RtcpFeedbackSenderInterface {
   // BWE feedback packets.
   bool SendFeedbackPacket(const rtcp::TransportFeedback& packet) override = 0;
 
+  bool SendApplicationPacket(const rtcp::App& packet) override = 0;
+
   virtual void SetVideoBitrateAllocation(
       const VideoBitrateAllocation& bitrate) = 0;
 

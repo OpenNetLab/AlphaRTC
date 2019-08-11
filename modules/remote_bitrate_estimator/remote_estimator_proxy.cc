@@ -61,6 +61,10 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   media_ssrc_ = header.ssrc;
   OnPacketArrival(header.extension.transportSequenceNumber, arrival_time_ms,
                   header.extension.feedback_request);
+  RateUpdateFeedback rateUpdateFeedback;
+  rateUpdateFeedback.pacing_rate = 1234;
+  rateUpdateFeedback.padding_rate = 4321;
+  SendEstimatedRate(rateUpdateFeedback);
 }
 
 bool RemoteEstimatorProxy::LatestEstimate(std::vector<unsigned int>* ssrcs,
@@ -218,6 +222,17 @@ void RemoteEstimatorProxy::SendFeedbackOnRequest(
 
   RTC_DCHECK(feedback_sender_ != nullptr);
   feedback_sender_->SendTransportFeedback(&feedback_packet);
+}
+
+void RemoteEstimatorProxy::SendEstimatedRate(
+	const RateUpdateFeedback& rateUpdateFeedback) {
+  rtcp::App app_packet;
+
+  app_packet.SetSubType(kAppPacketSubType);
+  app_packet.SetName(kAppPacketName);
+	  
+  app_packet.SetData(reinterpret_cast<const uint8_t*>(&rateUpdateFeedback),sizeof(RateUpdateFeedback));
+  feedback_sender_->SendApplicationPacket(&app_packet);
 }
 
 int64_t RemoteEstimatorProxy::BuildFeedbackPacket(

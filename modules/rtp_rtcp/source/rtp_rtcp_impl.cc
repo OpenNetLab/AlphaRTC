@@ -697,6 +697,9 @@ bool ModuleRtpRtcpImpl::SendFeedbackPacket(
     const rtcp::TransportFeedback& packet) {
   return rtcp_sender_.SendFeedbackPacket(packet);
 }
+bool ModuleRtpRtcpImpl::SendApplicationPacket(const rtcp::App& packet) {
+  return rtcp_sender_.SendApplicationPacket(packet);
+}
 
 int32_t ModuleRtpRtcpImpl::SendLossNotification(uint16_t last_decoded_seq_num,
                                                 uint16_t last_received_seq_num,

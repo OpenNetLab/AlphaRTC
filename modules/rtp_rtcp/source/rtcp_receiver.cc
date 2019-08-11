@@ -78,6 +78,7 @@ struct RTCPReceiver::PacketInformation {
   std::unique_ptr<rtcp::TransportFeedback> transport_feedback;
   absl::optional<VideoBitrateAllocation> target_bitrate_allocation;
   std::unique_ptr<rtcp::LossNotification> loss_notification;
+  std::unique_ptr<rtcp::App> application;
 };
 
 // Structure for handing TMMBR and TMMBN rtcp messages (RFC5104, section 3.5.4).
@@ -392,6 +393,9 @@ bool RTCPReceiver::ParseCompoundPacket(const uint8_t* packet_begin,
             ++num_skipped_packets_;
             break;
         }
+        break;
+      case rtcp::App::kPacketType:
+        HandleApplicationPacket(rtcp_block, packet_information);
         break;
       default:
         ++num_skipped_packets_;
@@ -946,6 +950,19 @@ void RTCPReceiver::HandleTransportFeedback(
   packet_information->transport_feedback = std::move(transport_feedback);
 }
 
+void RTCPReceiver::HandleApplicationPacket(
+    const rtcp::CommonHeader& rtcp_block,
+    PacketInformation* packet_information) {
+  std::unique_ptr<rtcp::App> app_packet(new rtcp::App());
+  if (!app_packet->Parse(rtcp_block)) {
+    ++num_skipped_packets_;
+    return;
+  }
+
+  packet_information->packet_type_flags |= kRtcpApp;
+  packet_information->application = std::move(app_packet);
+}
+
 void RTCPReceiver::NotifyTmmbrUpdated() {
   // Find bounding set.
   std::vector<rtcp::TmmbItem> bounding =
@@ -1058,6 +1075,7 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
     rtp_rtcp_->OnReceivedRtcpReportBlocks(packet_information.report_blocks);
   }
 
+  
   if (transport_feedback_observer_ &&
       (packet_information.packet_type_flags & kRtcpTransportFeedback)) {
     uint32_t media_source_ssrc =
@@ -1068,6 +1086,18 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
           *packet_information.transport_feedback);
     }
   }
+
+
+  if (transport_feedback_observer_ &&
+      (packet_information.packet_type_flags & kRtcpApp)) {
+  
+
+      transport_feedback_observer_->OnApplicationPacket(
+          *packet_information.application);
+ 
+  }
+
+  
 
   if (bitrate_allocation_observer_ &&
       packet_information.target_bitrate_allocation) {

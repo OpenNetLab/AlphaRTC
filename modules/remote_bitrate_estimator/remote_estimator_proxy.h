@@ -19,6 +19,7 @@
 #include "rtc_base/critical_section.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/numerics/sequence_number_util.h"
+#include "modules/third_party/json/json.hpp"
 
 namespace webrtc {
 
@@ -34,6 +35,7 @@ class TransportFeedback;
 
 class RemoteEstimatorProxy : public RemoteBitrateEstimator {
  public:
+
   RemoteEstimatorProxy(Clock* clock,
                        TransportFeedbackSenderInterface* feedback_sender,
                        const WebRtcKeyValueConfig* key_value_config);
@@ -77,7 +79,9 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   void SendFeedbackOnRequest(int64_t sequence_number,
                              const FeedbackRequest& feedback_request)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
-  static int64_t BuildFeedbackPacket(
+  void SendEstimatedRate(const RateUpdateFeedback& rateUpdateFeedback)
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
+  int64_t BuildFeedbackPacket(
       uint8_t feedback_packet_count,
       uint32_t media_ssrc,
       int64_t base_sequence_number,

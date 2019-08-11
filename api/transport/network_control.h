@@ -86,6 +86,13 @@ class NetworkControllerInterface {
       TransportPacketsFeedback) = 0;
   // Called with network state estimate updates.
   virtual NetworkControlUpdate OnNetworkStateEstimate(NetworkStateEstimate) = 0;
+  // Called when received an application packet
+
+  virtual NetworkControlUpdate OnReceiveEstimatedRateUpdate(
+      NetworkControlUpdate) {
+    return NetworkControlUpdate();
+  }
+
 };
 
 // NetworkControllerFactoryInterface is an interface for creating a network

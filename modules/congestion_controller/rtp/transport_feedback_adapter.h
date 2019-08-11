@@ -20,6 +20,7 @@
 #include "rtc_base/network/sent_packet.h"
 #include "rtc_base/thread_annotations.h"
 #include "rtc_base/thread_checker.h"
+#include "modules/rtp_rtcp/source/rtcp_packet/app.h"
 
 namespace webrtc {
 
@@ -28,6 +29,7 @@ struct RtpPacketSendInfo;
 
 namespace rtcp {
 class TransportFeedback;
+class App;
 }  // namespace rtcp
 
 class TransportFeedbackAdapter {
@@ -47,6 +49,9 @@ class TransportFeedbackAdapter {
   absl::optional<TransportPacketsFeedback> ProcessTransportFeedback(
       const rtcp::TransportFeedback& feedback,
       Timestamp feedback_time);
+
+  absl::optional<NetworkControlUpdate> ConvertAppPacketToNetworkControlUpdate(
+      const rtcp::App& app);
 
   std::vector<PacketFeedback> GetTransportFeedbackVector() const;
 

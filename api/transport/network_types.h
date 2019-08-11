@@ -254,6 +254,12 @@ struct NetworkStateEstimate {
   DataRate link_capacity_min = DataRate::MinusInfinity();
   double cross_traffic_ratio = NAN;
 };
+
+struct RateUpdateFeedback {
+  float pacing_rate;
+  float padding_rate;
+};
+
 }  // namespace webrtc
 
 #endif  // API_TRANSPORT_NETWORK_TYPES_H_

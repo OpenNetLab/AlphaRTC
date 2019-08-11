@@ -451,6 +451,21 @@ void RtpTransportControllerSend::OnTransportFeedback(
       transport_feedback_adapter_.GetOutstandingData().bytes());
 }
 
+void RtpTransportControllerSend::OnApplicationPacket(const rtcp::App& app) {
+  RTC_DCHECK_RUNS_SERIALIZED(&worker_race_);
+  absl::optional<NetworkControlUpdate> networkControlUpdate =
+      transport_feedback_adapter_.ConvertAppPacketToNetworkControlUpdate(app);
+  if (networkControlUpdate) {
+    task_queue_.PostTask([this, networkControlUpdate]() {
+      RTC_DCHECK_RUN_ON(&task_queue_);
+      if (controller_)
+        PostUpdates(
+            controller_->OnReceiveEstimatedRateUpdate(*networkControlUpdate));
+    });
+  }
+
+}
+
 void RtpTransportControllerSend::MaybeCreateControllers() {
   RTC_DCHECK(!controller_);
   RTC_DCHECK(!control_handler_);

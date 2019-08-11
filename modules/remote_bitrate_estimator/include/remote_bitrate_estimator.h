@@ -19,6 +19,7 @@
 #include "modules/include/module.h"
 #include "modules/include/module_common_types.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
+#include "modules/rtp_rtcp/source/rtcp_packet/app.h"
 
 namespace webrtc {
 namespace rtcp {
@@ -39,10 +40,13 @@ class RemoteBitrateObserver {
   virtual ~RemoteBitrateObserver() {}
 };
 
+
+
 class TransportFeedbackSenderInterface {
  public:
   virtual ~TransportFeedbackSenderInterface() = default;
   virtual bool SendTransportFeedback(rtcp::TransportFeedback* packet) = 0;
+  virtual bool SendApplicationPacket(rtcp::App* packet) = 0;
 };
 
 // TODO(holmer): Remove when all implementations have been updated.
