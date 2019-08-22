@@ -55,6 +55,10 @@ class Conductor : public webrtc::PeerConnectionObserver,
 
   void SetAutoCloseTime(int autoclose_time_seconds);
 
+  void SetVideoPath(std::string video_path);
+  void SetRedis(std::string redis_ip, int redis_port, std::string redis_sid, int redis_update);
+  void SetRateControl(std::string onnx_model_path, int rate_update);
+
  protected:
   ~Conductor();
   bool InitializePeerConnection();
@@ -138,6 +142,22 @@ class Conductor : public webrtc::PeerConnectionObserver,
   bool webcam_enabled_;
   // Running time in milliseconds from finishing peer connection to stop.
   int autoclose_time_ms_;
+  // The path of the input video file
+  std::string video_path_;
+
+  // The ip of Redis Service
+  std::string redis_ip_;
+  // The port of Redis Service
+  int redis_port_;
+  // The session id of Redis service
+  std::string redis_sid_;
+  // The time period of collecting states in milliseconds
+  int redis_update_time_ms_;
+
+  // The path of the onnx model
+  std::string onnx_model_path_;
+  // The rate update time in milliseconds
+  int rate_update_time_ms_;
 };
 
 #endif  // EXAMPLES_PEERCONNECTION_CLIENT_CONDUCTOR_H_

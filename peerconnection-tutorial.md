@@ -27,6 +27,13 @@ Options           | Description         | Default Value
 `autocall`        | `Call the first available other client without user intervention`  | false
 `webcam_disabled` | `Disable the client's webcam. This is useful for running two clients on one machine. See more details below` | false
 `autoclose`       | `The time in seconds before close automatically (always run if autoclose=0)` | 0
+`video_path`      | `The path of the input video file` | ""
+`redis_ip`        | `The ip of Redis Service` | "127.0.0.1"
+`redis_port`      | `The port of Redis Service` | 6379
+`redis_sid`       | `The session id of Redis Service` | "test_sid_00"
+`redis_update`    | `The time period of collecting states in milliseconds` | 500
+`onnx_model_path` | `The path of the onnx model` | ""
+`rate_update`     | `The rate update time in milliseconds` | 200
 
 ## **The `autocall` option**
 

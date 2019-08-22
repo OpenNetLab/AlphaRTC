@@ -115,6 +115,9 @@ int PASCAL wWinMain(HINSTANCE instance,
     conductor->DisableWebcam();
 
   conductor->SetAutoCloseTime(FLAG_autoclose);
+  conductor->SetVideoPath(FLAG_video_path);
+  conductor->SetRedis(FLAG_redis_ip, FLAG_redis_port, FLAG_redis_sid, FLAG_redis_update);
+  conductor->SetRateControl(FLAG_onnx_model_path, FLAG_rate_update);
 
   // Main loop.
   MSG msg;

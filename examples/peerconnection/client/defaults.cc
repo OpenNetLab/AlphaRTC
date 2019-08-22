@@ -25,6 +25,19 @@ const char kVideoLabel[] = "video_label";
 const char kStreamId[] = "stream_id";
 const uint16_t kDefaultServerPort = 8888;
 
+// The value of auto close time for disabling auto close 
+const int kAutoCloseDisableValue = 0;
+// The default ip of Redis Service
+const std::string kDefaultRedisIP = "127.0.0.1";
+// The default port of Redis Service
+const int kDefaultRedisPort = 6379;
+// The default session id of Redis service
+const std::string kDefaultRedisSID = "test_sid_00";
+// The default time of collecting states in milliseconds
+const int kDefaultRedisUpdate = 500;
+// The default rate update time in milliseconds
+const int kDefaultRateUpdate = 200;
+
 std::string GetEnvVarOrDefault(const char* env_var_name,
                                const char* default_value) {
   std::string value;

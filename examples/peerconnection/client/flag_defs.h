@@ -14,6 +14,12 @@
 #include "rtc_base/flags.h"
 
 extern const uint16_t kDefaultServerPort;  // From defaults.[h|cc]
+extern const int kAutoCloseDisableValue;   // From defaults.[h|cc], The value of auto close time for disabling auto close 
+extern const std::string kDefaultRedisIP;  // From defaults.[h|cc], The default ip of Redis Service
+extern const int kDefaultRedisPort;        // From defaults.[h|cc], The default port of Redis Service
+extern const std::string kDefaultRedisSID; // From defaults.[h|cc], The default session id of Redis service
+extern const int kDefaultRedisUpdate;      // From defaults.[h|cc], The default time of collecting states in milliseconds
+extern const int kDefaultRateUpdate;       // From defaults.[h|cc], The default rate update time in milliseconds
 
 // Define flags for the peerconnect_client testing tool, in a separate
 // header file so that they can be shared across the different main.cc's
@@ -51,7 +57,42 @@ WEBRTC_DEFINE_bool(
 
 WEBRTC_DEFINE_int(
 	autoclose, 
-	0,
+	kAutoCloseDisableValue,
 	"The time in seconds before close automatically (always run if autoclose=0).");
+
+WEBRTC_DEFINE_string(
+	video_path,
+	"",
+	"The path of the input video file");
+
+WEBRTC_DEFINE_string(
+	redis_ip,
+	kDefaultRedisIP.c_str(),
+	"The ip of Redis Service");
+
+WEBRTC_DEFINE_int(
+	redis_port,
+	kDefaultRedisPort,
+	"The port of Redis Service");
+
+WEBRTC_DEFINE_string(
+	redis_sid,
+    kDefaultRedisSID.c_str(),
+	"The session id of Redis Service");
+
+WEBRTC_DEFINE_int(
+	redis_update,
+    kDefaultRedisUpdate,
+    "The time period of collecting states in milliseconds​​​");
+
+WEBRTC_DEFINE_string(
+	onnx_model_path,
+    "",
+    "The path of the onnx model​");
+
+WEBRTC_DEFINE_int(
+	rate_update,
+    kDefaultRateUpdate,
+    "The rate update time in milliseconds​​​");
 
 #endif  // EXAMPLES_PEERCONNECTION_CLIENT_FLAG_DEFS_H_

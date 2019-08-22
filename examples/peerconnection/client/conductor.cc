@@ -54,9 +54,6 @@ const char kCandidateSdpName[] = "candidate";
 const char kSessionDescriptionTypeName[] = "type";
 const char kSessionDescriptionSdpName[] = "sdp";
 
-// The value of auto close time for disabling auto close 
-const int kAutoCloseDisableValue = 0;
-
 class DummySetSessionDescriptionObserver
     : public webrtc::SetSessionDescriptionObserver {
  public:
@@ -111,7 +108,14 @@ class CapturerTrackSource : public webrtc::VideoTrackSource {
 
 Conductor::Conductor(PeerConnectionClient* client, MainWindow* main_wnd)
     : peer_id_(-1), loopback_(false), client_(client), main_wnd_(main_wnd), webcam_enabled_(true),
-      autoclose_time_ms_(kAutoCloseDisableValue) {
+      autoclose_time_ms_(kAutoCloseDisableValue),
+      video_path_(""),
+      redis_ip_(kDefaultRedisIP),
+      redis_port_(kDefaultRedisPort),
+      redis_sid_(kDefaultRedisSID),
+      redis_update_time_ms_(kDefaultRedisUpdate),
+      onnx_model_path_(""),
+      rate_update_time_ms_(kDefaultRateUpdate) {
   client_->RegisterObserver(this);
   main_wnd->RegisterObserver(this);
 }
@@ -136,6 +140,26 @@ void Conductor::DisableWebcam() {
 void Conductor::SetAutoCloseTime(int autoclose_time_seconds) {
   RTC_CHECK_GE(autoclose_time_seconds, kAutoCloseDisableValue);
   autoclose_time_ms_ = autoclose_time_seconds * 1000;
+}
+
+void Conductor::SetVideoPath(std::string video_path) {
+  video_path_ = video_path;
+}
+
+void Conductor::SetRedis(std::string redis_ip, int redis_port, std::string redis_sid, int redis_update) {
+  redis_ip_ = redis_ip;
+  redis_port_ = redis_port;
+  redis_sid_ = redis_sid;
+
+  RTC_CHECK_GE(redis_update, 0);
+  redis_update_time_ms_ = redis_update;
+}
+
+void Conductor::SetRateControl(std::string onnx_model_path, int rate_update) {
+  onnx_model_path_ = onnx_model_path;
+
+  RTC_CHECK_GE(rate_update, 0);
+  rate_update_time_ms_ = rate_update;
 }
 
 bool Conductor::InitializePeerConnection() {
