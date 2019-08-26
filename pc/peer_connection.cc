@@ -771,6 +771,12 @@ bool PeerConnectionInterface::RTCConfiguration::operator==(
     absl::optional<bool> use_datagram_transport;
     absl::optional<CryptoOptions> crypto_options;
     bool offer_extmap_allow_mixed;
+    absl::optional<std::string> redis_ip;
+    int redis_port;
+    absl::optional<std::string> redis_sid;
+    int redis_update_ms;
+    absl::optional<std::string> onnx_model_path;
+    int rate_update_ms;
   };
   static_assert(sizeof(stuff_being_tested_for_equality) == sizeof(*this),
                 "Did you add something to RTCConfiguration and forget to "
@@ -831,7 +837,13 @@ bool PeerConnectionInterface::RTCConfiguration::operator==(
              o.use_media_transport_for_data_channels &&
          use_datagram_transport == o.use_datagram_transport &&
          crypto_options == o.crypto_options &&
-         offer_extmap_allow_mixed == o.offer_extmap_allow_mixed;
+         offer_extmap_allow_mixed == o.offer_extmap_allow_mixed &&
+         redis_ip == o.redis_ip &&
+         redis_port == o.redis_port &&
+         redis_sid == o.redis_sid &&
+         redis_update_ms == o.redis_update_ms &&
+         onnx_model_path == o.onnx_model_path &&
+         rate_update_ms == o.rate_update_ms;
 }
 
 bool PeerConnectionInterface::RTCConfiguration::operator!=(

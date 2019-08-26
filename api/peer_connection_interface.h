@@ -646,6 +646,24 @@ class RTC_EXPORT PeerConnectionInterface : public rtc::RefCountInterface {
     // passed.
     bool offer_extmap_allow_mixed = false;
 
+    // The ip of Redis Service
+    absl::optional<std::string> redis_ip;
+
+    // The port of Redis Service
+    int redis_port = kUndefined;
+
+    // The session id of Redis service
+    absl::optional<std::string> redis_sid;
+
+    // The time period of collecting states in milliseconds
+    int redis_update_ms = kUndefined;
+  	
+    // The path of the onnx model
+    absl::optional<std::string> onnx_model_path;
+
+    // The rate update time in milliseconds
+    int rate_update_ms = kUndefined;
+  
     //
     // Don't forget to update operator== if adding something.
     //
