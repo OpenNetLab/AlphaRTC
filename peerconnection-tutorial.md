@@ -65,5 +65,35 @@ Options           | Description         | Default Value
 
     ```cmd
     >peerconnection_client.exe --server=[server_ip] --port=[server_port] --autoconnect --autocall --webcam_disabled
-    >peerconnection_client.exe --server=[server_ip] --port=[server_port] --autoconnect --autoclose 60
+    >peerconnection_client.exe --server=[server_ip] --port=[server_port] --autoconnect --autoclose=60
+    ```
+
+## **The `video_path` option** (Will Support)
+
+* `video_path` is the path of input video file that application will replay. The application will be closed automatically after the video finishes.
+* `video_path`="" means that the application will use camera for the RTP communication.
+
+    ```cmd
+    >peerconnection_client.exe --video_path=video_sample.flv
+    ```
+
+## **The `redis_ip`, `redis_port`, `redis_sid`, and `redis_update` option**
+
+* All these options are used for connecting the redis service.
+* `redis_ip` and `redis_port` are the ip and port of Redis Service. The default ip is 127.0.0.1, and default port is 6379.
+* `redis_sid` is the session id of Redis Service. Each test should have independent session. The default value is "test_sid_00".
+* `redis_update` is the time that application collects states and push into redis. The unit of `redis_update` is millisecond and the default value is 500ms.
+
+    ```cmd
+    >peerconnection_client.exe --redis_ip=[redis_ip] --redis_port=[redis_port] --redis_sid=[redis_sid] --redis_update=500
+    ```
+
+## **The `onnx_model_path` and `rate_update` option**
+
+* `onnx_model_path` and `rate_update` are used for running the onnx model to control the WebRTC rate.
+* `onnx_model_path` is used to specify the path of the onnx model.
+* `rate_update` is the rate update time by onnx model. The unit of `rate_update` is millisecond and the default value is 200ms.
+
+    ```cmd
+    >peerconnection_client.exe --onnx_model_path="webrtc_rate_control.onnx" --redis_update=200
     ```
