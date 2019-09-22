@@ -14,11 +14,12 @@
 #include <shellapi.h>  // must come after windows.h
 // clang-format on
 
+#include <cstdlib>
 #include <string>
 #include <vector>
 
 #include "examples/peerconnection/client/conductor.h"
-#include "examples/peerconnection/client/flag_defs.h"
+#include "examples/peerconnection/client/alphacc_config.h"
 #include "examples/peerconnection/client/main_wnd.h"
 #include "examples/peerconnection/client/peer_connection_client.h"
 #include "rtc_base/checks.h"
@@ -30,47 +31,6 @@
 #include "system_wrappers/include/field_trial.h"
 #include "test/field_trial.h"
 
-namespace {
-// A helper class to translate Windows command line arguments into UTF8,
-// which then allows us to just pass them to the flags system.
-// This encapsulates all the work of getting the command line and translating
-// it to an array of 8-bit strings; all you have to do is create one of these,
-// and then call argc() and argv().
-class WindowsCommandLineArguments {
- public:
-  WindowsCommandLineArguments();
-
-  int argc() { return argv_.size(); }
-  const char** argv() { return argv_.data(); }
-
- private:
-  // Owned argument strings.
-  std::vector<std::string> args_;
-  // Pointers, to get layout compatible with char** argv.
-  std::vector<const char*> argv_;
-
- private:
-  RTC_DISALLOW_COPY_AND_ASSIGN(WindowsCommandLineArguments);
-};
-
-WindowsCommandLineArguments::WindowsCommandLineArguments() {
-  // start by getting the command line.
-  LPCWSTR command_line = ::GetCommandLineW();
-  // now, convert it to a list of wide char strings.
-  int argc;
-  LPWSTR* wide_argv = ::CommandLineToArgvW(command_line, &argc);
-
-  // iterate over the returned wide strings;
-  for (int i = 0; i < argc; ++i)
-    args_.push_back(rtc::ToUtf8(wide_argv[i], wcslen(wide_argv[i])));
-
-  for (int i = 0; i < argc; ++i)
-    // make sure the argv array points to the string data.
-    argv_.push_back(args_[i].c_str());
-  LocalFree(wide_argv);
-}
-
-}  // namespace
 int PASCAL wWinMain(HINSTANCE instance,
                     HINSTANCE prev_instance,
                     wchar_t* cmd_line,
@@ -80,28 +40,25 @@ int PASCAL wWinMain(HINSTANCE instance,
   rtc::Win32Thread w32_thread(&w32_ss);
   rtc::ThreadManager::Instance()->SetCurrentThread(&w32_thread);
 
-  WindowsCommandLineArguments win_args;
-  int argc = win_args.argc();
-  const char** argv = win_args.argv();
-
-  rtc::FlagList::SetFlagsFromCommandLine(&argc, argv, true);
-  if (FLAG_help) {
-    rtc::FlagList::Print(NULL, false);
-    return 0;
-  }
-
   // InitFieldTrialsFromString stores the char*, so the char array must outlive
   // the application.
-  webrtc::field_trial::InitFieldTrialsFromString(FLAG_force_fieldtrials);
+  webrtc::field_trial::InitFieldTrialsFromString(
+      "WebRTC-KeepAbsSendTimeExtension/Enabled/");  //  Config for
+                                                    //  hasAbsSendTimestamp in
+                                                    //  RTP Header extension
 
-  // Abort if the user specifies a port that is outside the allowed
-  // range [1, 65535].
-  if ((FLAG_port < 1) || (FLAG_port > 65535)) {
-    printf("Error: %i is not a valid port.\n", FLAG_port);
+  // Read the json-format configuration file.
+  // File path is passed through |cmd_line|
+  char cmd_line_s[1024];
+  wcstombs(cmd_line_s, cmd_line, 1024);
+  if (!alphaCC::ParseAlphaCCConfig(cmd_line_s)) {
+    RTC_NOTREACHED();
     return -1;
-  }
+  };
+  auto config = alphaCC::GetAlphaCCConfig();
 
-  MainWnd wnd(FLAG_server, FLAG_port, FLAG_autoconnect, FLAG_autocall);
+  MainWnd wnd(config->conn_server_ip.c_str(), config->conn_server_port,
+              config->conn_autoconnect, config->conn_autocall);
   if (!wnd.Create()) {
     RTC_NOTREACHED();
     return -1;
@@ -111,14 +68,7 @@ int PASCAL wWinMain(HINSTANCE instance,
   PeerConnectionClient client;
   rtc::scoped_refptr<Conductor> conductor(
       new rtc::RefCountedObject<Conductor>(&client, &wnd));
-  if (FLAG_webcam_disabled)
-    conductor->DisableWebcam();
-
-  conductor->SetAutoCloseTime(FLAG_autoclose);
-  conductor->SetVideoPath(FLAG_video_path);
-  conductor->SetRedis(FLAG_redis_ip, FLAG_redis_port, FLAG_redis_sid, FLAG_redis_update);
-  conductor->SetRateControl(FLAG_onnx_model_path, FLAG_rate_update);
-
+ 
   // Main loop.
   MSG msg;
   BOOL gm;

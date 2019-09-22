@@ -22,16 +22,6 @@ extern const uint16_t kDefaultServerPort;
 
 // The value of auto close time for disabling auto close 
 extern const int kAutoCloseDisableValue;
-// The default ip of Redis Service
-extern const std::string kDefaultRedisIP;
-// The default port of Redis Service
-extern const int kDefaultRedisPort;
-// The default session id of Redis service
-extern const std::string kDefaultRedisSID;
-// The default time of collecting states in milliseconds
-extern const int kDefaultRedisUpdate;
-// The default rate update time in milliseconds
-extern const int kDefaultRateUpdate;
 
 std::string GetEnvVarOrDefault(const char* env_var_name,
                                const char* default_value);

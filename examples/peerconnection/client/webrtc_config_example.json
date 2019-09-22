@@ -1,0 +1,31 @@
+{
+    "server_connection": {
+        "ip": "127.0.0.1",
+        "port": 8888,
+        "autoconnect": true,
+        "autocall": false,
+        "autoclose": 0
+    },
+    
+    "bwe_feedback_duration": 200,
+
+    "onnx": {
+        "onnx_model_path": "C:\\Users\\v-rutong\\AlphaRTC\\rtc\\src\\out\\Default\rl_model.onnx"
+    },
+
+    "redis": {
+        "ip": "10.150.146.96",
+        "port": 6379,
+        "session_id": "test_sid_00",
+        "redis_update_duration": 500
+    },
+
+    "video_source":{
+        "video_disabled": {
+            "enabled": true
+        },
+        "webcam": {
+            "enabled": false
+        }
+    }
+}
