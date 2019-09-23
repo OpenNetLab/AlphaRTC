@@ -10,6 +10,7 @@
 
 #include "modules/congestion_controller/include/receive_side_congestion_controller.h"
 
+#include "api/alphacc_config.h"
 #include "modules/pacing/packet_router.h"
 #include "modules/remote_bitrate_estimator/include/bwe_defines.h"
 #include "modules/remote_bitrate_estimator/remote_bitrate_estimator_abs_send_time.h"
@@ -29,7 +30,7 @@ ReceiveSideCongestionController::WrappingBitrateEstimator::
       rbe_(new RemoteBitrateEstimatorSingleStream(observer_, clock_)),
       using_absolute_send_time_(false),
       packets_since_absolute_send_time_(0),
-      min_bitrate_bps_(congestion_controller::GetMinBitrateBps()) {}
+      min_bitrate_bps_(congestion_controller::GetMinBitrateBps()){}
 
 ReceiveSideCongestionController::WrappingBitrateEstimator::
     ~WrappingBitrateEstimator() = default;

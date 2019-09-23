@@ -255,9 +255,11 @@ struct NetworkStateEstimate {
   double cross_traffic_ratio = NAN;
 };
 
-struct RateUpdateFeedback {
-  float pacing_rate;
-  float padding_rate;
+struct BweMessage {
+  int64_t timestamp_ms = 0;
+  float target_rate = 3000000; // 3Mbps
+  float pacing_rate = 3000000; // 3Mbps/2.5
+  float padding_rate = 0;
 };
 
 }  // namespace webrtc

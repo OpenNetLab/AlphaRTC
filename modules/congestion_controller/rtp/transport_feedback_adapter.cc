@@ -175,26 +175,7 @@ TransportFeedbackAdapter::ProcessTransportFeedback(
   return msg;
 }
 
-absl::optional<NetworkControlUpdate>
-TransportFeedbackAdapter::ConvertAppPacketToNetworkControlUpdate(
-    const rtcp::App& app) {
-  if (app.sub_type() != kAppPacketSubType)
-    return absl::nullopt;
-  if (app.name() != kAppPacketName)
-    return absl::nullopt;
 
-  
-  absl::optional<NetworkControlUpdate> networkControlUpdate =
-      NetworkControlUpdate();
-  const RateUpdateFeedback* rateUpdateFeedback =
-      reinterpret_cast<const RateUpdateFeedback*>(app.data());
-  RTC_LOG(LS_INFO) << rateUpdateFeedback->padding_rate;
-
-  return networkControlUpdate;
-
-
-	  
-}
 void TransportFeedbackAdapter::SetNetworkIds(uint16_t local_id,
                                              uint16_t remote_id) {
   rtc::CritScope cs(&lock_);

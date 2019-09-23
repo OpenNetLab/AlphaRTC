@@ -98,6 +98,8 @@ class ReceiveSideCongestionController : public CallStatsObserver,
   const FieldTrialBasedConfig field_trial_config_;
   WrappingBitrateEstimator remote_bitrate_estimator_;
   RemoteEstimatorProxy remote_estimator_proxy_;
+
+  
 };
 
 }  // namespace webrtc

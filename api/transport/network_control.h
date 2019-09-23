@@ -88,8 +88,11 @@ class NetworkControllerInterface {
   virtual NetworkControlUpdate OnNetworkStateEstimate(NetworkStateEstimate) = 0;
   // Called when received an application packet
 
-  virtual NetworkControlUpdate OnReceiveEstimatedRateUpdate(
-      NetworkControlUpdate) {
+
+  // Currently, only alphaCC implements this,
+  // so provide a default implementation here
+  virtual NetworkControlUpdate OnReceiveBwe(
+      BweMessage) {
     return NetworkControlUpdate();
   }
 

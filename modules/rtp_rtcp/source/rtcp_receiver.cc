@@ -1087,17 +1087,11 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
     }
   }
 
-
   if (transport_feedback_observer_ &&
       (packet_information.packet_type_flags & kRtcpApp)) {
-  
-
       transport_feedback_observer_->OnApplicationPacket(
           *packet_information.application);
- 
   }
-
-  
 
   if (bitrate_allocation_observer_ &&
       packet_information.target_bitrate_allocation) {
