@@ -19,7 +19,7 @@
 
 #include "api/media_stream_interface.h"
 #include "api/peer_connection_interface.h"
-#include "examples/peerconnection/client/alphacc_config.h"
+#include "api/alphacc_config.h"
 #include "examples/peerconnection/client/main_wnd.h"
 #include "examples/peerconnection/client/peer_connection_client.h"
 #include "pc/test/fake_video_track_source.h"

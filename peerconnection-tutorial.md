@@ -23,9 +23,9 @@
 
 ### **server_connection**
 - **ip**: The IP of peerconnection_server.
-- **port**: THe port of peerconnection_server.
+- **port**: The port of peerconnection_server.
 - **autoconnect**: Connect to the server without user intervention.
-- **autocall**: Call the first available other client without user intervention. *Note: Only one of two clients could set it to true, otherwise both two clients block*.
+- **autocall**: Call the first available other client without user intervention. *Note: Only one of two clients could set it to true, otherwise both two clients will block*.
 - **autoclose**: The time *in seconds* before close automatically (always run if autoclose=0)
 
 ### **bwe_feedback_duration**

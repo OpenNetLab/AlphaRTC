@@ -101,6 +101,8 @@ rtc_static_library("libjingle_peerconnection_api") {
   cflags = []
   sources = [
     "async_resolver_factory.h",
+    "alphacc_config.cc",
+    "alphacc_config.h",
     "bitrate_constraints.h",
     "candidate.cc",
     "candidate.h",
@@ -171,6 +173,7 @@ rtc_static_library("libjingle_peerconnection_api") {
     "audio:audio_mixer_api",
     "audio_codecs:audio_codecs_api",
     "rtc_event_log",
+    "../rtc_base:rtc_json",
     "task_queue",
     "transport:bitrate_settings",
     "transport:network_control",

@@ -19,7 +19,6 @@
 #include <vector>
 
 #include "examples/peerconnection/client/conductor.h"
-#include "examples/peerconnection/client/alphacc_config.h"
 #include "examples/peerconnection/client/main_wnd.h"
 #include "examples/peerconnection/client/peer_connection_client.h"
 #include "rtc_base/checks.h"

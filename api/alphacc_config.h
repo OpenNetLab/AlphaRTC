@@ -1,4 +1,4 @@
-﻿/*
+/*
  *  Copyright 2012 The WebRTC Project Authors. All rights reserved.
  *
  *  Use of this source code is governed by a BSD-style license
@@ -8,14 +8,16 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef EXAMPLES_PEERCONNECTION_CLIENT_ALPHACC_CONFIG_H_
-#define EXAMPLES_PEERCONNECTION_CLIENT_ALPHACC_CONFIG_H_
+#ifndef API_ALPHACC_CONFIG_H_
+#define API_ALPHACC_CONFIG_H_
 
 #include <string>
 
 namespace alphaCC {
 
 struct AlphaCCConfig {
+  AlphaCCConfig() = default;
+  ~AlphaCCConfig() = default;
   // The server to connect
   std::string conn_server_ip;
   int conn_server_port = 0;
@@ -31,7 +33,7 @@ struct AlphaCCConfig {
 
   // Redis server configuration
   std::string redis_ip;
-  int redis_port = false;
+  int redis_port = 0;
   // Redis session id
   std::string redis_sid;
   int redis_update_duration_ms = 500;
@@ -43,15 +45,14 @@ struct AlphaCCConfig {
     kVideoDisabled,
     kWebcam,
   } video_source_option;
-
 };
 
 // Get alphacc global configurations
 const AlphaCCConfig* GetAlphaCCConfig();
 
 // Parse configurations files from |file_path|
-bool ParseAlphaCCConfig(std::string file_path);
+bool ParseAlphaCCConfig(const std::string& file_path);
 
 }  // namespace alphaCC
 
-#endif  // EXAMPLES_PEERCONNECTION_CLIENT_ALPHACC_CONFIG_H_
+#endif  // API_ALPHACC_CONFIG_H_
