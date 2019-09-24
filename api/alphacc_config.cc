@@ -12,7 +12,7 @@
     }                           \
   } while (0)
 
-namespace alphaCC {
+namespace alphacc {
 // alphaCC global configurations
 static AlphaCCConfig* config;
 
@@ -74,6 +74,35 @@ bool ParseAlphaCCConfig(const std::string& file_path) {
     RETURN_ON_FAIL(GetBool(third, "enabled", &enabled));
     if (enabled) {
       config->video_source_option = AlphaCCConfig::VideoSourceOption::kWebcam;
+    } else {
+      third.clear();
+      RETURN_ON_FAIL(GetValue(second, "video_file", &third));
+      RETURN_ON_FAIL(GetBool(third, "enabled", &enabled));
+      if (!enabled) {
+        return false;
+      }
+      config->video_source_option = AlphaCCConfig::VideoSourceOption::kVideoFile;
+      RETURN_ON_FAIL(GetInt(third, "height", &config->video_height));
+      RETURN_ON_FAIL(GetInt(third, "width", &config->video_width));
+      RETURN_ON_FAIL(GetInt(third, "fps", &config->video_fps));
+      RETURN_ON_FAIL(GetString(third, "file_path", &config->video_file_path));
+    }
+  }
+  second.clear();
+  third.clear();
+  enabled = false;
+  RETURN_ON_FAIL(GetValue(top, "audio_source", &second));
+  RETURN_ON_FAIL(GetValue(second, "microphone", &third));
+  RETURN_ON_FAIL(GetBool(third, "enabled", &enabled));
+  if (enabled) {
+    config->audio_source_option = AlphaCCConfig::AudioSourceOption::kMicrophone;
+  } else {
+    third.clear();
+    RETURN_ON_FAIL(GetValue(second, "audio_file", &third));
+    RETURN_ON_FAIL(GetBool(third, "enabled", &enabled));
+    if (enabled) {
+      config->audio_source_option = AlphaCCConfig::AudioSourceOption::kAudioFile;
+      RETURN_ON_FAIL(GetString(third, "file_path", &config->audio_file_path));
     } else {
       return false;
     }
