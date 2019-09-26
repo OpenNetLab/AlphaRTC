@@ -84,8 +84,8 @@ class CapturerTrackSource : public webrtc::VideoTrackSource {
       capturer = absl::WrapUnique(
           webrtc::test::VcmCapturer::Create(kWidth, kHeight, kFps, i));
       if (capturer) {
-        return new
-            rtc::RefCountedObject<CapturerTrackSource>(std::move(capturer));
+        return new rtc::RefCountedObject<CapturerTrackSource>(
+            std::move(capturer));
       }
     }
 
@@ -107,15 +107,11 @@ class CapturerTrackSource : public webrtc::VideoTrackSource {
 }  // namespace
 
 Conductor::Conductor(PeerConnectionClient* client, MainWindow* main_wnd)
-    : peer_id_(-1), loopback_(false), client_(client), main_wnd_(main_wnd), webcam_enabled_(true),
-      autoclose_time_ms_(kAutoCloseDisableValue),
-      video_path_(""),
-      redis_ip_(kDefaultRedisIP),
-      redis_port_(kDefaultRedisPort),
-      redis_sid_(kDefaultRedisSID),
-      redis_update_time_ms_(kDefaultRedisUpdate),
-      onnx_model_path_(""),
-      rate_update_time_ms_(kDefaultRateUpdate) {
+    : peer_id_(-1),
+      loopback_(false),
+      client_(client),
+      main_wnd_(main_wnd),
+      alphacc_config_(alphaCC::GetAlphaCCConfig()) {
   client_->RegisterObserver(this);
   main_wnd->RegisterObserver(this);
 }
@@ -131,35 +127,6 @@ bool Conductor::connection_active() const {
 void Conductor::Close() {
   client_->SignOut();
   DeletePeerConnection();
-}
-
-void Conductor::DisableWebcam() {
-  webcam_enabled_ = false;
-}
-
-void Conductor::SetAutoCloseTime(int autoclose_time_seconds) {
-  RTC_CHECK_GE(autoclose_time_seconds, kAutoCloseDisableValue);
-  autoclose_time_ms_ = autoclose_time_seconds * 1000;
-}
-
-void Conductor::SetVideoPath(std::string video_path) {
-  video_path_ = video_path;
-}
-
-void Conductor::SetRedis(std::string redis_ip, int redis_port, std::string redis_sid, int redis_update) {
-  redis_ip_ = redis_ip;
-  redis_port_ = redis_port;
-  redis_sid_ = redis_sid;
-
-  RTC_CHECK_GE(redis_update, 0);
-  redis_update_time_ms_ = redis_update;
-}
-
-void Conductor::SetRateControl(std::string onnx_model_path, int rate_update) {
-  onnx_model_path_ = onnx_model_path;
-
-  RTC_CHECK_GE(rate_update, 0);
-  rate_update_time_ms_ = rate_update;
 }
 
 bool Conductor::InitializePeerConnection() {
@@ -190,8 +157,9 @@ bool Conductor::InitializePeerConnection() {
   AddTracks();
 
   // Start the timer for auto close.
-  if (autoclose_time_ms_ != kAutoCloseDisableValue)
-    main_wnd_->StartAutoCloseTimer(autoclose_time_ms_);
+  if (alphacc_config_->conn_autoclose != kAutoCloseDisableValue) {
+    main_wnd_->StartAutoCloseTimer(alphacc_config_->conn_autoclose * 1000);
+  }
 
   return peer_connection_ != nullptr;
 }
@@ -215,7 +183,7 @@ bool Conductor::CreatePeerConnection(bool dtls) {
   RTC_DCHECK(peer_connection_factory_);
   RTC_DCHECK(!peer_connection_);
 
-  webrtc::PeerConnectionInterface::RTCConfiguration config;  
+  webrtc::PeerConnectionInterface::RTCConfiguration config;
   config.sdp_semantics = webrtc::SdpSemantics::kUnifiedPlan;
   config.enable_dtls_srtp = dtls;
   webrtc::PeerConnectionInterface::IceServer server;
@@ -494,11 +462,18 @@ void Conductor::AddTracks() {
   }
 
   rtc::scoped_refptr<webrtc::VideoTrackSource> video_device;
-  if (!webcam_enabled_)
-    video_device = webrtc::FakeVideoTrackSource::Create();
-  else
-    video_device = CapturerTrackSource::Create();
+  using VideoSourceOption = alphaCC::AlphaCCConfig::VideoSourceOption;
 
+  switch (alphacc_config_->video_source_option) {
+    case VideoSourceOption::kVideoDisabled:
+      video_device = webrtc::FakeVideoTrackSource::Create();
+      break;
+    case VideoSourceOption::kWebcam:
+      video_device = CapturerTrackSource::Create();
+      break;
+    default:
+      RTC_NOTREACHED();
+  }
 
   if (video_device) {
     rtc::scoped_refptr<webrtc::VideoTrackInterface> video_track_(

@@ -19,10 +19,10 @@
 
 #include "api/media_stream_interface.h"
 #include "api/peer_connection_interface.h"
+#include "api/alphacc_config.h"
 #include "examples/peerconnection/client/main_wnd.h"
 #include "examples/peerconnection/client/peer_connection_client.h"
 #include "pc/test/fake_video_track_source.h"
-
 
 namespace webrtc {
 class VideoCaptureModule;
@@ -50,14 +50,6 @@ class Conductor : public webrtc::PeerConnectionObserver,
   bool connection_active() const;
 
   void Close() override;
-
-  void DisableWebcam();
-
-  void SetAutoCloseTime(int autoclose_time_seconds);
-
-  void SetVideoPath(std::string video_path);
-  void SetRedis(std::string redis_ip, int redis_port, std::string redis_sid, int redis_update);
-  void SetRateControl(std::string onnx_model_path, int rate_update);
 
  protected:
   ~Conductor();
@@ -139,25 +131,7 @@ class Conductor : public webrtc::PeerConnectionObserver,
   MainWindow* main_wnd_;
   std::deque<std::string*> pending_messages_;
   std::string server_;
-  bool webcam_enabled_;
-  // Running time in milliseconds from finishing peer connection to stop.
-  int autoclose_time_ms_;
-  // The path of the input video file
-  std::string video_path_;
-
-  // The ip of Redis Service
-  std::string redis_ip_;
-  // The port of Redis Service
-  int redis_port_;
-  // The session id of Redis service
-  std::string redis_sid_;
-  // The time period of collecting states in milliseconds
-  int redis_update_time_ms_;
-
-  // The path of the onnx model
-  std::string onnx_model_path_;
-  // The rate update time in milliseconds
-  int rate_update_time_ms_;
+  const alphaCC::AlphaCCConfig* alphacc_config_;
 };
 
 #endif  // EXAMPLES_PEERCONNECTION_CLIENT_CONDUCTOR_H_

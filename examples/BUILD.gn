@@ -664,7 +664,6 @@ if (is_linux || is_win) {
     ]
     if (is_win) {
       sources += [
-        "peerconnection/client/flag_defs.h",
         "peerconnection/client/main.cc",
         "peerconnection/client/main_wnd.cc",
         "peerconnection/client/main_wnd.h",
