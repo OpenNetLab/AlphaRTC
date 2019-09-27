@@ -13,7 +13,7 @@
 
 #include <string>
 
-namespace alphacc {
+namespace webrtc {
 
 struct AlphaCCConfig {
   AlphaCCConfig() = default;
@@ -46,23 +46,21 @@ struct AlphaCCConfig {
     kWebcam,
     kVideoFile,
   } video_source_option;
-
-  enum class AudioSourceOption { kMicrophone, kAudioFile } audio_source_option;
-
   int video_height = 0;
   int video_width = 0;
   int video_fps = 0;
   std::string video_file_path;
 
+  enum class AudioSourceOption { kMicrophone, kAudioFile } audio_source_option;
   std::string audio_file_path;
 };
 
-// Get alphacc global configurations
+// Get alphaCC global configurations
 const AlphaCCConfig* GetAlphaCCConfig();
 
 // Parse configurations files from |file_path|
 bool ParseAlphaCCConfig(const std::string& file_path);
 
-}  // namespace alphaCC
+}  // namespace webrtc
 
 #endif  // API_ALPHACC_CONFIG_H_

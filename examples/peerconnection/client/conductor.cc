@@ -34,7 +34,7 @@
 #include "api/video_codecs/video_encoder_factory.h"
 #include "examples/peerconnection/client/defaults.h"
 #include "modules/audio_device/include/audio_device.h"
-#include "modules/audio_device/include/test_audio_device_alphacc.h"
+#include "modules/audio_device/include/test_audio_device.h"
 #include "modules/audio_processing/include/audio_processing.h"
 #include "modules/video_capture/video_capture.h"
 #include "modules/video_capture/video_capture_factory.h"
@@ -45,7 +45,7 @@
 #include "rtc_base/ref_counted_object.h"
 #include "rtc_base/rtc_certificate_generator.h"
 #include "rtc_base/strings/json.h"
-#include "test/frame_generator_capturer_alphacc.h"
+#include "test/frame_generator_capturer.h"
 #include "test/vcm_capturer.h"
 
 namespace {
@@ -75,20 +75,24 @@ class FrameGeneratorTrackSource : public webrtc::VideoTrackSource {
  public:
   static rtc::scoped_refptr<FrameGeneratorTrackSource> Create(
       std::shared_ptr<rtc::Event> audio_started_) {
-    auto alphaCCConfig = alphacc::GetAlphaCCConfig();
+    auto alphaCCConfig = webrtc::GetAlphaCCConfig();
     // Creat an FrameGenerator, responsible for reading yuv files
     std::unique_ptr<webrtc::test::FrameGenerator> yuv_frame_generator(
         webrtc::test::FrameGenerator::CreateFromYuvFile(
-            std::vector<std::string>{alphaCCConfig->video_file_path},
-            alphaCCConfig->video_width, alphaCCConfig->video_height,
+            std::vector<std::string>{
+                alphaCCConfig->video_file_path}, /* file_path */
+            alphaCCConfig->video_width,          /*video_width */
+            alphaCCConfig->video_height,         /*video_height*/
             1 /*frame_repeat_count*/));
 
     // Use FrameGenerator to periodically capture frames
-    std::unique_ptr<alphacc::FrameGeneratorCapturer> capturer(
-        new alphacc::FrameGeneratorCapturer(
-            webrtc::Clock::GetRealTimeClock(), std::move(yuv_frame_generator),
-            alphaCCConfig->video_fps,
-            *webrtc::CreateDefaultTaskQueueFactory()));
+    std::unique_ptr<webrtc::test::FrameGeneratorCapturer> capturer(
+        new webrtc::test::FrameGeneratorCapturer(
+            webrtc::Clock::GetRealTimeClock(),        /* clock */
+            std::move(yuv_frame_generator),           /* frame_generator */
+            alphaCCConfig->video_fps,                 /* target_fps*/
+            *webrtc::CreateDefaultTaskQueueFactory(), /* task_queue_factory */
+            false /* sending */));
 
     return new rtc::RefCountedObject<FrameGeneratorTrackSource>(
         std::move(capturer), audio_started_);
@@ -96,17 +100,17 @@ class FrameGeneratorTrackSource : public webrtc::VideoTrackSource {
 
  protected:
   explicit FrameGeneratorTrackSource(
-      std::unique_ptr<alphacc::FrameGeneratorCapturer> capturer,
+      std::unique_ptr<webrtc::test::FrameGeneratorCapturer> capturer,
       std::shared_ptr<rtc::Event> audio_started_)
       : VideoTrackSource(/*remote=*/false), capturer_(std::move(capturer)) {
     // Creat a thread that waits for the audio capturer thread
     // to start
     std::thread waiting_for_audio_started_([this, audio_started_]() {
-      auto alphaCCConfig = alphacc::GetAlphaCCConfig();
+      auto alphaCCConfig = webrtc::GetAlphaCCConfig();
 
       // Only wait for audio to start when use audio file
       if (alphaCCConfig->audio_source_option ==
-          alphacc::AlphaCCConfig::AudioSourceOption::kAudioFile) {
+          webrtc::AlphaCCConfig::AudioSourceOption::kAudioFile) {
         audio_started_->Wait(rtc::Event::kForever);
       }
       if (capturer_ && capturer_->Init()) {
@@ -122,7 +126,7 @@ class FrameGeneratorTrackSource : public webrtc::VideoTrackSource {
     return capturer_.get();
   }
 
-  std::unique_ptr<alphacc::FrameGeneratorCapturer> capturer_;
+  std::unique_ptr<webrtc::test::FrameGeneratorCapturer> capturer_;
 };
 
 class CapturerTrackSource : public webrtc::VideoTrackSource {
@@ -169,7 +173,7 @@ Conductor::Conductor(PeerConnectionClient* client, MainWindow* main_wnd)
       loopback_(false),
       client_(client),
       main_wnd_(main_wnd),
-      alphacc_config_(alphacc::GetAlphaCCConfig()),
+      alphacc_config_(webrtc::GetAlphaCCConfig()),
       audio_started_(std::make_shared<rtc::Event>()) {
   client_->RegisterObserver(this);
   main_wnd->RegisterObserver(this);
@@ -195,16 +199,16 @@ bool Conductor::InitializePeerConnection() {
   auto task_queue_factory = webrtc::CreateDefaultTaskQueueFactory();
   rtc::scoped_refptr<webrtc::AudioDeviceModule> audio_device_module = nullptr;
 
-  using AudioSourceOption = alphacc::AlphaCCConfig::AudioSourceOption;
+  using AudioSourceOption = webrtc::AlphaCCConfig::AudioSourceOption;
   // Use audio file for audio input
   if (alphacc_config_->audio_source_option == AudioSourceOption::kAudioFile) {
-    auto capturer = alphacc::TestAudioDeviceModule::CreateWavFileReader(
+    auto capturer = webrtc::TestAudioDeviceModule::CreateWavFileReader(
         alphacc_config_->audio_file_path, true);
 
-    auto discard = alphacc::TestAudioDeviceModule::CreateDiscardRenderer(
+    auto discard = webrtc::TestAudioDeviceModule::CreateDiscardRenderer(
         8000 /*sampling frequecy, unused*/, 2 /*num_channels, ununsed*/);
 
-    audio_device_module = alphacc::TestAudioDeviceModule::Create(
+    audio_device_module = webrtc::TestAudioDeviceModule::Create(
         task_queue_factory.get(), std::move(capturer), std::move(discard),
         audio_started_);
   } else if (alphacc_config_->audio_source_option ==
@@ -533,7 +537,7 @@ void Conductor::AddTracks() {
   }
 
   rtc::scoped_refptr<webrtc::VideoTrackSource> video_device;
-  using VideoSourceOption = alphacc::AlphaCCConfig::VideoSourceOption;
+  using VideoSourceOption = webrtc::AlphaCCConfig::VideoSourceOption;
 
   switch (alphacc_config_->video_source_option) {
     case VideoSourceOption::kVideoDisabled:

@@ -32,8 +32,20 @@ FrameGeneratorCapturer::FrameGeneratorCapturer(
     std::unique_ptr<FrameGenerator> frame_generator,
     int target_fps,
     TaskQueueFactory& task_queue_factory)
+    : FrameGeneratorCapturer(clock,
+                             std::move(frame_generator),
+                             target_fps,
+                             task_queue_factory,
+                             true) {}
+
+FrameGeneratorCapturer::FrameGeneratorCapturer(
+    Clock* clock,
+    std::unique_ptr<FrameGenerator> frame_generator,
+    int target_fps,
+    TaskQueueFactory& task_queue_factory,
+    bool sending)
     : clock_(clock),
-      sending_(true),
+      sending_(sending),
       sink_wants_observer_(nullptr),
       frame_generator_(std::move(frame_generator)),
       source_fps_(target_fps),
@@ -45,7 +57,6 @@ FrameGeneratorCapturer::FrameGeneratorCapturer(
   RTC_DCHECK(frame_generator_);
   RTC_DCHECK_GT(target_fps, 0);
 }
-
 FrameGeneratorCapturer::~FrameGeneratorCapturer() {
   Stop();
 }

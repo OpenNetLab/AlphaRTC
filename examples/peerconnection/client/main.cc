@@ -50,11 +50,11 @@ int PASCAL wWinMain(HINSTANCE instance,
   // File path is passed through |cmd_line|
   char cmd_line_s[1024];
   wcstombs(cmd_line_s, cmd_line, 1024);
-  if (!alphacc::ParseAlphaCCConfig(cmd_line_s)) {
+  if (!webrtc::ParseAlphaCCConfig(cmd_line_s)) {
     RTC_NOTREACHED();
     return -1;
   };
-  auto config = alphacc::GetAlphaCCConfig();
+  auto config = webrtc::GetAlphaCCConfig();
 
   MainWnd wnd(config->conn_server_ip.c_str(), config->conn_server_port,
               config->conn_autoconnect, config->conn_autocall);

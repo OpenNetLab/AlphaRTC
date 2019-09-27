@@ -12,7 +12,7 @@
     }                           \
   } while (0)
 
-namespace alphacc {
+namespace webrtc {
 // alphaCC global configurations
 static AlphaCCConfig* config;
 
@@ -88,8 +88,8 @@ bool ParseAlphaCCConfig(const std::string& file_path) {
       RETURN_ON_FAIL(GetString(third, "file_path", &config->video_file_path));
     }
   }
-  second.clear();
   third.clear();
+  second.clear();
   enabled = false;
   RETURN_ON_FAIL(GetValue(top, "audio_source", &second));
   RETURN_ON_FAIL(GetValue(second, "microphone", &third));

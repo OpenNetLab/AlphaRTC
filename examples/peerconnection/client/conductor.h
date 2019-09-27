@@ -131,7 +131,7 @@ class Conductor : public webrtc::PeerConnectionObserver,
   MainWindow* main_wnd_;
   std::deque<std::string*> pending_messages_;
   std::string server_;
-  const alphacc::AlphaCCConfig* alphacc_config_;
+  const webrtc::AlphaCCConfig* alphacc_config_;
   std::shared_ptr<rtc::Event> audio_started_;
 };
 
