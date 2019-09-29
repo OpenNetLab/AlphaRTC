@@ -190,14 +190,6 @@ bool Conductor::CreatePeerConnection(bool dtls) {
   server.uri = GetPeerConnectionString();
   config.servers.push_back(server);
 
-  config.redis_ip = redis_ip_;
-  config.redis_port = redis_port_;
-  config.redis_sid = redis_sid_;
-  config.redis_update_ms = redis_update_time_ms_;
-
-  config.onnx_model_path = onnx_model_path_;
-  config.rate_update_ms = rate_update_time_ms_;
-
   peer_connection_ = peer_connection_factory_->CreatePeerConnection(
       config, nullptr, nullptr, this);
   return peer_connection_ != nullptr;
