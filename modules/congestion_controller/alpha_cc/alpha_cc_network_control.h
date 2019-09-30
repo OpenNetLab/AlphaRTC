@@ -52,11 +52,9 @@ class GoogCcNetworkController : public NetworkControllerInterface {
       TransportPacketsFeedback msg) override;
   NetworkControlUpdate OnNetworkStateEstimate(
       NetworkStateEstimate msg) override;      
-
+  NetworkControlUpdate OnReceiveBwe(BweMessage msg) override;
   NetworkControlUpdate GetNetworkState(Timestamp at_time) const;
   NetworkControlUpdate GetDefaultState(Timestamp at_time);
-
-  NetworkControlUpdate OnReceiveBwe(BweMessage msg) override;
 
  private:
   friend class GoogCcStatePrinter;

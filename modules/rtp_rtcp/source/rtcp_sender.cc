@@ -1003,8 +1003,9 @@ bool RTCPSender::SendApplicationPacket(const rtcp::App& packet) {
   size_t max_packet_size;
   {
     rtc::CritScope lock(&critical_section_rtcp_sender_);
-    if (method_ == RtcpMode::kOff)
+    if (method_ == RtcpMode::kOff) {
       return false;
+    }
     max_packet_size = max_packet_size_;
   }
 

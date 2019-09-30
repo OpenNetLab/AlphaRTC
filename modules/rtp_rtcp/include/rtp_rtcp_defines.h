@@ -24,7 +24,7 @@
 #include "api/transport/network_types.h"
 #include "modules/include/module_common_types.h"
 #include "system_wrappers/include/clock.h"
-#include "rtc_base\logging.h"
+#include "rtc_base/logging.h"
 
 #define RTCP_CNAME_SIZE 256  // RFC 3550 page 44, including null termination
 #define IP_PACKET_SIZE 1500  // we assume ethernet
@@ -304,7 +304,6 @@ class TransportFeedbackObserver {
   virtual void OnAddPacket(const RtpPacketSendInfo& packet_info) = 0;
   virtual void OnTransportFeedback(const rtcp::TransportFeedback& feedback) = 0;
   virtual void OnApplicationPacket(const rtcp::App& app){}
-
 };
 
 // Interface for PacketRouter to send rtcp feedback on behalf of

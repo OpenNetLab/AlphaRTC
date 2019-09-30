@@ -128,8 +128,7 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
   update.target_rate->target_rate = bandwidth;
 
   //*-----Set pacing & padding_rate-----*//
-  int32_t default_pacing_rate =
-      300000;                        // default:300000;=> 750000 bps = 750 kbps
+  int32_t default_pacing_rate = 300000;   // default:300000;=> 750000 bps = 750 kbps
   int32_t default_padding_rate = 0;  // default: 0bps = 0kbps
   DataRate pacing_rate = DataRate::bps(default_pacing_rate * pacing_factor_);
   DataRate padding_rate = DataRate::bps(default_padding_rate);

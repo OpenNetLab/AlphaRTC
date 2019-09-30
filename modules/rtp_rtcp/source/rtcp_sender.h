@@ -146,7 +146,6 @@ class RTCPSender {
   void SetTargetBitrate(unsigned int target_bitrate);
   void SetVideoBitrateAllocation(const VideoBitrateAllocation& bitrate);
   bool SendFeedbackPacket(const rtcp::TransportFeedback& packet);
-
   bool SendApplicationPacket(const rtcp::App& packet);
 
  private:

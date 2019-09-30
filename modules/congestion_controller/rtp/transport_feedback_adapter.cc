@@ -175,7 +175,6 @@ TransportFeedbackAdapter::ProcessTransportFeedback(
   return msg;
 }
 
-
 void TransportFeedbackAdapter::SetNetworkIds(uint16_t local_id,
                                              uint16_t remote_id) {
   rtc::CritScope cs(&lock_);

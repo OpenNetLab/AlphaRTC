@@ -50,7 +50,6 @@ class TransportFeedbackAdapter {
       const rtcp::TransportFeedback& feedback,
       Timestamp feedback_time);
 
-  
   std::vector<PacketFeedback> GetTransportFeedbackVector() const;
 
   void SetNetworkIds(uint16_t local_id, uint16_t remote_id);

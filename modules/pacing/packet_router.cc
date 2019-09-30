@@ -346,8 +346,6 @@ bool PacketRouter::SendApplicationPacket(rtcp::App* packet) {
   return false;
 }
 
-
-
 void PacketRouter::AddRembModuleCandidate(
     RtcpFeedbackSenderInterface* candidate_module,
     bool media_sender) {

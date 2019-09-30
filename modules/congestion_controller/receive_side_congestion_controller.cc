@@ -30,7 +30,7 @@ ReceiveSideCongestionController::WrappingBitrateEstimator::
       rbe_(new RemoteBitrateEstimatorSingleStream(observer_, clock_)),
       using_absolute_send_time_(false),
       packets_since_absolute_send_time_(0),
-      min_bitrate_bps_(congestion_controller::GetMinBitrateBps()){}
+      min_bitrate_bps_(congestion_controller::GetMinBitrateBps()) {}
 
 ReceiveSideCongestionController::WrappingBitrateEstimator::
     ~WrappingBitrateEstimator() = default;

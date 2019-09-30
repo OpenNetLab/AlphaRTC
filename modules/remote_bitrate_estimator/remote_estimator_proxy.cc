@@ -42,8 +42,7 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       feedback_packet_count_(0),
       send_interval_ms_(send_config_.default_interval->ms()),
       send_periodic_feedback_(true),
-      bwe_sendback_interval_ms_(
-          alphaCC::GetAlphaCCConfig()->bwe_feedback_duration_ms),
+      bwe_sendback_interval_ms_(GetAlphaCCConfig()->bwe_feedback_duration_ms),
       last_bwe_sendback_ms_(clock->TimeInMilliseconds()) {
   RTC_LOG(LS_INFO)
       << "Maximum interval between transport feedback RTCP messages (ms): "
@@ -66,11 +65,10 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   OnPacketArrival(header.extension.transportSequenceNumber, arrival_time_ms,
                   header.extension.feedback_request);
   if (TimeToSendBweMessage()) {
-    BweMessage bm;
-    bm.timestamp_ms = clock_->TimeInMilliseconds();
-    SendbackBweEstimation(bm);
+    BweMessage bwe;
+    bwe.timestamp_ms = clock_->TimeInMilliseconds();
+    SendbackBweEstimation(bwe);
   }
-  
 }
 
 bool RemoteEstimatorProxy::LatestEstimate(std::vector<unsigned int>* ssrcs,
@@ -180,7 +178,7 @@ void RemoteEstimatorProxy::OnPacketArrival(
   }
 }
 
-bool RemoteEstimatorProxy::TimeToSendBweMessage(){
+bool RemoteEstimatorProxy::TimeToSendBweMessage() {
   int64_t time_now = clock_->TimeInMilliseconds();
   if (time_now - bwe_sendback_interval_ms_ > last_bwe_sendback_ms_) {
     last_bwe_sendback_ms_ = time_now;
@@ -188,7 +186,6 @@ bool RemoteEstimatorProxy::TimeToSendBweMessage(){
   }
   return false;
 }
-
 
 void RemoteEstimatorProxy::SendPeriodicFeedbacks() {
   // |periodic_window_start_seq_| is the first sequence number to include in the

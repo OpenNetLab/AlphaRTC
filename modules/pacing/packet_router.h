@@ -88,6 +88,7 @@ class PacketRouter : public TransportSequenceNumberAllocator,
   // Send transport feedback packet to send-side.
   bool SendTransportFeedback(rtcp::TransportFeedback* packet) override;
 
+  // Send RTCP packet which has the subtype APP
   bool SendApplicationPacket(rtcp::App* packet) override;
 
  private:
