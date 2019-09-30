@@ -43,6 +43,12 @@ class FrameGeneratorCapturer : public TestVideoCapturer {
                          std::unique_ptr<FrameGenerator> frame_generator,
                          int target_fps,
                          TaskQueueFactory& task_queue_factory);
+  FrameGeneratorCapturer(Clock* clock,
+                         std::unique_ptr<FrameGenerator> frame_generator,
+                         int target_fps,
+                         TaskQueueFactory& task_queue_factory,
+                         bool sending);
+
   virtual ~FrameGeneratorCapturer();
 
   void Start();
