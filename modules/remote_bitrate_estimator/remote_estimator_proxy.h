@@ -16,6 +16,7 @@
 
 #include "api/transport/webrtc_key_value_config.h"
 #include "modules/remote_bitrate_estimator/include/remote_bitrate_estimator.h"
+#include "modules/third_party/onnxinfer/include/ONNXInferInterface.h"
 #include "modules/third_party/statcollect/include/StatCollect.h"
 #include "rtc_base/critical_section.h"
 #include "rtc_base/experiments/field_trial_parser.h"
@@ -95,6 +96,8 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
 
   void SaveIntoRedis(int retry_times = 0);
   bool TimeToSaveIntoRedis() RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
+  uint32_t GetTtimeFromAbsSendtime(uint32_t absoluteSendTime)
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
 
   Clock* const clock_;
   TransportFeedbackSenderInterface* const feedback_sender_;
@@ -122,6 +125,7 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   int64_t last_redis_save_ms_ RTC_GUARDED_BY(&lock_);
   int cycles_ RTC_GUARDED_BY(&lock_);
   uint32_t max_abs_send_time_ RTC_GUARDED_BY(&lock_);
+  onnxinfer::ONNXInferInterface* onnx_infer_;
 };
 
 }  // namespace webrtc

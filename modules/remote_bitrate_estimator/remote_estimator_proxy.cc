@@ -11,6 +11,7 @@
 #ifdef WIN32
 #pragma comment(lib, \
                 "../../modules/third_party/statcollect/lib/StatCollect.lib")
+#pragma comment(lib, "../../modules/third_party/onnxinfer/lib/onnxinfer.lib")
 #endif  //  WIN32
 
 #include "modules/remote_bitrate_estimator/remote_estimator_proxy.h"
@@ -54,7 +55,9 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       redis_save_interval_ms_(GetAlphaCCConfig()->redis_update_duration_ms),
       last_redis_save_ms_(clock->TimeInMilliseconds()),
       cycles_(-1),
-      max_abs_send_time_(0) {
+      max_abs_send_time_(0),
+      onnx_infer_(onnxinfer::CreateONNXInferInterface(
+          GetAlphaCCConfig()->onnx_model_path.c_str())) {
   RTC_LOG(LS_INFO)
       << "Maximum interval between transport feedback RTCP messages (ms): "
       << send_config_.max_interval->ms();
@@ -62,6 +65,9 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       GetAlphaCCConfig()->redis_ip.c_str(), GetAlphaCCConfig()->redis_port);
   if (connect_result != StatCollect::SC_SUCCESS) {
     RTC_LOG(LS_ERROR) << "StatCollect failed.";
+  }
+  if (onnx_infer_ == nullptr) {
+    RTC_LOG(LS_ERROR) << "Failed to create onnx_infer_";
   }
 }
 
@@ -82,51 +88,41 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   media_ssrc_ = header.ssrc;
   OnPacketArrival(header.extension.transportSequenceNumber, arrival_time_ms,
                   header.extension.feedback_request);
-  if (TimeToSendBweMessage()) {
+
+  //--- ONNXInfer: Input the per-packet info to ONNXInfer module ---
+  onnx_infer_->OnReceived(header.payloadType, header.sequenceNumber, 0,
+                          header.ssrc, header.paddingLength,
+                          header.headerLength, arrival_time_ms, payload_size,
+                          0);
+
+  //--- BandWidthControl: Send back bandwidth estimation into to sender ---
+  bool time_to_send_bew_message = TimeToSendBweMessage();
+  float estimation = 0;
+  if (time_to_send_bew_message) {
     BweMessage bwe;
+    estimation = onnx_infer_->GetBweEstimate();
+    bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
     bwe.timestamp_ms = clock_->TimeInMilliseconds();
     SendbackBweEstimation(bwe);
   }
-  // ---------- Calculate Sender absolute timestamp ------------------
-  if (cycles_ == -1) {
-    // Initalize
-    max_abs_send_time_ = header.extension.absoluteSendTime;
-    cycles_ = 0;
-  }
-  // Abs sender time is 24 bit 6.18 fixed point. Shift by 8 to normalize to
-  // 32 bits (unsigned). Calculate the difference between this packet's
-  // send time and the maximum observed. Cast to signed 32-bit to get the
-  // desired wrap-around behavior.
-  if (static_cast<int32_t>((header.extension.absoluteSendTime << 8) -
-                           (max_abs_send_time_ << 8)) >= 0) {
-    // The difference is non-negative, meaning that this packet is newer
-    // than the previously observed maximum absolute send time.
-    if (header.extension.absoluteSendTime < max_abs_send_time_) {
-      // Wrap detected.
-      cycles_++;
-    }
-    max_abs_send_time_ = header.extension.absoluteSendTime;
-  }
-  // Abs sender time is 24 bit 6.18 fixed point. Divide by 2^18 to convert
-  // to floating point representation.
-  double send_time_seconds =
-      static_cast<double>(header.extension.absoluteSendTime) / 262144 +
-      64.0 * cycles_;
-  uint32_t send_time_ms =
-      static_cast<uint32_t>(std::round(send_time_seconds * 1000));
-  // -------------------------------------------------------------
 
-  // ---------- Collect packet-related info into redis ----------
-  stats_collect_.StatsCollect(SC_PACER_PACING_RATE_EMPTY,
-                              SC_PACER_PADDING_RATE_EMPTY, header.payloadType,
+  // -- StatCollect: Collect packet-related info into redis ------
+  uint32_t send_time_ms =
+      GetTtimeFromAbsSendtime(header.extension.absoluteSendTime);
+  double pacing_rate =
+      time_to_send_bew_message ? estimation : SC_PACER_PACING_RATE_EMPTY;
+  double padding_rate =
+      time_to_send_bew_message ? estimation : SC_PACER_PADDING_RATE_EMPTY;
+
+  // Save per-packet info locally on receiving
+  stats_collect_.StatsCollect(pacing_rate, padding_rate, header.payloadType,
                               header.sequenceNumber, send_time_ms, header.ssrc,
                               header.paddingLength, header.headerLength,
                               arrival_time_ms, payload_size, 0);
-
+  // Periodically push to remote redis service
   if (TimeToSaveIntoRedis()) {
     SaveIntoRedis();
   }
-  // -------------------------------------------------------------
 }
 
 bool RemoteEstimatorProxy::LatestEstimate(std::vector<unsigned int>* ssrcs,
@@ -340,6 +336,35 @@ int64_t RemoteEstimatorProxy::BuildFeedbackPacket(
   return next_sequence_number;
 }
 
+uint32_t RemoteEstimatorProxy::GetTtimeFromAbsSendtime(
+    uint32_t absoluteSendTime) {
+  if (cycles_ == -1) {
+    // Initalize
+    max_abs_send_time_ = absoluteSendTime;
+    cycles_ = 0;
+  }
+  // Abs sender time is 24 bit 6.18 fixed point. Shift by 8 to normalize to
+  // 32 bits (unsigned). Calculate the difference between this packet's
+  // send time and the maximum observed. Cast to signed 32-bit to get the
+  // desired wrap-around behavior.
+  if (static_cast<int32_t>((absoluteSendTime << 8) -
+                           (max_abs_send_time_ << 8)) >= 0) {
+    // The difference is non-negative, meaning that this packet is newer
+    // than the previously observed maximum absolute send time.
+    if (absoluteSendTime < max_abs_send_time_) {
+      // Wrap detected.
+      cycles_++;
+    }
+    max_abs_send_time_ = absoluteSendTime;
+  }
+  // Abs sender time is 24 bit 6.18 fixed point. Divide by 2^18 to convert
+  // to floating point representation.
+  double send_time_seconds =
+      static_cast<double>(absoluteSendTime) / 262144 + 64.0 * cycles_;
+  uint32_t send_time_ms =
+      static_cast<uint32_t>(std::round(send_time_seconds * 1000));
+  return send_time_ms;
+}
 void RemoteEstimatorProxy::SaveIntoRedis(int retry_times) {
   StatCollect::SCResult res = stats_collect_.DBSave();
   if (res == StatCollect::SC_SUCCESS) {
