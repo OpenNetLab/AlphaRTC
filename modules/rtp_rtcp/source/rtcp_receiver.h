@@ -20,6 +20,7 @@
 #include "modules/rtp_rtcp/include/report_block_data.h"
 #include "modules/rtp_rtcp/include/rtcp_statistics.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
+#include "modules/rtp_rtcp/source/rtcp_packet/app.h"
 #include "modules/rtp_rtcp/source/rtcp_nack_stats.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/dlrr.h"
 #include "rtc_base/critical_section.h"
@@ -212,6 +213,10 @@ class RTCPReceiver {
       RTC_EXCLUSIVE_LOCKS_REQUIRED(rtcp_receiver_lock_);
 
   void HandleTransportFeedback(const rtcp::CommonHeader& rtcp_block,
+                               PacketInformation* packet_information)
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(rtcp_receiver_lock_);
+
+  void HandleApplicationPacket(const rtcp::CommonHeader& rtcp_block,
                                PacketInformation* packet_information)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(rtcp_receiver_lock_);
 

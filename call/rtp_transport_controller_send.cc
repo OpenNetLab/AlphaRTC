@@ -451,6 +451,21 @@ void RtpTransportControllerSend::OnTransportFeedback(
       transport_feedback_adapter_.GetOutstandingData().bytes());
 }
 
+void RtpTransportControllerSend::OnApplicationPacket(const rtcp::App& app) {
+  RTC_DCHECK_RUNS_SERIALIZED(&worker_race_);
+
+  if (app.sub_type() != kAppPacketSubType || app.name() != kAppPacketName) {
+    return;
+  }
+  const BweMessage bwe = *reinterpret_cast<const BweMessage*>(app.data());
+  task_queue_.PostTask([this, bwe]() {
+    RTC_DCHECK_RUN_ON(&task_queue_);
+    if (controller_) {
+      PostUpdates(controller_->OnReceiveBwe(bwe));
+    }
+  });
+}
+
 void RtpTransportControllerSend::MaybeCreateControllers() {
   RTC_DCHECK(!controller_);
   RTC_DCHECK(!control_handler_);

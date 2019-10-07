@@ -335,6 +335,17 @@ bool PacketRouter::SendTransportFeedback(rtcp::TransportFeedback* packet) {
   return false;
 }
 
+bool PacketRouter::SendApplicationPacket(rtcp::App* packet) {
+  rtc::CritScope cs(&modules_crit_);
+  for (auto* rtp_module : rtp_send_modules_) {
+    packet->SetSsrc(rtp_module->SSRC());
+    if (rtp_module->SendApplicationPacket(*packet)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void PacketRouter::AddRembModuleCandidate(
     RtcpFeedbackSenderInterface* candidate_module,
     bool media_sender) {

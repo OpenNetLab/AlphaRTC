@@ -23,7 +23,7 @@
 
 namespace webrtc {
 namespace {
-  
+
 /*
 // From RTCPSender video report interval.
 constexpr TimeDelta kLossUpdateInterval = TimeDelta::Millis<1000>();
@@ -53,7 +53,7 @@ GoogCcNetworkController::GoogCcNetworkController(NetworkControllerConfig config,
           kDefaultPaceMultiplier)),
       min_total_allocated_bitrate_(
           config.stream_based_config.min_total_allocated_bitrate.value_or(
-              DataRate::Zero())){
+              DataRate::Zero())) {
   RTC_DCHECK(config.constraints.at_time.IsFinite());
   ParseFieldTrial(
       {&safe_reset_on_route_change_, &safe_reset_acknowledged_rate_},
@@ -102,7 +102,7 @@ NetworkControlUpdate GoogCcNetworkController::OnReceivedPacket(
   return NetworkControlUpdate();
 }
 
-//Make this alive since this might be used to tune the birate.
+// Make this alive since this might be used to tune the birate.
 NetworkControlUpdate GoogCcNetworkController::OnTargetRateConstraints(
     TargetRateConstraints constraints) {
   return NetworkControlUpdate();
@@ -111,7 +111,7 @@ NetworkControlUpdate GoogCcNetworkController::OnTargetRateConstraints(
 NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
     Timestamp at_time) {
   //*-----Set target_rate-----*//
-  int32_t default_bitrate_bps = 300000;//default: 300000 bps = 300 kbps
+  int32_t default_bitrate_bps = 300000;  // default: 300000 bps = 300 kbps
   DataRate bandwidth = DataRate::bps(default_bitrate_bps);
   TimeDelta rtt = TimeDelta::ms(last_estimated_rtt_ms_);
   NetworkControlUpdate update;
@@ -122,14 +122,14 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
       last_estimated_fraction_loss_ / 255.0;
   update.target_rate->network_estimate.round_trip_time = rtt;
 
-  TimeDelta default_bwe_period = TimeDelta::seconds(3); //the default is 3sec
-  update.target_rate->network_estimate.bwe_period = default_bwe_period; 
+  TimeDelta default_bwe_period = TimeDelta::seconds(3);  // the default is 3sec
+  update.target_rate->network_estimate.bwe_period = default_bwe_period;
   update.target_rate->at_time = at_time;
   update.target_rate->target_rate = bandwidth;
 
   //*-----Set pacing & padding_rate-----*//
-  int32_t default_pacing_rate = 300000;//default:300000;=> 750000 bps = 750 kbps
-  int32_t default_padding_rate = 0;//default: 0bps = 0kbps
+  int32_t default_pacing_rate = 300000;   // default:300000;=> 750000 bps = 750 kbps
+  int32_t default_padding_rate = 0;  // default: 0bps = 0kbps
   DataRate pacing_rate = DataRate::bps(default_pacing_rate * pacing_factor_);
   DataRate padding_rate = DataRate::bps(default_padding_rate);
   PacerConfig msg;
@@ -144,7 +144,7 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
   update.congestion_window = current_data_window_;
 
   //*-----Set probe_cluster_configs-----*//
-  
+
   /*
   ClampConstraints();
 
@@ -152,13 +152,46 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
       min_data_rate_.bps(), GetBpsOrDefault(starting_rate_, -1),
       max_data_rate_.bps_or(-1), at_time.ms());
   */
-  
+
   // MSRA:SetBitrates:32000,300000,-1,139444174
-  //0,-1,-1,139861040
+  // 0,-1,-1,139861040
   return update;
 }
 
+NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
+  int32_t default_bitrate_bps = static_cast<int32_t>(bwe.target_rate);  // default: 300000 bps = 300 kbps
+  DataRate bandwidth = DataRate::bps(default_bitrate_bps);
+  TimeDelta rtt = TimeDelta::ms(last_estimated_rtt_ms_);
+  NetworkControlUpdate update;
+  update.target_rate = TargetTransferRate();
+  update.target_rate->network_estimate.at_time = Timestamp::ms(bwe.timestamp_ms);
+  update.target_rate->network_estimate.bandwidth = bandwidth;
+  update.target_rate->network_estimate.loss_rate_ratio =
+      last_estimated_fraction_loss_ / 255.0;
+  update.target_rate->network_estimate.round_trip_time = rtt;
 
+  TimeDelta default_bwe_period = TimeDelta::seconds(3);  // the default is 3sec
+  update.target_rate->network_estimate.bwe_period = default_bwe_period;
+  update.target_rate->at_time = Timestamp::ms(bwe.timestamp_ms);
+  update.target_rate->target_rate = bandwidth;
+
+  //*-----Set pacing & padding_rate-----*//
+  int32_t default_pacing_rate = static_cast<int32_t>(bwe.pacing_rate); 
+  int32_t default_padding_rate = 0;  // default: 0bps = 0kbps
+  DataRate pacing_rate = DataRate::bps(default_pacing_rate * pacing_factor_);
+  DataRate padding_rate = DataRate::bps(default_padding_rate);
+  PacerConfig msg;
+  msg.at_time = Timestamp::ms(bwe.timestamp_ms);
+  msg.time_window = TimeDelta::seconds(1);
+  msg.data_window = pacing_rate * msg.time_window;
+  msg.pad_window = padding_rate * msg.time_window;
+
+  update.pacer_config = msg;
+
+  //*-----Set congestion_window-----*//
+  update.congestion_window = current_data_window_;
+  return update;
+}
 
 void GoogCcNetworkController::ClampConstraints() {
   // TODO(holmer): We should make sure the default bitrates are set to 10 kbps,

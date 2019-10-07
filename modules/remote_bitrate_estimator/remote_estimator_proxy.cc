@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <limits>
 
+#include "api/alphacc_config.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/transport_feedback.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
@@ -40,7 +41,9 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       media_ssrc_(0),
       feedback_packet_count_(0),
       send_interval_ms_(send_config_.default_interval->ms()),
-      send_periodic_feedback_(true) {
+      send_periodic_feedback_(true),
+      bwe_sendback_interval_ms_(GetAlphaCCConfig()->bwe_feedback_duration_ms),
+      last_bwe_sendback_ms_(clock->TimeInMilliseconds()) {
   RTC_LOG(LS_INFO)
       << "Maximum interval between transport feedback RTCP messages (ms): "
       << send_config_.max_interval->ms();
@@ -61,6 +64,11 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   media_ssrc_ = header.ssrc;
   OnPacketArrival(header.extension.transportSequenceNumber, arrival_time_ms,
                   header.extension.feedback_request);
+  if (TimeToSendBweMessage()) {
+    BweMessage bwe;
+    bwe.timestamp_ms = clock_->TimeInMilliseconds();
+    SendbackBweEstimation(bwe);
+  }
 }
 
 bool RemoteEstimatorProxy::LatestEstimate(std::vector<unsigned int>* ssrcs,
@@ -170,6 +178,15 @@ void RemoteEstimatorProxy::OnPacketArrival(
   }
 }
 
+bool RemoteEstimatorProxy::TimeToSendBweMessage() {
+  int64_t time_now = clock_->TimeInMilliseconds();
+  if (time_now - bwe_sendback_interval_ms_ > last_bwe_sendback_ms_) {
+    last_bwe_sendback_ms_ = time_now;
+    return true;
+  }
+  return false;
+}
+
 void RemoteEstimatorProxy::SendPeriodicFeedbacks() {
   // |periodic_window_start_seq_| is the first sequence number to include in the
   // current feedback packet. Some older may still be in the map, in case a
@@ -218,6 +235,16 @@ void RemoteEstimatorProxy::SendFeedbackOnRequest(
 
   RTC_DCHECK(feedback_sender_ != nullptr);
   feedback_sender_->SendTransportFeedback(&feedback_packet);
+}
+
+void RemoteEstimatorProxy::SendbackBweEstimation(const BweMessage& bwe) {
+  rtcp::App app_packet;
+
+  app_packet.SetSubType(kAppPacketSubType);
+  app_packet.SetName(kAppPacketName);
+
+  app_packet.SetData(reinterpret_cast<const uint8_t*>(&bwe), sizeof(bwe));
+  feedback_sender_->SendApplicationPacket(&app_packet);
 }
 
 int64_t RemoteEstimatorProxy::BuildFeedbackPacket(
