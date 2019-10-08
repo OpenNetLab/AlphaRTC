@@ -8,6 +8,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#ifdef WIN32
+#pragma comment(lib, \
+                "../../modules/third_party/statcollect/lib/StatCollect.lib")
+#endif  //  WIN32
+
 #include "modules/remote_bitrate_estimator/remote_estimator_proxy.h"
 
 #include <algorithm>
@@ -43,13 +48,26 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       send_interval_ms_(send_config_.default_interval->ms()),
       send_periodic_feedback_(true),
       bwe_sendback_interval_ms_(GetAlphaCCConfig()->bwe_feedback_duration_ms),
-      last_bwe_sendback_ms_(clock->TimeInMilliseconds()) {
+      last_bwe_sendback_ms_(clock->TimeInMilliseconds()),
+      stats_collect_(GetAlphaCCConfig()->redis_sid.c_str(),
+                     StatCollect::SC_TYPE_STRUCT),
+      redis_save_interval_ms_(GetAlphaCCConfig()->redis_update_duration_ms),
+      last_redis_save_ms_(clock->TimeInMilliseconds()),
+      cycles_(-1),
+      max_abs_send_time_(0) {
   RTC_LOG(LS_INFO)
       << "Maximum interval between transport feedback RTCP messages (ms): "
       << send_config_.max_interval->ms();
+  auto connect_result = stats_collect_.DBConnect(
+      GetAlphaCCConfig()->redis_ip.c_str(), GetAlphaCCConfig()->redis_port);
+  if (connect_result != StatCollect::SC_SUCCESS) {
+    RTC_LOG(LS_ERROR) << "StatCollect failed.";
+  }
 }
 
-RemoteEstimatorProxy::~RemoteEstimatorProxy() {}
+RemoteEstimatorProxy::~RemoteEstimatorProxy() {
+  stats_collect_.DBClose();
+}
 
 void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
                                           size_t payload_size,
@@ -69,6 +87,46 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
     bwe.timestamp_ms = clock_->TimeInMilliseconds();
     SendbackBweEstimation(bwe);
   }
+  // ---------- Calculate Sender absolute timestamp ------------------
+  if (cycles_ == -1) {
+    // Initalize
+    max_abs_send_time_ = header.extension.absoluteSendTime;
+    cycles_ = 0;
+  }
+  // Abs sender time is 24 bit 6.18 fixed point. Shift by 8 to normalize to
+  // 32 bits (unsigned). Calculate the difference between this packet's
+  // send time and the maximum observed. Cast to signed 32-bit to get the
+  // desired wrap-around behavior.
+  if (static_cast<int32_t>((header.extension.absoluteSendTime << 8) -
+                           (max_abs_send_time_ << 8)) >= 0) {
+    // The difference is non-negative, meaning that this packet is newer
+    // than the previously observed maximum absolute send time.
+    if (header.extension.absoluteSendTime < max_abs_send_time_) {
+      // Wrap detected.
+      cycles_++;
+    }
+    max_abs_send_time_ = header.extension.absoluteSendTime;
+  }
+  // Abs sender time is 24 bit 6.18 fixed point. Divide by 2^18 to convert
+  // to floating point representation.
+  double send_time_seconds =
+      static_cast<double>(header.extension.absoluteSendTime) / 262144 +
+      64.0 * cycles_;
+  uint32_t send_time_ms =
+      static_cast<uint32_t>(std::round(send_time_seconds * 1000));
+  // -------------------------------------------------------------
+
+  // ---------- Collect packet-related info into redis ----------
+  stats_collect_.StatsCollect(SC_PACER_PACING_RATE_EMPTY,
+                              SC_PACER_PADDING_RATE_EMPTY, header.payloadType,
+                              header.sequenceNumber, send_time_ms, header.ssrc,
+                              header.paddingLength, header.headerLength,
+                              arrival_time_ms, payload_size, 0);
+
+  if (TimeToSaveIntoRedis()) {
+    SaveIntoRedis();
+  }
+  // -------------------------------------------------------------
 }
 
 bool RemoteEstimatorProxy::LatestEstimate(std::vector<unsigned int>* ssrcs,
@@ -280,6 +338,41 @@ int64_t RemoteEstimatorProxy::BuildFeedbackPacket(
     next_sequence_number = it->first + 1;
   }
   return next_sequence_number;
+}
+
+void RemoteEstimatorProxy::SaveIntoRedis(int retry_times) {
+  StatCollect::SCResult res = stats_collect_.DBSave();
+  if (res == StatCollect::SC_SUCCESS) {
+    return;
+  }
+
+  retry_times--;
+  if (retry_times < 0) {  // Do not try to save any more
+    RTC_LOG(LS_ERROR) << "Can not save rtp packet info into redis.";
+    return;
+  } else {
+    if (res == StatCollect::SC_CONNECT_ERROR) {
+      const char* redis_ip = GetAlphaCCConfig()->redis_ip.c_str();
+      int redis_port = GetAlphaCCConfig()->redis_port;
+      stats_collect_.DBConnect(redis_ip, redis_port);
+    }
+    if (res == StatCollect::SC_SESSION_ERROR ||
+        res == StatCollect::SC_COLLECT_TYPE_ERROR) {
+      const char* sessionID = GetAlphaCCConfig()->redis_sid.c_str();
+      StatCollect::SCType collectType = StatCollect::SC_TYPE_STRUCT;
+      stats_collect_.SetStatsConfig(sessionID, collectType);
+    }
+    SaveIntoRedis(retry_times);
+  }
+}
+
+bool RemoteEstimatorProxy::TimeToSaveIntoRedis() {
+  int64_t time_now = clock_->TimeInMilliseconds();
+  if (time_now - redis_save_interval_ms_ > last_redis_save_ms_) {
+    last_redis_save_ms_ = time_now;
+    return true;
+  }
+  return false;
 }
 
 }  // namespace webrtc
