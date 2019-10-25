@@ -90,7 +90,9 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
                   header.extension.feedback_request);
 
   //--- ONNXInfer: Input the per-packet info to ONNXInfer module ---
-  onnx_infer_->OnReceived(header.payloadType, header.sequenceNumber, 0,
+  uint32_t send_time_ms =
+      GetTtimeFromAbsSendtime(header.extension.absoluteSendTime);
+  onnx_infer_->OnReceived(header.payloadType, header.sequenceNumber, send_time_ms,
                           header.ssrc, header.paddingLength,
                           header.headerLength, arrival_time_ms, payload_size,
                           0);
@@ -107,8 +109,7 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   }
 
   // -- StatCollect: Collect packet-related info into redis ------
-  uint32_t send_time_ms =
-      GetTtimeFromAbsSendtime(header.extension.absoluteSendTime);
+
   double pacing_rate =
       time_to_send_bew_message ? estimation : SC_PACER_PACING_RATE_EMPTY;
   double padding_rate =
