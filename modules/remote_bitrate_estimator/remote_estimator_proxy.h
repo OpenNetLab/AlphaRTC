@@ -125,7 +125,7 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   int64_t last_redis_save_ms_ RTC_GUARDED_BY(&lock_);
   int cycles_ RTC_GUARDED_BY(&lock_);
   uint32_t max_abs_send_time_ RTC_GUARDED_BY(&lock_);
-  onnxinfer::ONNXInferInterface* onnx_infer_;
+  void* onnx_infer_;
 };
 
 }  // namespace webrtc

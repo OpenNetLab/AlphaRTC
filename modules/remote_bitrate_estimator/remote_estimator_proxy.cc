@@ -55,9 +55,11 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       redis_save_interval_ms_(GetAlphaCCConfig()->redis_update_duration_ms),
       last_redis_save_ms_(clock->TimeInMilliseconds()),
       cycles_(-1),
-      max_abs_send_time_(0),
-      onnx_infer_(onnxinfer::CreateONNXInferInterface(
-          GetAlphaCCConfig()->onnx_model_path.c_str())) {
+      max_abs_send_time_(0) {
+  onnx_infer_ = onnxinfer::CreateONNXInferInterface(GetAlphaCCConfig()->onnx_model_path.c_str());
+  if (!onnxinfer::IsReady(onnx_infer_)) {
+    RTC_LOG(LS_ERROR) << "Failed to create onnx_infer_.";
+  }
   RTC_LOG(LS_INFO)
       << "Maximum interval between transport feedback RTCP messages (ms): "
       << send_config_.max_interval->ms();
@@ -66,13 +68,13 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
   if (connect_result != StatCollect::SC_SUCCESS) {
     RTC_LOG(LS_ERROR) << "StatCollect failed.";
   }
-  if (onnx_infer_ == nullptr) {
-    RTC_LOG(LS_ERROR) << "Failed to create onnx_infer_";
-  }
 }
 
 RemoteEstimatorProxy::~RemoteEstimatorProxy() {
   stats_collect_.DBClose();
+  if (onnx_infer_) {
+    onnxinfer::DestroyONNXInferInterface(onnx_infer_);
+  }
 }
 
 void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
@@ -92,17 +94,16 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   //--- ONNXInfer: Input the per-packet info to ONNXInfer module ---
   uint32_t send_time_ms =
       GetTtimeFromAbsSendtime(header.extension.absoluteSendTime);
-  onnx_infer_->OnReceived(header.payloadType, header.sequenceNumber, send_time_ms,
-                          header.ssrc, header.paddingLength,
-                          header.headerLength, arrival_time_ms, payload_size,
-                          0);
+  onnxinfer::OnReceived(onnx_infer_, header.payloadType, header.sequenceNumber,
+                        send_time_ms, header.ssrc, header.paddingLength,
+                        header.headerLength, arrival_time_ms, payload_size, 0);
 
   //--- BandWidthControl: Send back bandwidth estimation into to sender ---
   bool time_to_send_bew_message = TimeToSendBweMessage();
   float estimation = 0;
   if (time_to_send_bew_message) {
     BweMessage bwe;
-    estimation = onnx_infer_->GetBweEstimate();
+    estimation = onnxinfer::GetBweEstimate(onnx_infer_);
     bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
     bwe.timestamp_ms = clock_->TimeInMilliseconds();
     SendbackBweEstimation(bwe);

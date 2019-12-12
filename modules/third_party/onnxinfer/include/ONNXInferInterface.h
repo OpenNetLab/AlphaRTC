@@ -2,39 +2,43 @@
 #define ONNX_INFER_ONNX_INFER_INTERFACE_H_
 
 
-#ifdef DLL_Provider_
-#define DLL_EXPORT_IMPORT_ __declspec(dllexport)
+#ifdef ONNXInferInterface_DLL_Provider_
+#define ONNXInferInterface_DLL_EXPORT_IMPORT_ __declspec(dllexport)
 #else
-#define DLL_EXPORT_IMPORT_ __declspec(dllimport)
+#define ONNXInferInterface_DLL_EXPORT_IMPORT_ __declspec(dllimport)
 #endif
 
-namespace onnxinfer {
+#ifdef __cplusplus
+extern "C" {
+#endif
+    namespace onnxinfer {
 
-class DLL_EXPORT_IMPORT_ ONNXInferInterface {
-public:
-	virtual void OnReceived(
-		//Packet Info
-		unsigned char      payloadType,
-		unsigned short     sequenceNumber,
-		unsigned int       sendTimestamp,
-		unsigned int       ssrc,
-		unsigned long      paddingLength,
-		unsigned long      headerLength,
-		unsigned long long arrivalTimeMs,
-		unsigned long      payloadSize,
-		float              lossRate) = 0;
+        ONNXInferInterface_DLL_EXPORT_IMPORT_
+            void OnReceived(
+                void*              onnx_infer_interface,
+                unsigned char      payloadType,
+                unsigned short     sequenceNumber,
+                unsigned int       sendTimestamp,
+                unsigned int       ssrc,
+                unsigned long      paddingLength,
+                unsigned long      headerLength,
+                unsigned long long arrivalTimeMs,
+                unsigned long      payloadSize,
+                float              lossRate);
+        ONNXInferInterface_DLL_EXPORT_IMPORT_
+            float GetBweEstimate(void* onnx_infer_interface);
 
-	virtual float GetBweEstimate() = 0;  // bps
-	virtual ~ONNXInferInterface() {}
+        ONNXInferInterface_DLL_EXPORT_IMPORT_
+            bool IsReady(void* onnx_infer_interface);
 
-};
+        ONNXInferInterface_DLL_EXPORT_IMPORT_
+            void* CreateONNXInferInterface(const char* model_path);
 
-DLL_EXPORT_IMPORT_
-ONNXInferInterface* CreateONNXInferInterface(const char* model_path);
+        ONNXInferInterface_DLL_EXPORT_IMPORT_
+            void DestroyONNXInferInterface(void* onnx_infer_interface);
 
-DLL_EXPORT_IMPORT_
-void DestroyONNXInferInterface(ONNXInferInterface* onnx_infer_interface);
-
-} //namespace onnxinfer
-
+    } //namespace onnxinfer
+#ifdef __cplusplus
+} //extern "C"
+#endif
 #endif // ONNX_INFER_ONNX_INFER_INTERFACE_H_
