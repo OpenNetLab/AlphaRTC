@@ -56,7 +56,8 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       last_redis_save_ms_(clock->TimeInMilliseconds()),
       cycles_(-1),
       max_abs_send_time_(0) {
-  onnx_infer_ = onnxinfer::CreateONNXInferInterface(GetAlphaCCConfig()->onnx_model_path.c_str());
+  onnx_infer_ = onnxinfer::CreateONNXInferInterface(
+      GetAlphaCCConfig()->onnx_model_path.c_str());
   if (!onnxinfer::IsReady(onnx_infer_)) {
     RTC_LOG(LS_ERROR) << "Failed to create onnx_infer_.";
   }

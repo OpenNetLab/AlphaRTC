@@ -53,6 +53,7 @@ group("examples") {
     ]
     if (current_os != "winuwp") {
       deps += [ ":peerconnection_client" ]
+      deps += [ ":peerconnection_serverless" ]
     }
   }
 
@@ -686,6 +687,66 @@ if (is_linux || is_win) {
       ]
       deps += [ "//build/config/linux/gtk" ]
     }
+
+    deps += [
+      "../api:libjingle_peerconnection_api",
+      "../api/audio_codecs:builtin_audio_decoder_factory",
+      "../api/audio_codecs:builtin_audio_encoder_factory",
+      "../api/video:video_frame",
+      "../api/video:video_rtp_headers",
+      "../api/video_codecs:builtin_video_decoder_factory",
+      "../api/video_codecs:builtin_video_encoder_factory",
+      "../media:rtc_audio_video",
+      "../modules/audio_device",
+      "../modules/audio_processing",
+      "../modules/audio_processing:api",
+      "../modules/video_capture:video_capture_module",
+      "../pc:libjingle_peerconnection",
+      "../pc:peerconnection",
+      "../rtc_base",
+      "../rtc_base:rtc_base_approved",
+      "../rtc_base:rtc_json",
+      "../test:video_test_common",
+      "//third_party/libyuv",
+    ]
+  }
+
+  rtc_executable("peerconnection_serverless") {
+    testonly = true
+    sources = [
+      "peerconnection/serverless/conductor.cc",
+      "peerconnection/serverless/conductor.h",
+      "peerconnection/serverless/defaults.cc",
+      "peerconnection/serverless/defaults.h",
+      "peerconnection/serverless/peer_connection_client.cc",
+      "peerconnection/serverless/peer_connection_client.h",
+      "peerconnection/serverless/main.cc",
+      "peerconnection/serverless/main_wnd.cc",
+      "peerconnection/serverless/main_wnd.h",
+    ]
+
+    deps = [
+      "../api:audio_options_api",
+      "../api:create_peerconnection_factory",
+      "../api:libjingle_peerconnection_api",
+      "../api:scoped_refptr",
+      "../api/audio:audio_mixer_api",
+      "../api/audio_codecs:audio_codecs_api",
+      "../api/video:video_frame_i420",
+      "../api/video:video_rtp_headers",
+      "../api/video_codecs:video_codecs_api",
+      "../media:rtc_media_base",
+      "../p2p:rtc_p2p",
+      "../rtc_base:checks",
+      "../rtc_base/third_party/sigslot",
+      "../system_wrappers:field_trial",
+      "../test:field_trial",
+      "../test:platform_video_capturer",
+      "//third_party/abseil-cpp/absl/memory",
+      "//third_party/abseil-cpp/absl/types:optional",
+    ]
+
+    configs += [ "//build/config/win:windowed" ]
 
     deps += [
       "../api:libjingle_peerconnection_api",

@@ -18,6 +18,7 @@ namespace webrtc {
 struct AlphaCCConfig {
   AlphaCCConfig() = default;
   ~AlphaCCConfig() = default;
+
   // The server to connect
   std::string conn_server_ip;
   int conn_server_port = 0;
@@ -31,14 +32,23 @@ struct AlphaCCConfig {
   // if autoclose=0)"
   int conn_autoclose = 0;
 
+  bool is_sender = false;
+  bool is_receiver = false;
+
+  // The address to connect to
+  std::string dest_ip;
+  int dest_port;
+  std::string listening_ip;
+  int listening_port;
+
   // Redis server configuration
   std::string redis_ip;
-  int redis_port = 0;
+  int redis_port;
   // Redis session id
   std::string redis_sid;
-  int redis_update_duration_ms = 500;
+  int redis_update_duration_ms;
 
-  int bwe_feedback_duration_ms = 200;
+  int bwe_feedback_duration_ms;
   std::string onnx_model_path;
 
   enum class VideoSourceOption {
@@ -46,9 +56,9 @@ struct AlphaCCConfig {
     kWebcam,
     kVideoFile,
   } video_source_option;
-  int video_height = 0;
-  int video_width = 0;
-  int video_fps = 0;
+  int video_height;
+  int video_width;
+  int video_fps;
   std::string video_file_path;
 
   enum class AudioSourceOption { kMicrophone, kAudioFile } audio_source_option;
