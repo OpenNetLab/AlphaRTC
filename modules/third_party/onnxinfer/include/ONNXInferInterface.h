@@ -15,18 +15,23 @@ extern "C" {
 
         ONNXInferInterface_DLL_EXPORT_IMPORT_
             void OnReceived(
-                void*              onnx_infer_interface,
-                unsigned char      payloadType,
-                unsigned short     sequenceNumber,
-                unsigned int       sendTimestamp,
-                unsigned int       ssrc,
-                unsigned long      paddingLength,
-                unsigned long      headerLength,
-                unsigned long long arrivalTimeMs,
-                unsigned long      payloadSize,
-                float              lossRate);
+                void* onnx_infer_interface,
+                unsigned char payloadType,
+                unsigned short sequenceNumber,
+                unsigned int sendTimestamp, // ms
+                unsigned int ssrc,
+                unsigned long paddingLength,
+                unsigned long headerLength,
+                unsigned long long arrivalTimestamp, // ms
+                unsigned long payloadSize, // bytes
+                int lossCount, // packet, -1 indicates no valid lossCount from RTC
+                float rtt); // sec, -1 indicates no valid rtt from RTC
+
         ONNXInferInterface_DLL_EXPORT_IMPORT_
-            float GetBweEstimate(void* onnx_infer_interface);
+            float GetBweEstimate(void* onnx_infer_interface); // bps
+
+        ONNXInferInterface_DLL_EXPORT_IMPORT_
+            const char* GetInfo(void* onnx_infer_interface);
 
         ONNXInferInterface_DLL_EXPORT_IMPORT_
             bool IsReady(void* onnx_infer_interface);

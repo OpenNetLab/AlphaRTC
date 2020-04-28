@@ -95,9 +95,12 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   //--- ONNXInfer: Input the per-packet info to ONNXInfer module ---
   uint32_t send_time_ms =
       GetTtimeFromAbsSendtime(header.extension.absoluteSendTime);
+
+  // lossCound and RTT field for onnxinfer::OnReceived() are set to -1 since
+  // no available lossCound and RTT in webrtc
   onnxinfer::OnReceived(onnx_infer_, header.payloadType, header.sequenceNumber,
                         send_time_ms, header.ssrc, header.paddingLength,
-                        header.headerLength, arrival_time_ms, payload_size, 0);
+                        header.headerLength, arrival_time_ms, payload_size, -1, -1);
 
   //--- BandWidthControl: Send back bandwidth estimation into to sender ---
   bool time_to_send_bew_message = TimeToSendBweMessage();
