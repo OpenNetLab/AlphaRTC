@@ -21,6 +21,7 @@
 #include "rtc_base/third_party/sigslot/sigslot.h"
 
 typedef std::map<int, std::string> Peers;
+const char messageTerminate[] = "[EOF]";
 
 struct PeerConnectionClientObserver {
   virtual void OnGetMessage(const std::string& message) = 0;
@@ -40,6 +41,7 @@ class PeerConnectionClient : public sigslot::has_slots<> {
   void StartListen(const std::string& ip, int port);
   void StartConnect(const std::string& ip, int port);
   void SendClientMessage(const std::string& message);
+  void SendAClientMessage(const std::string& message);
   void SignOut();
 
  protected:
@@ -53,6 +55,7 @@ class PeerConnectionClient : public sigslot::has_slots<> {
   PeerConnectionClientObserver* callback_;
   std::unique_ptr<rtc::AsyncSocket> listen_socket_;
   std::unique_ptr<rtc::AsyncSocket> message_socket_;
+  rtc::CriticalSection cs_;
 };
 
 #endif  // EXAMPLES_PEERCONNECTION_CLIENT_SERVERLESS_PEER_CONNECTION_CLIENT_H_

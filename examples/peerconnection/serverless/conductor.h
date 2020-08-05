@@ -98,6 +98,8 @@ class Conductor : public webrtc::PeerConnectionObserver,
   void OnFailure(webrtc::RTCError error) override;
 
  protected:
+  void ParseMessage(const std::string& msg);
+
   bool loopback_;
   rtc::scoped_refptr<webrtc::PeerConnectionInterface> peer_connection_;
   rtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface>
@@ -107,6 +109,8 @@ class Conductor : public webrtc::PeerConnectionObserver,
   std::deque<std::string*> pending_messages_;
   const webrtc::AlphaCCConfig* alphacc_config_;
   std::shared_ptr<rtc::Event> audio_started_;
+  std::string accumulate_message_;
+  std::string part_message_;
 };
 
 #endif  // EXAMPLES_PEERCONNECTION_CLIENT_CONDUCTOR_H_

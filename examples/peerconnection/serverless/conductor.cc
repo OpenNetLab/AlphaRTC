@@ -343,18 +343,7 @@ void Conductor::OnIceCandidate(const webrtc::IceCandidateInterface* candidate) {
 //
 // PeerConnectionClientObserver implementation.
 //
-
-void Conductor::OnGetMessage(const std::string& message) {
-  RTC_DCHECK(!message.empty());
-
-  if (!peer_connection_.get()) {
-    if (!InitializePeerConnection()) {
-      RTC_LOG(LS_ERROR) << "Failed to initialize our PeerConnection instance";
-      client_->SignOut();
-      return;
-    }
-  }
-
+void Conductor::ParseMessage(const std::string& message) {
   Json::Reader reader;
   Json::Value jmessage;
   if (!reader.parse(message, jmessage)) {
@@ -434,6 +423,50 @@ void Conductor::OnGetMessage(const std::string& message) {
   }
 }
 
+void Conductor::OnGetMessage(const std::string& new_message) {
+  RTC_DCHECK(!new_message.empty());
+
+  if (!peer_connection_.get()) {
+    if (!InitializePeerConnection()) {
+      RTC_LOG(LS_ERROR) << "Failed to initialize our PeerConnection instance";
+      client_->SignOut();
+      return;
+    }
+  }
+
+  // append new message to accumulate_message_
+  accumulate_message_ += new_message;
+  // create newbuffer to store the value of accumulate_message_
+  std::unique_ptr<char[]> uniq_char(new char[0xffff]);
+  char* pbuffer = uniq_char.get();
+  strcpy(pbuffer, accumulate_message_.data());
+  // check if terminal symbol of message exists in msg and locate it
+  char* locate = strstr(pbuffer, messageTerminate);
+  if (locate != NULL) {
+    // empty the accumulate_message_ to prepare for the ParseMessage
+    accumulate_message_ = "";
+    // split the message using terminal symbol
+    while (locate != NULL) {
+      // send the splited message to conductor
+      accumulate_message_.append(pbuffer, locate - pbuffer);
+      ParseMessage(accumulate_message_);
+      // finish to parse one messge, empty the accumulate_message_
+      accumulate_message_ = "";
+      // move pbuffer point to jump over terminal symbol
+      pbuffer = locate + strlen(messageTerminate);
+      // check if terminal symbol of message exists
+      locate = strstr(pbuffer, messageTerminate);
+    }
+    // if the end of message leaves some without terminal, append to
+    // accumulate_message_
+    if (strlen(pbuffer) != 0) {
+      accumulate_message_.append(pbuffer);
+    }
+  }
+  // if no terminal in the accumulate_message_,just return and it will deal with
+  // in the next call
+}
+
 void Conductor::OnPeerDisconnected() {
   RTC_LOG(INFO) << __FUNCTION__;
   RTC_LOG(INFO) << "Our peer disconnected";
@@ -500,7 +533,7 @@ void Conductor::UIThreadCallback(int msg_id, void* data) {
       DeletePeerConnection();
       break;
     }
-     
+
     case NEW_TRACK_ADDED: {
       auto* track = reinterpret_cast<webrtc::MediaStreamTrackInterface*>(data);
       if (track->kind() == webrtc::MediaStreamTrackInterface::kVideoKind) {
@@ -521,7 +554,7 @@ void Conductor::UIThreadCallback(int msg_id, void* data) {
     default: {
       RTC_NOTREACHED();
       break;
-	}
+    }
   }
 }
 
