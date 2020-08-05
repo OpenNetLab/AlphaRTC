@@ -86,6 +86,8 @@ void LogSink::OnLogMessage(const std::string& msg,
 /////////////////////////////////////////////////////////////////////////////
 
 bool LogMessage::log_to_stderr_ = true;
+bool LogMessage::log_to_file_ = false;
+std::string LogMessage::log_file_name_;
 
 // The list of logging streams currently configured.
 // Note: we explicitly do not clean this up, because of the uncertain ordering
@@ -196,6 +198,10 @@ LogMessage::~LogMessage() {
 #else
     OutputToDebug(str, severity_);
 #endif
+
+  if (log_to_file_) {
+      OutputToFile(str);
+    }
   }
 
   CritScope cs(&g_log_crit);
@@ -434,6 +440,25 @@ void LogMessage::OutputToDebug(const std::string& str,
   }
 }
 
+void LogMessage::OutputToFile(const std::string& str) {
+#if !defined(WEBRTC_ANDROID) and !defined(WEBRTC_IOS)
+  if (log_file_name_.empty()) {
+    time_t now = time(NULL);
+    char name[max_file_name_length_];
+    strftime(name, max_file_name_length_, "webrtc_%Y%m%d_%H%M%S.log",
+             localtime(&now));
+    log_file_name_ = name;
+  }
+  FILE* log_file_ = fopen(log_file_name_.c_str(), "a");
+  if (NULL == log_file_) {
+    return;
+  }
+  fwrite(str.c_str(), str.length(), 1, log_file_);
+  fflush(log_file_);
+  fclose(log_file_);
+#endif
+}
+
 // static
 bool LogMessage::IsNoop(LoggingSeverity severity) {
   if (severity >= g_dbg_sev || severity >= g_min_sev)
@@ -486,12 +511,12 @@ void Log(const LogArgType* fmt, ...) {
       return;
     }
   }
-
+ 
   if (LogMessage::IsNoop(meta.meta.Severity())) {
-    va_end(args);
-    return;
+      va_end(args);
+      return;
   }
-
+  
   LogMessage log_message(meta.meta.File(), meta.meta.Line(),
                          meta.meta.Severity(), meta.err_ctx, meta.err);
   if (tag) {

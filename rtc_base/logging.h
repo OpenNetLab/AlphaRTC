@@ -462,6 +462,13 @@ class LogMessage {
   // LogMessage.
   static bool IsNoop(LoggingSeverity severity);
 
+  // Set the name of the log file
+  static void SetLogFileName(const std::string& log_file_name) { log_file_name_ = log_file_name; }
+  // Set if log to file
+  static void SetIfLogToFile(bool log_to_file) { log_to_file_ = log_to_file; }
+  // Get if log to file
+  static bool GetIfLogToFile() { return log_to_file_; }
+
  private:
   friend class LogMessageForTesting;
   typedef std::pair<LogSink*, LoggingSeverity> StreamAndSeverity;
@@ -478,6 +485,9 @@ class LogMessage {
 #else
   static void OutputToDebug(const std::string& msg, LoggingSeverity severity);
 #endif
+
+  // Log to file interface
+  static void OutputToFile(const std::string& msg);
 
   // Called from the dtor (or from a test) to append optional extra error
   // information to the log stream and a newline character.
@@ -508,6 +518,12 @@ class LogMessage {
   static bool log_to_stderr_;
 
   RTC_DISALLOW_COPY_AND_ASSIGN(LogMessage);
+
+  // The name of log file, default is the webrtc_<current_time>.log
+  static std::string log_file_name_;
+  // If log to file, default is false
+  static bool log_to_file_;
+  static const int max_file_name_length_ = 40;
 };
 
 //////////////////////////////////////////////////////////////////////
