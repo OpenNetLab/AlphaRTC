@@ -1,10 +1,11 @@
 /**
  * @file      StatCollect.h
- * @brief     The header file of StatsCollectModule. StatsCollectModule is provided for RTC application to update their states to Redis Service for states collection and training.
+ * @brief     The header file of StatsCollectModule. StatsCollectModule is provided for RTC application to update their states to local file for states collection and training.
  * @repo      AlphaRTC
+ * @author    Kangjie Xu <xkjrst@outlook.com>
  * @author    Dan Yang <v-danya@microsoft.com>
  * @author    Peng Cheng <pengc@microsoft.com>
- * @version   0.1
+ * @version   0.2
  * @copyright Copyright (c) Microsoft Corporation. All rights reserved.
  * @license   Licensed under the MIT License.
  **/
@@ -12,19 +13,13 @@
 #ifndef STATES_COLLECTION_H_
 #define STATES_COLLECTION_H_
 
-
-#ifdef DLLProvider
-#define DLL_EXPORT_IMPORT __declspec(dllexport)
-#else
-#define DLL_EXPORT_IMPORT __declspec(dllimport)
-#endif
-
-
 #include <memory>
 #include <queue>
 #include <vector>
 #include <mutex>
 #include <float.h>
+#include <climits>
+
 
 
 namespace StatCollect {
@@ -199,7 +194,7 @@ namespace StatCollect {
         double    pacerPaddingRate;
     };
 
-    class DLL_EXPORT_IMPORT StatsCollectModule {
+    class StatsCollectModule {
     public:
         /**
          **========================================================
@@ -208,10 +203,10 @@ namespace StatCollect {
         */
         /**
         ** The constructor function of StatsCollectModule class
-        ** @param  const char*  sessionID,    The sessionID of RTC program
         ** @param  SCType       collectType,  The collect type
         */
-        StatsCollectModule(const char* sessionID_, SCType collectType);
+        StatsCollectModule(SCType collectType);
+        
         /**
         **========================================================
         ** StatsCollectInterface External Function !StatsCollectModule
@@ -221,6 +216,7 @@ namespace StatCollect {
         ** The destructor function of StatsCollectModule class
         */
         ~StatsCollectModule();
+
         /**
          **========================================================
          ** StatsCollectInterface External Function StatsCollect
@@ -264,7 +260,7 @@ namespace StatCollect {
          ** @param  unsigned long long totalSamplesReceived,          the audio frames of receiver received
          ** @param  unsigned long long concealedSamples,              the audio samples of receiver received
          ** @param  unsigned long long concealmentEvents,             the audio samples event of receiver received
-
+         **
          ** return: SC_SUCCESS             if successfully created
                     SC_COLLECT_TYPE_ERROR  if the collect type error.
                     SC_NEW_MEMORY_FAIL     if the new memory fail
@@ -305,6 +301,7 @@ namespace StatCollect {
             unsigned long long totalSamplesReceived,
             unsigned long long concealedSamples,
             unsigned long long concealmentEvents);
+        
         /**
          **========================================================
          ** StatsCollectInterface External Function StatsCollect
@@ -326,7 +323,7 @@ namespace StatCollect {
          ** @param  long long      arrivalTimeMs,     the RTP packet receive timestamp
          ** @param  unsigned long  payloadSize,       the RTP pakcet data size
          ** @param  float          lossRate,          the loss rate of pakcet size
-
+         **
          ** return: SC_SUCCESS             if successfully created
                     SC_COLLECT_TYPE_ERROR  if the collect type error.
                     SC_NEW_MEMORY_FAIL     if the new memory fail
@@ -345,6 +342,7 @@ namespace StatCollect {
             unsigned long      payloadSize,
             float              lossRate
         );
+
         /**
          **========================================================
          ** StatsCollectInterface External Function StatsCollectByStruct
@@ -524,47 +522,6 @@ namespace StatCollect {
          */
         std::string ConvertStructToJSON(CollectInfo* CollectInfoPtr);
 
-        /*
-         **========================================================
-         ** StatsCollectInterface External Function DBConnect
-         **========================================================
-        */
-        /**
-         ** Get database connection handler to do save operation.
-         ** @param  databaseIP   : The ip of database
-         ** @param  databasePort : The port of database
-         **
-         ** return   SC_SUCCESS,            if the connection successed.
-                     SC_CONNECT_EXIST_ERROR,if the connection exist,can not connect
-                     SC_CONNECT_ERROR,      if the connection failed.
-         */
-        SCResult DBConnect(const char* databaseIP, int databasePort);
-        /**
-         **========================================================
-         ** StatsCollectInterface External Function DBsave
-         **========================================================
-         */
-         /**
-          ** Save the Stats Collect Data into the database  .
-          ** Save operate and return the status of operate.
-          ** @param  dataJsonString:  The data of collect stats
-          ** return: SC_CONNECT_ERROR,     if the database connection handler is null.
-          **         SC_SESSION_ERROR,     if the sessionId is empty.
-          **         SC_SAVE_ERROR,        if the save operate failed.
-          **         SC_COLLECT_TYPE_ERROR,if the collect type error.
-          **         SC_SUCCESS,           if the save operate succeed.
-         */
-        SCResult DBSave();
-        /**
-         **========================================================
-         **  StatsCollectInterface External Function DBClose
-         **========================================================
-        */
-        /**
-         ** Close the Database connection and release the memory of connection memory.
-         ** return: no return.
-        */
-        void DBClose();
         /**
          **========================================================
          ** StatsCollectInterface External Function SetStatsConfig
@@ -572,20 +529,28 @@ namespace StatCollect {
          */
         /**
          ** Set the Stats Collect config
-         ** @param  const char*    sessionID,    the sessionID
          ** @param  SCType         collectType,  the collectType
-         ** return: SC_SESSION_ERROR,     if the sessionId is empty.
+         ** return: 
          **         SC_COLLECT_TYPE_ERROR,if the collect type error.
          **         SC_SUCCESS,           if the save operate succeed.
+         */
+        SCResult SetStatsConfig(SCType collectType);
+
+        /**
+         **========================================================
+         ** StatsCollectInterface External Function DumpData
+         **========================================================
+         */
+        /**
+         ** Dump packet data
+         ** return: json string format if successfully
         */
-        SCResult SetStatsConfig(const char* sessionID, SCType collectType);
+        std::string DumpData();
 
     private:
         std::queue<void*>  collectQueue_;
-        void* redisPtr_;
-        const char* sessionID_;
-        std::mutex* queueMutex_;
         SCType collectType_;
+        std::mutex* queueMutex_;
     };
 }  // namespace StatCollect
 #endif 

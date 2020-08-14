@@ -9,8 +9,6 @@
  */
 
 #ifdef WIN32
-#pragma comment(lib, \
-                "../../modules/third_party/statcollect/lib/StatCollect.lib")
 #pragma comment(lib, "../../modules/third_party/onnxinfer/lib/onnxinfer.lib")
 #endif  //  WIN32
 
@@ -50,10 +48,7 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       send_periodic_feedback_(true),
       bwe_sendback_interval_ms_(GetAlphaCCConfig()->bwe_feedback_duration_ms),
       last_bwe_sendback_ms_(clock->TimeInMilliseconds()),
-      stats_collect_(GetAlphaCCConfig()->redis_sid.c_str(),
-                     StatCollect::SC_TYPE_STRUCT),
-      redis_save_interval_ms_(GetAlphaCCConfig()->redis_update_duration_ms),
-      last_redis_save_ms_(clock->TimeInMilliseconds()),
+      stats_collect_(StatCollect::SC_TYPE_STRUCT),
       cycles_(-1),
       max_abs_send_time_(0) {
   onnx_infer_ = onnxinfer::CreateONNXInferInterface(
@@ -64,15 +59,9 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
   RTC_LOG(LS_INFO)
       << "Maximum interval between transport feedback RTCP messages (ms): "
       << send_config_.max_interval->ms();
-  auto connect_result = stats_collect_.DBConnect(
-      GetAlphaCCConfig()->redis_ip.c_str(), GetAlphaCCConfig()->redis_port);
-  if (connect_result != StatCollect::SC_SUCCESS) {
-    RTC_LOG(LS_ERROR) << "StatCollect failed.";
-  }
 }
 
 RemoteEstimatorProxy::~RemoteEstimatorProxy() {
-  stats_collect_.DBClose();
   if (onnx_infer_) {
     onnxinfer::DestroyONNXInferInterface(onnx_infer_);
   }
@@ -113,22 +102,29 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
     SendbackBweEstimation(bwe);
   }
 
-  // -- StatCollect: Collect packet-related info into redis ------
-
+  // Save per-packet info locally on receiving
+  // ---------- Collect packet-related info into a local file ----------
   double pacing_rate =
       time_to_send_bew_message ? estimation : SC_PACER_PACING_RATE_EMPTY;
   double padding_rate =
       time_to_send_bew_message ? estimation : SC_PACER_PADDING_RATE_EMPTY;
 
   // Save per-packet info locally on receiving
-  stats_collect_.StatsCollect(pacing_rate, padding_rate, header.payloadType,
+  auto res = stats_collect_.StatsCollect(
+      pacing_rate, padding_rate, header.payloadType,
                               header.sequenceNumber, send_time_ms, header.ssrc,
                               header.paddingLength, header.headerLength,
                               arrival_time_ms, payload_size, 0);
-  // Periodically push to remote redis service
-  if (TimeToSaveIntoRedis()) {
-    SaveIntoRedis();
+  if (res != StatCollect::SCResult::SC_SUCCESS)
+  {
+    RTC_LOG(LS_ERROR) << "Collect data failed";
   }
+  std::string out_data = stats_collect_.DumpData();
+  if (out_data.empty())
+  {
+    RTC_LOG(LS_ERROR) << "Save data failed";
+  }
+  RTC_LOG(LS_INFO) << out_data;
 }
 
 bool RemoteEstimatorProxy::LatestEstimate(std::vector<unsigned int>* ssrcs,
@@ -370,40 +366,6 @@ uint32_t RemoteEstimatorProxy::GetTtimeFromAbsSendtime(
   uint32_t send_time_ms =
       static_cast<uint32_t>(std::round(send_time_seconds * 1000));
   return send_time_ms;
-}
-void RemoteEstimatorProxy::SaveIntoRedis(int retry_times) {
-  StatCollect::SCResult res = stats_collect_.DBSave();
-  if (res == StatCollect::SC_SUCCESS) {
-    return;
-  }
-
-  retry_times--;
-  if (retry_times < 0) {  // Do not try to save any more
-    RTC_LOG(LS_ERROR) << "Can not save rtp packet info into redis.";
-    return;
-  } else {
-    if (res == StatCollect::SC_CONNECT_ERROR) {
-      const char* redis_ip = GetAlphaCCConfig()->redis_ip.c_str();
-      int redis_port = GetAlphaCCConfig()->redis_port;
-      stats_collect_.DBConnect(redis_ip, redis_port);
-    }
-    if (res == StatCollect::SC_SESSION_ERROR ||
-        res == StatCollect::SC_COLLECT_TYPE_ERROR) {
-      const char* sessionID = GetAlphaCCConfig()->redis_sid.c_str();
-      StatCollect::SCType collectType = StatCollect::SC_TYPE_STRUCT;
-      stats_collect_.SetStatsConfig(sessionID, collectType);
-    }
-    SaveIntoRedis(retry_times);
-  }
-}
-
-bool RemoteEstimatorProxy::TimeToSaveIntoRedis() {
-  int64_t time_now = clock_->TimeInMilliseconds();
-  if (time_now - redis_save_interval_ms_ > last_redis_save_ms_) {
-    last_redis_save_ms_ = time_now;
-    return true;
-  }
-  return false;
 }
 
 }  // namespace webrtc
