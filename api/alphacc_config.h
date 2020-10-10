@@ -63,6 +63,13 @@ struct AlphaCCConfig {
 
   enum class AudioSourceOption { kMicrophone, kAudioFile } audio_source_option;
   std::string audio_file_path;
+
+  bool save_to_file = false;
+  std::string video_output_path;
+  std::string audio_output_path;
+  int video_output_height;
+  int video_output_width;
+  int video_output_fps;
 };
 
 // Get alphaCC global configurations

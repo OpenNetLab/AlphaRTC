@@ -126,6 +126,23 @@ bool ParseAlphaCCConfig(const std::string& file_path) {
       return false;
     }
   }
+
+  second.clear();
+  third.clear();
+  RETURN_ON_FAIL(GetValue(top, "save_to_file", &second));
+  RETURN_ON_FAIL(GetBool(second, "enabled", &config->save_to_file));
+  if (config->save_to_file) {
+    RETURN_ON_FAIL(GetValue(second, "video", &third));
+    RETURN_ON_FAIL(GetString(third, "file_path", &config->video_output_path));
+    RETURN_ON_FAIL(GetInt(third, "height", &config->video_output_height));
+    RETURN_ON_FAIL(GetInt(third, "width", &config->video_output_width));
+    RETURN_ON_FAIL(GetInt(third, "fps", &config->video_output_fps));
+
+    third.clear();
+    RETURN_ON_FAIL(GetValue(second, "audio", &third));
+    RETURN_ON_FAIL(GetString(third, "file_path", &config->audio_output_path));
+  }
+
   return true;
 }
 

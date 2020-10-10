@@ -174,6 +174,14 @@ Conductor::Conductor(PeerConnectionClient* client, MainWindow* main_wnd)
       main_wnd_(main_wnd),
       alphacc_config_(webrtc::GetAlphaCCConfig()),
       audio_started_(std::make_shared<rtc::Event>()) {
+  if (alphacc_config_->save_to_file) {
+    frame_writer_ = absl::make_unique<webrtc::test::VideoFrameWriter>(
+        alphacc_config_->video_output_path, alphacc_config_->video_output_width,
+        alphacc_config_->video_output_height,
+        alphacc_config_->video_output_fps);
+  } else {
+    frame_writer_ = nullptr;
+  }
   client_->RegisterObserver(this);
   main_wnd->RegisterObserver(this);
 }
@@ -214,11 +222,18 @@ bool Conductor::InitializePeerConnection() {
     auto capturer = webrtc::TestAudioDeviceModule::CreateWavFileReader(
         alphacc_config_->audio_file_path, true);
 
-    auto discard = webrtc::TestAudioDeviceModule::CreateDiscardRenderer(
-        8000 /*sampling frequecy, unused*/, 2 /*num_channels, ununsed*/);
+    std::unique_ptr<webrtc::TestAudioDeviceModule::Renderer> renderer;
+    if (alphacc_config_->save_to_file) {
+      renderer = webrtc::TestAudioDeviceModule::CreateWavFileWriter(
+          alphacc_config_->audio_output_path,
+          capturer.get()->SamplingFrequency(), capturer.get()->NumChannels());
+    } else {
+      renderer = webrtc::TestAudioDeviceModule::CreateDiscardRenderer(
+          8000 /*sampling frequecy, unused*/, 2 /*num_channels, ununsed*/);
+    }
 
     audio_device_module = webrtc::TestAudioDeviceModule::Create(
-        task_queue_factory.get(), std::move(capturer), std::move(discard),
+        task_queue_factory.get(), std::move(capturer), std::move(renderer),
         audio_started_);
   } else if (alphacc_config_->audio_source_option ==
              AudioSourceOption::kMicrophone) {
@@ -555,6 +570,12 @@ void Conductor::UIThreadCallback(int msg_id, void* data) {
       RTC_NOTREACHED();
       break;
     }
+  }
+}
+
+void Conductor::OnFrameCallback(const webrtc::VideoFrame& video_frame) {
+  if (alphacc_config_->save_to_file) {
+    frame_writer_->WriteFrame(video_frame);
   }
 }
 

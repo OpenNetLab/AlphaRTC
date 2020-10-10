@@ -742,6 +742,7 @@ if (is_linux || is_win) {
       "../system_wrappers:field_trial",
       "../test:field_trial",
       "../test:platform_video_capturer",
+      "../test:test_support",
       "//third_party/abseil-cpp/absl/memory",
       "//third_party/abseil-cpp/absl/types:optional",
     ]
@@ -767,6 +768,8 @@ if (is_linux || is_win) {
       "../rtc_base:rtc_base_approved",
       "../rtc_base:rtc_json",
       "../test:video_test_common",
+      "../test:test_support",
+      "../test:video_test_support",
       "//third_party/libyuv",
     ]
   }

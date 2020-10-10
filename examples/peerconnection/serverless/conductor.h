@@ -23,6 +23,8 @@
 #include "examples/peerconnection/serverless/main_wnd.h"
 #include "examples/peerconnection/serverless/peer_connection_client.h"
 #include "pc/test/fake_video_track_source.h"
+#include "test/testsupport/frame_writer.h"
+#include "test/testsupport/video_frame_writer.h"
 
 namespace webrtc {
 class VideoCaptureModule;
@@ -93,6 +95,8 @@ class Conductor : public webrtc::PeerConnectionObserver,
 
   void Close() override;
 
+  void OnFrameCallback(const webrtc::VideoFrame& video_frame) override;
+
   // CreateSessionDescriptionObserver implementation.
   void OnSuccess(webrtc::SessionDescriptionInterface* desc) override;
   void OnFailure(webrtc::RTCError error) override;
@@ -111,6 +115,7 @@ class Conductor : public webrtc::PeerConnectionObserver,
   std::shared_ptr<rtc::Event> audio_started_;
   std::string accumulate_message_;
   std::string part_message_;
+  std::unique_ptr<webrtc::test::VideoFrameWriter> frame_writer_;
 };
 
 #endif  // EXAMPLES_PEERCONNECTION_CLIENT_CONDUCTOR_H_

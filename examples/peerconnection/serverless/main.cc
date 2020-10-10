@@ -59,7 +59,6 @@ int PASCAL wWinMain(HINSTANCE instance,
     RTC_NOTREACHED();
     return -1;
   }
-    
   rtc::InitializeSSL();
   PeerConnectionClient client;
   rtc::scoped_refptr<Conductor> conductor(

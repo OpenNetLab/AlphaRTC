@@ -133,7 +133,8 @@ void MainWnd::MessageBox(const char* caption, const char* text, bool is_error) {
 }
 
 void MainWnd::StartLocalRenderer(webrtc::VideoTrackInterface* local_video) {
-  local_renderer_.reset(new VideoRenderer(handle(), 1, 1, local_video));
+  local_renderer_.reset(
+      new VideoRenderer(handle(), 1, 1, false, callback_, local_video));
 }
 
 void MainWnd::StopLocalRenderer() {
@@ -141,7 +142,8 @@ void MainWnd::StopLocalRenderer() {
 }
 
 void MainWnd::StartRemoteRenderer(webrtc::VideoTrackInterface* remote_video) {
-  remote_renderer_.reset(new VideoRenderer(handle(), 1, 1, remote_video));
+  remote_renderer_.reset(
+      new VideoRenderer(handle(), 1, 1, true, callback_, remote_video));
 }
 
 void MainWnd::StopRemoteRenderer() {
@@ -418,8 +420,10 @@ MainWnd::VideoRenderer::VideoRenderer(
     HWND wnd,
     int width,
     int height,
+    bool remote,
+    MainWndCallback* callback,
     webrtc::VideoTrackInterface* track_to_render)
-    : wnd_(wnd), rendered_track_(track_to_render) {
+    : wnd_(wnd), rendered_track_(track_to_render), callback_(callback) {
   ::InitializeCriticalSection(&buffer_lock_);
   ZeroMemory(&bmi_, sizeof(bmi_));
   bmi_.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
@@ -431,6 +435,7 @@ MainWnd::VideoRenderer::VideoRenderer(
   bmi_.bmiHeader.biSizeImage =
       width * height * (bmi_.bmiHeader.biBitCount >> 3);
   rendered_track_->AddOrUpdateSink(this, rtc::VideoSinkWants());
+  is_remote_ = remote;
 }
 
 MainWnd::VideoRenderer::~VideoRenderer() {
@@ -453,23 +458,23 @@ void MainWnd::VideoRenderer::SetSize(int width, int height) {
 }
 
 void MainWnd::VideoRenderer::OnFrame(const webrtc::VideoFrame& video_frame) {
-  {
-    AutoLock<VideoRenderer> lock(this);
+  AutoLock<VideoRenderer> lock(this);
 
-    rtc::scoped_refptr<webrtc::I420BufferInterface> buffer(
-        video_frame.video_frame_buffer()->ToI420());
-    if (video_frame.rotation() != webrtc::kVideoRotation_0) {
-      buffer = webrtc::I420Buffer::Rotate(*buffer, video_frame.rotation());
-    }
-
-    SetSize(buffer->width(), buffer->height());
-
-    RTC_DCHECK(image_.get() != NULL);
-    libyuv::I420ToARGB(buffer->DataY(), buffer->StrideY(), buffer->DataU(),
-                       buffer->StrideU(), buffer->DataV(), buffer->StrideV(),
-                       image_.get(),
-                       bmi_.bmiHeader.biWidth * bmi_.bmiHeader.biBitCount / 8,
-                       buffer->width(), buffer->height());
+  if (is_remote_ == true) {
+    callback_->OnFrameCallback(video_frame);
   }
+
+  rtc::scoped_refptr<webrtc::I420BufferInterface> buffer(
+      video_frame.video_frame_buffer()->ToI420());
+  if (video_frame.rotation() != webrtc::kVideoRotation_0) {
+    buffer = webrtc::I420Buffer::Rotate(*buffer, video_frame.rotation());
+  }
+  SetSize(buffer->width(), buffer->height());
+  RTC_DCHECK(image_.get() != NULL);
+  libyuv::I420ToARGB(buffer->DataY(), buffer->StrideY(), buffer->DataU(),
+                     buffer->StrideU(), buffer->DataV(), buffer->StrideV(),
+                     image_.get(),
+                     bmi_.bmiHeader.biWidth * bmi_.bmiHeader.biBitCount / 8,
+                     buffer->width(), buffer->height());
   InvalidateRect(wnd_, NULL, TRUE);
 }

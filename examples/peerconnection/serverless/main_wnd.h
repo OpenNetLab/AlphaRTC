@@ -23,11 +23,14 @@
 #if defined(WEBRTC_WIN)
 #include "rtc_base/win32.h"
 #endif  // WEBRTC_WIN
+#include "test/testsupport/frame_writer.h"
+#include "test/testsupport/video_frame_writer.h"
 
 class MainWndCallback {
  public:
   virtual void UIThreadCallback(int msg_id, void* data) = 0;
   virtual void Close() = 0;
+  virtual void OnFrameCallback(const webrtc::VideoFrame& video_frame) = 0;
 
  protected:
   virtual ~MainWndCallback() {}
@@ -108,6 +111,8 @@ class MainWnd : public MainWindow {
     VideoRenderer(HWND wnd,
                   int width,
                   int height,
+                  bool remote,
+                  MainWndCallback* callback_,
                   webrtc::VideoTrackInterface* track_to_render);
     virtual ~VideoRenderer();
 
@@ -134,6 +139,9 @@ class MainWnd : public MainWindow {
     std::unique_ptr<uint8_t[]> image_;
     CRITICAL_SECTION buffer_lock_;
     rtc::scoped_refptr<webrtc::VideoTrackInterface> rendered_track_;
+    std::unique_ptr<webrtc::test::VideoFrameWriter> frame_writer_;
+    bool is_remote_;
+    MainWndCallback* callback_;
   };
 
   // A little helper class to make sure we always to proper locking and
