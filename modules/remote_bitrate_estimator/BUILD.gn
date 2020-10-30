@@ -63,6 +63,10 @@ rtc_static_library("remote_bitrate_estimator") {
     "//third_party/abseil-cpp/absl/types:optional",
     "//modules/third_party/statcollect:stat_collect"
   ]
+
+  if (is_linux) {
+    deps += [ "//modules/third_party/onnxinfer:onnxinfermock" ]
+  }
 }
 
 if (!build_with_chromium) {

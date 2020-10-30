@@ -720,9 +720,6 @@ if (is_linux || is_win) {
       "peerconnection/serverless/defaults.h",
       "peerconnection/serverless/peer_connection_client.cc",
       "peerconnection/serverless/peer_connection_client.h",
-      "peerconnection/serverless/main.cc",
-      "peerconnection/serverless/main_wnd.cc",
-      "peerconnection/serverless/main_wnd.h",
     ]
 
     deps = [
@@ -745,11 +742,6 @@ if (is_linux || is_win) {
       "../test:test_support",
       "//third_party/abseil-cpp/absl/memory",
       "//third_party/abseil-cpp/absl/types:optional",
-    ]
-
-    configs += [ "//build/config/win:windowed" ]
-
-    deps += [
       "../api:libjingle_peerconnection_api",
       "../api/audio_codecs:builtin_audio_decoder_factory",
       "../api/audio_codecs:builtin_audio_encoder_factory",
@@ -772,6 +764,22 @@ if (is_linux || is_win) {
       "../test:video_test_support",
       "//third_party/libyuv",
     ]
+
+    if (is_win) {
+      sources += [
+        "peerconnection/serverless/main.cc",
+        "peerconnection/serverless/main_wnd.cc",
+        "peerconnection/serverless/main_wnd.h",
+      ]
+      configs += [ "//build/config/win:windowed" ]
+    }
+
+    if (is_linux) {
+      sources += [
+        "peerconnection/serverless/linux/main.cc"
+      ]
+    }
+
   }
 
   rtc_executable("peerconnection_server") {

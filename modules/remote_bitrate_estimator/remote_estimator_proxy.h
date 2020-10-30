@@ -16,7 +16,7 @@
 
 #include "api/transport/webrtc_key_value_config.h"
 #include "modules/remote_bitrate_estimator/include/remote_bitrate_estimator.h"
-#include "modules/third_party/onnxinfer/include/ONNXInferInterface.h"
+#include "modules/third_party/onnxinfer/ONNXInferInterface.h"
 #include "rtc_base/critical_section.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/numerics/sequence_number_util.h"

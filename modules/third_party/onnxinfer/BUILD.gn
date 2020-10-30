@@ -1,0 +1,6 @@
+static_library("onnxinfermock") {
+  sources = [
+      "ONNXInferInterface.cc",
+      "ONNXInferInterface.h"
+  ]
+}
