@@ -63,7 +63,6 @@ class Timer {
 
 class MainWindowMock : public MainWindow {
  private:
-  std::unique_ptr<VideoRenderer> local_renderer_;
   std::unique_ptr<VideoRenderer> remote_renderer_;
   MainWndCallback* callback_;
   std::shared_ptr<rtc::AutoSocketServerThread> socket_thread_;
@@ -89,11 +88,9 @@ class MainWindowMock : public MainWindow {
   void SwitchToConnectUI() override {}
   void SwitchToStreamingUI() override {}
 
-  void StartLocalRenderer(webrtc::VideoTrackInterface* local_video) override {
-    local_renderer_.reset(new VideoRenderer(local_video, callback_));
-  }
+  void StartLocalRenderer(webrtc::VideoTrackInterface* local_video) override {}
 
-  void StopLocalRenderer() override { local_renderer_.reset(); }
+  void StopLocalRenderer() override {}
 
   void StartRemoteRenderer(webrtc::VideoTrackInterface* remote_video) override {
     remote_renderer_.reset(new VideoRenderer(remote_video, callback_));
