@@ -65,7 +65,7 @@ rtc_static_library("remote_bitrate_estimator") {
   ]
 
   if (is_linux) {
-    deps += [ "//modules/third_party/onnxinfer:onnxinfermock" ]
+    deps += [ "//modules/third_party/onnxinfer:onnxinfer" ]
   }
 }
 
