@@ -60,6 +60,18 @@ This section describes required fields for the json configuration file.
   - **autocall**: Call the first available other client without user intervention. *Note: Only one of two clients could set it to true, otherwise both two clients will block*.
   - **autoclose**: The time *in seconds* before close automatically (always run if autoclose=0)
 
+Note that this part (`server_connection`) is kept for backward compatibility and not used in serverless version except for the autoclose option.
+
+- **serverless_connection**
+  - **sender**
+    - **enabled**: If set to `true`, the client will act as sender and automatically connect to receiver when launched.
+    - **send_to_ip**: The IP of serverless peerconnection receiver 
+    - **send_to_port**: The port of serverless peerconnection receiver
+  - **receiver**
+    - **enabled**: If set to `true`, the client will act as receiver and wait for sender to connect.
+    - **listening_ip**: The IP address that the socket in receiver binds and listends to
+    - **listening_port**: The port number that the socket in receiver binds and listends to
+
 - **bwe_feedback_duration**: The duration the receiver sends its estimated target rate every time(*in millisecond*).
 
 - **onnx**
