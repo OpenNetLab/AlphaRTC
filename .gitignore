@@ -69,3 +69,8 @@
 /.vscode
 !webrtc/*
 .vs/
+
+!Makefile
+target/
+src/
+.gclient_entries

@@ -1,0 +1,30 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+  branches:
+    include:
+    - "*"
+    exclude:
+    - upstream/*
+
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+
+steps:
+- checkout: self
+  lfs: true
+
+- script: make init
+  displayName: 'build compile environment'
+
+- script: make sync
+  displayName: 'sync dependencies'
+
+- script: make app
+  displayName: 'build application'
+
