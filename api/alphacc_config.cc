@@ -73,15 +73,6 @@ bool ParseAlphaCCConfig(const std::string& file_path) {
       GetString(second, "onnx_model_path", &config->onnx_model_path));
   second.clear();
 
-  if (GetValue(top, "redis", &second)) {
-    RETURN_ON_FAIL(GetString(second, "ip", &config->redis_ip));
-    RETURN_ON_FAIL(GetInt(second, "port", &config->redis_port));
-    RETURN_ON_FAIL(GetString(second, "session_id", &config->redis_sid));
-    RETURN_ON_FAIL(GetInt(second, "redis_update_duration",
-                          &config->redis_update_duration_ms));
-  }
-  second.clear();
-
   bool enabled = false;
   RETURN_ON_FAIL(GetValue(top, "video_source", &second));
   RETURN_ON_FAIL(GetValue(second, "video_disabled", &third));
