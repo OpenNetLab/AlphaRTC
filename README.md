@@ -53,15 +53,6 @@ Since `peerconnection_serverless` needs two peers, you may spawn two instances (
 ### Configurations for *peerconnection_serverless*
 This section describes required fields for the json configuration file.
 
-- **server_connection**
-  - **ip**: The IP of peerconnection_server.
-  - **port**: The port of peerconnection_server.
-  - **autoconnect**: Connect to the server without user intervention.
-  - **autocall**: Call the first available other client without user intervention. *Note: Only one of two clients could set it to true, otherwise both two clients will block*.
-  - **autoclose**: The time *in seconds* before close automatically (always run if autoclose=0)
-
-Note that this part (`server_connection`) is kept for backward compatibility and not used in serverless version except for the autoclose option.
-
 - **serverless_connection**
   - **sender**
     - **enabled**: If set to `true`, the client will act as sender and automatically connect to receiver when launched.
@@ -71,6 +62,7 @@ Note that this part (`server_connection`) is kept for backward compatibility and
     - **enabled**: If set to `true`, the client will act as receiver and wait for sender to connect.
     - **listening_ip**: The IP address that the socket in receiver binds and listends to
     - **listening_port**: The port number that the socket in receiver binds and listends to
+  - **autoclose**: The time *in seconds* before close automatically (always run if autoclose=0)
 
 - **bwe_feedback_duration**: The duration the receiver sends its estimated target rate every time(*in millisecond*).
 
@@ -82,6 +74,12 @@ Note that this part (`server_connection`) is kept for backward compatibility and
     - **enabled**: If set to `true`, the client will not take any video source as input.
   - **webcam**:
     - **enabled**: If set to `true`, then the client will use the web camera as the video source
+  - **video_file**:
+    - **enabled**: If set to `true`, then the client will use a video file as the video source
+    - **height**: The height of the input video
+    - **width**: The width of the input video
+    - **fps**: The frames per second (FPS) of the input video
+    - **file_path**: The file path of the input video
 
 - **save_to_file**
   - **enabled**: Whether to enable file saving or not
@@ -97,14 +95,6 @@ Note that this part (`server_connection`) is kept for backward compatibility and
 
 ```
 {
-    "server_connection": {
-        "ip": "127.0.0.1",
-        "port": 8888,
-        "autoconnect": true,
-        "autocall": false,
-        "autoclose": 20
-    },
-
     "serverless_connection": {
         "sender": {
             "enabled": false,
@@ -115,7 +105,8 @@ Note that this part (`server_connection`) is kept for backward compatibility and
             "enabled": true,
             "listening_ip": "0.0.0.0",
             "listening_port": 8888
-        }
+        },
+        "autoclose": 20
     },
 
     "bwe_feedback_duration": 200,
