@@ -20,7 +20,7 @@ struct AlphaCCConfig {
   ~AlphaCCConfig() = default;
 
   // The server to connect
-  std::string conn_server_ip = "";
+  std::string conn_server_ip;
   int conn_server_port = 0;
   // Connect to the server without user intervention.
   bool conn_autoconnect = false;
@@ -36,13 +36,13 @@ struct AlphaCCConfig {
   bool is_receiver = false;
 
   // The address to connect to
-  std::string dest_ip = "";
+  std::string dest_ip;
   int dest_port = 0;
-  std::string listening_ip = "";
+  std::string listening_ip;
   int listening_port = 0;
 
   int bwe_feedback_duration_ms = 0;
-  std::string onnx_model_path = "";
+  std::string onnx_model_path;
 
   enum class VideoSourceOption {
     kVideoDisabled,
@@ -52,14 +52,14 @@ struct AlphaCCConfig {
   int video_height = 0;
   int video_width = 0;
   int video_fps = 0;
-  std::string video_file_path = "";
+  std::string video_file_path;
 
   enum class AudioSourceOption { kMicrophone, kAudioFile } audio_source_option;
-  std::string audio_file_path = "";
+  std::string audio_file_path;
 
   bool save_to_file = false;
-  std::string video_output_path = "";
-  std::string audio_output_path = "";
+  std::string video_output_path;
+  std::string audio_output_path;
   int video_output_height = 0;
   int video_output_width = 0;
   int video_output_fps = 0;
