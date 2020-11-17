@@ -37,18 +37,11 @@ struct AlphaCCConfig {
 
   // The address to connect to
   std::string dest_ip;
-  int dest_port;
+  int dest_port = 0;
   std::string listening_ip;
-  int listening_port;
+  int listening_port = 0;
 
-  // Redis server configuration
-  std::string redis_ip;
-  int redis_port;
-  // Redis session id
-  std::string redis_sid;
-  int redis_update_duration_ms;
-
-  int bwe_feedback_duration_ms;
+  int bwe_feedback_duration_ms = 0;
   std::string onnx_model_path;
 
   enum class VideoSourceOption {
@@ -56,9 +49,9 @@ struct AlphaCCConfig {
     kWebcam,
     kVideoFile,
   } video_source_option;
-  int video_height;
-  int video_width;
-  int video_fps;
+  int video_height = 0;
+  int video_width = 0;
+  int video_fps = 0;
   std::string video_file_path;
 
   enum class AudioSourceOption { kMicrophone, kAudioFile } audio_source_option;
@@ -67,9 +60,9 @@ struct AlphaCCConfig {
   bool save_to_file = false;
   std::string video_output_path;
   std::string audio_output_path;
-  int video_output_height;
-  int video_output_width;
-  int video_output_fps;
+  int video_output_height = 0;
+  int video_output_width = 0;
+  int video_output_fps = 0;
 };
 
 // Get alphaCC global configurations

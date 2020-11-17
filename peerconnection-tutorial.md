@@ -34,12 +34,6 @@ The duration the receiver sends its estimated target rate every time(*in millise
 ### **onnx**
 - **onnx_model_path**: The path of the onnx model.
 
-### **redis**
-- **ip**: The ip of Redis Service.
-- **port**: The port of Redis Service.
-- **session_id**: The session id of Redis Service
-- **redis_update_duration**: The duration that the client collects status and push into redis(*in millisecond*).
-
 ### **video_source**
 - **video_disabled**:
     - enabled: If set to `true`, the client will not take any video source as input.
