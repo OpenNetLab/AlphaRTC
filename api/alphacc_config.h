@@ -41,13 +41,6 @@ struct AlphaCCConfig {
   std::string listening_ip = "";
   int listening_port = 0;
 
-  // Redis server configuration
-  std::string redis_ip = "";
-  int redis_port = 0;
-  // Redis session id
-  std::string redis_sid = "";
-  int redis_update_duration_ms = 0;
-
   int bwe_feedback_duration_ms = 0;
   std::string onnx_model_path = "";
 
