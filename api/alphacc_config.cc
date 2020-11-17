@@ -37,29 +37,32 @@ bool ParseAlphaCCConfig(const std::string& file_path) {
 
   RETURN_ON_FAIL(reader.parse(is, top));
 
-  RETURN_ON_FAIL(GetValue(top, "server_connection", &second));
-  RETURN_ON_FAIL(GetString(second, "ip", &config->conn_server_ip));
-  RETURN_ON_FAIL(GetInt(second, "port", &config->conn_server_port));
-  RETURN_ON_FAIL(GetBool(second, "autoconnect", &config->conn_autoconnect));
-  RETURN_ON_FAIL(GetBool(second, "autocall", &config->conn_autocall));
-  RETURN_ON_FAIL(GetInt(second, "autoclose", &config->conn_autoclose));
+  if (GetValue(top, "server_connection", &second)) {
+    RETURN_ON_FAIL(GetString(second, "ip", &config->conn_server_ip));
+    RETURN_ON_FAIL(GetInt(second, "port", &config->conn_server_port));
+    RETURN_ON_FAIL(GetBool(second, "autoconnect", &config->conn_autoconnect));
+    RETURN_ON_FAIL(GetBool(second, "autocall", &config->conn_autocall));
+    RETURN_ON_FAIL(GetInt(second, "autoclose", &config->conn_autoclose));
+  }
   second.clear();
 
-  RETURN_ON_FAIL(GetValue(top, "serverless_connection", &second));
-  RETURN_ON_FAIL(GetValue(second, "sender", &third));
-  RETURN_ON_FAIL(GetBool(third, "enabled", &config->is_sender));
-  if (config->is_sender) {
-    RETURN_ON_FAIL(GetString(third, "dest_ip", &config->dest_ip));
-    RETURN_ON_FAIL(GetInt(third, "dest_port", &config->dest_port));
+  if (GetValue(top, "serverless_connection", &second)) {
+    RETURN_ON_FAIL(GetInt(second, "autoclose", &config->conn_autoclose));
+    RETURN_ON_FAIL(GetValue(second, "sender", &third));
+    RETURN_ON_FAIL(GetBool(third, "enabled", &config->is_sender));
+    if (config->is_sender) {
+      RETURN_ON_FAIL(GetString(third, "dest_ip", &config->dest_ip));
+      RETURN_ON_FAIL(GetInt(third, "dest_port", &config->dest_port));
+    }
+    third.clear();
+    RETURN_ON_FAIL(GetValue(second, "receiver", &third));
+    RETURN_ON_FAIL(GetBool(third, "enabled", &config->is_receiver));
+    if (config->is_receiver) {
+      RETURN_ON_FAIL(GetString(third, "listening_ip", &config->listening_ip));
+      RETURN_ON_FAIL(GetInt(third, "listening_port", &config->listening_port));
+    }
+    third.clear();
   }
-  third.clear();
-  RETURN_ON_FAIL(GetValue(second, "receiver", &third));
-  RETURN_ON_FAIL(GetBool(third, "enabled", &config->is_receiver));
-  if (config->is_receiver) {
-    RETURN_ON_FAIL(GetString(third, "listening_ip", &config->listening_ip));
-    RETURN_ON_FAIL(GetInt(third, "listening_port", &config->listening_port));
-  }
-  third.clear();
   second.clear();
 
   RETURN_ON_FAIL(
@@ -70,12 +73,13 @@ bool ParseAlphaCCConfig(const std::string& file_path) {
       GetString(second, "onnx_model_path", &config->onnx_model_path));
   second.clear();
 
-  RETURN_ON_FAIL(GetValue(top, "redis", &second));
-  RETURN_ON_FAIL(GetString(second, "ip", &config->redis_ip));
-  RETURN_ON_FAIL(GetInt(second, "port", &config->redis_port));
-  RETURN_ON_FAIL(GetString(second, "session_id", &config->redis_sid));
-  RETURN_ON_FAIL(GetInt(second, "redis_update_duration",
-                        &config->redis_update_duration_ms));
+  if (GetValue(top, "redis", &second)) {
+    RETURN_ON_FAIL(GetString(second, "ip", &config->redis_ip));
+    RETURN_ON_FAIL(GetInt(second, "port", &config->redis_port));
+    RETURN_ON_FAIL(GetString(second, "session_id", &config->redis_sid));
+    RETURN_ON_FAIL(GetInt(second, "redis_update_duration",
+                          &config->redis_update_duration_ms));
+  }
   second.clear();
 
   bool enabled = false;
