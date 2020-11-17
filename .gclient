@@ -1,7 +1,7 @@
 solutions = [
 {
     "name": ".",
-    "url": "https://dev.azure.com/msrasia/NetworkingResearchGroup/_git/AlphaRTC-src",
+    "url": "https://github.com/OpenNetLab/AlphaRTC.git",
     "managed": False,
     "deps_file": "DEPS",
     "custom_deps": {},
