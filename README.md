@@ -144,7 +144,7 @@ This section describes required fields for the json configuration file.
             "enabled": false,
             "dest_ip": "127.0.0.1",
             "dest_port": 8888
-        }
+        },
         "autoclose": 20
     },
 
