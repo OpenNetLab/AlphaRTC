@@ -136,63 +136,26 @@ This section describes required fields for the json configuration file.
     - **file_path**: The file path of the output video file in YUV format
 
 #### Example
+To beter demonstrate the usage, we have an all-inclusive example in `examples/peerconnection/serverless/corpus`.
 
-``` json
-{
-    "serverless_connection": {
-        "sender": {
-            "enabled": false,
-            "dest_ip": "127.0.0.1",
-            "dest_port": 8888
-        },
-        "autoclose": 20
-    },
+0. Install all prequisite packages, as stated above. Also make sure you have compiled the `alphartc` docker image by running `make`
 
-    "bwe_feedback_duration": 200,
-
-    "onnx": {
-        "onnx_model_path": "onnx-model.onnx"
-    },
-
-    "video_source":{
-        "video_disabled": {
-            "enabled": true
-        },
-        "webcam": {
-            "enabled": false
-        },
-        "video_file": {
-            "enabled": true,
-            "height": 480,
-            "width": 640,
-            "fps": 24,
-            "file_path": "testmedia/test.yuv"
-        }
-    },
-
-    "audio_source": {
-        "microphone": {
-            "enabled": false
-        },
-        "audio_file": {
-            "enabled": true,
-            "file_path": "testmedia/test.wav"
-        }
-    },
-    "save_to_file": {
-        "enabled": true,
-        "audio": {
-            "file_path": "outaudio.wav"
-        },
-        "video": {
-            "width": 640,
-            "height": 480,
-            "fps": 24,
-            "file_path": "outvideo.yuv"
-        }
-    }
-}
+1. Create a Docker network
+```shell
+sudo docker network create --subnet=192.168.0.1/16 alphartc
 ```
+
+2. Start the receiver
+```shell
+sudo docker run --network alphartc --ip 192.168.0.100 -v $(pwd)/examples/peerconnection/serverless/corpus:/app/config -w /app/config alphartc peerconnection_serverless receiver.json
+```
+
+3. Start the sender
+```shell
+sudo docker run --network alphartc -v $(pwd)/examples/peerconnection/serverless/corpus:/app/config -w /app/config alphartc peerconnection_serverless sender.json
+```
+
+After the receiver terminates, you should then be able to see the output files in `examples/peerconnection/serverless/corpus`.
 
 ## Who Are We
 
