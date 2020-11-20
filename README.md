@@ -135,63 +135,13 @@ This section describes required fields for the json configuration file.
     - **fps**: Frames per second of the output video file
     - **file_path**: The file path of the output video file in YUV format
 
-#### Example
+#### Run peerconnection_serverless
 
-``` json
-{
-    "serverless_connection": {
-        "sender": {
-            "enabled": false,
-            "dest_ip": "127.0.0.1",
-            "dest_port": 8888
-        },
-        "autoclose": 20
-    },
+To better demonstrate the usage of peerconnection_serverless, we provide an all-inclusive corpus in `examples/peerconnection/serverless/corpus`. You can use the following commands to execute a tiny example. After these commands terminates, you will get `outvideo.yuv` and `outaudio.wav`.
 
-    "bwe_feedback_duration": 200,
-
-    "onnx": {
-        "onnx_model_path": "onnx-model.onnx"
-    },
-
-    "video_source":{
-        "video_disabled": {
-            "enabled": true
-        },
-        "webcam": {
-            "enabled": false
-        },
-        "video_file": {
-            "enabled": true,
-            "height": 480,
-            "width": 640,
-            "fps": 24,
-            "file_path": "testmedia/test.yuv"
-        }
-    },
-
-    "audio_source": {
-        "microphone": {
-            "enabled": false
-        },
-        "audio_file": {
-            "enabled": true,
-            "file_path": "testmedia/test.wav"
-        }
-    },
-    "save_to_file": {
-        "enabled": true,
-        "audio": {
-            "file_path": "outaudio.wav"
-        },
-        "video": {
-            "width": 640,
-            "height": 480,
-            "fps": 24,
-            "file_path": "outvideo.yuv"
-        }
-    }
-}
+``` shell
+sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
+sudo docker exec alphartc peerconnection_serverless sender.json
 ```
 
 ## Who Are We
