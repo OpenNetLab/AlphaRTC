@@ -25,7 +25,7 @@ steps:
 - script: make sync
   displayName: 'sync dependencies'
 
-- script: make app
+- script: make app && make release
   displayName: 'build application'
 
 - script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json \
