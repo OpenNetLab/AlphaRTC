@@ -1,25 +1,20 @@
 {
     "serverless_connection": {
-        "autoclose": 200,
+        "autoclose": 20,
         "sender": {
             "enabled": true,
-            "dest_ip": "192.168.0.100",
-            "dest_port": 8888
+            "dest_ip": "0.0.0.0",
+            "dest_port": 8000
         },
         "receiver": {
-            "enabled": false,
-            "listening_ip": "127.0.0.1",
-            "listening_port": 8888
+            "enabled": false
         }
     },
-    
     "bwe_feedback_duration": 200,
-
     "onnx": {
         "onnx_model_path": "onnx-model.onnx"
     },
-
-    "video_source":{
+    "video_source": {
         "video_disabled": {
             "enabled": false
         },
@@ -34,7 +29,6 @@
             "file_path": "testmedia/test.yuv"
         }
     },
-
     "audio_source": {
         "microphone": {
             "enabled": false

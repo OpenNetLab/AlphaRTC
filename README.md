@@ -135,27 +135,14 @@ This section describes required fields for the json configuration file.
     - **fps**: Frames per second of the output video file
     - **file_path**: The file path of the output video file in YUV format
 
-#### Example
-To beter demonstrate the usage, we have an all-inclusive example in `examples/peerconnection/serverless/corpus`.
+#### Run peerconnection_serverless
 
-0. Install all prequisite packages, as stated above. Also make sure you have compiled the `alphartc` docker image by running `make`
+To better demonstrate the usage of peerconnection_serverless, we provide an all-inclusive corpus in `examples/peerconnection/serverless/corpus`. You can use the following commands to execute a tiny example. After these commands terminates, you will get `outvideo.yuv` and `outaudio.wav`.
 
-1. Create a Docker network
-```shell
-sudo docker network create --subnet=192.168.0.1/16 alphartc
+``` shell
+sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
+sudo docker exec alphartc peerconnection_serverless sender.json
 ```
-
-2. Start the receiver
-```shell
-sudo docker run --network alphartc --ip 192.168.0.100 -v $(pwd)/examples/peerconnection/serverless/corpus:/app/config -w /app/config alphartc peerconnection_serverless receiver.json
-```
-
-3. Start the sender
-```shell
-sudo docker run --network alphartc -v $(pwd)/examples/peerconnection/serverless/corpus:/app/config -w /app/config alphartc peerconnection_serverless sender.json
-```
-
-After the receiver terminates, you should then be able to see the output files in `examples/peerconnection/serverless/corpus`.
 
 ## Who Are We
 
