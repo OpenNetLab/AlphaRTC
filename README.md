@@ -2,7 +2,7 @@
 
 <table>
     <tr>
-        <td align="center">master</td>
+        <td align="center">main</td>
         <td align="center">
             <a href="https://dev.azure.com/OpenNetLab/ONL-github/_build/latest?definitionId=3&branchName=main">
                 <img src="https://dev.azure.com/OpenNetLab/ONL-github/_apis/build/status/OpenNetLab.AlphaRTC?branchName=main">
@@ -22,6 +22,14 @@
         <td align="center">
             <a href="https://github.com/OpenNetLab/AlphaRTC/issues">
                 <img src="https://img.shields.io/github/issues-raw/OpenNetLab/AlphaRTC">
+            </a>
+        </td>
+    </tr>
+    <tr>
+        <td align="center">commits</td>
+        <td align="center">
+            <a href="https://github.com/OpenNetLab/AlphaRTC/graphs/commit-activity">
+                <img src="https://img.shields.io/github/commit-activity/m/OpenNetLab/AlphaRTC">
             </a>
         </td>
     </tr>
