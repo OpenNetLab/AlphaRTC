@@ -32,8 +32,5 @@ steps:
   displayName: 'build release image'
 
 - script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
-  displayName: 'start receiver'
-
-- script: docker exec alphartc peerconnection_serverless sender.json
-  displayName: 'start sender'
-
+            && docker exec alphartc peerconnection_serverless sender.json
+  displayName: 'run example'
