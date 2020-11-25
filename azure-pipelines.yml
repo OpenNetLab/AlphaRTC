@@ -65,9 +65,7 @@ jobs:
       displayName: "sync dependencies"
     
     - powershell: gn gen out/Default
-      env: PATH=%PATH%;~\depot_tools
       displayName: "generate build rules"
     
     - powershell: ninja -C peerconnection_serverless
-      env: PATH=%PATH%;~\depot_tools
       displayName: "make peerconnection"
