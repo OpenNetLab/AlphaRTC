@@ -11,26 +11,57 @@ trigger:
     - upstream/*
 
 
-pool:
-  vmImage: 'ubuntu-latest'
+jobs:
+- job: Linux
+  pool:
+    vmImage: 'ubuntu-latest'
 
+  steps:
+  - checkout: self
+    lfs: true
 
-steps:
-- checkout: self
-  lfs: true
+  - script: make init
+    displayName: 'build compile environment'
 
-- script: make init
-  displayName: 'build compile environment'
+  - script: make sync
+    displayName: 'sync dependencies'
 
-- script: make sync
-  displayName: 'sync dependencies'
+  - script: make app
+    displayName: 'build application'
 
-- script: make app
-  displayName: 'build application'
+  - script: make release
+    displayName: 'build release image'
 
-- script: make release
-  displayName: 'build release image'
+  - script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
+              && docker exec alphartc peerconnection_serverless sender.json
+    displayName: 'run example'
 
-- script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
-            && docker exec alphartc peerconnection_serverless sender.json
-  displayName: 'run example'
+- job: Windows
+  pool:
+    vmImage: VS2017-Win2016
+  
+  steps:
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: "2.x"
+        addToPath: true
+    
+    - powershell: git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+      workingDirectory: ~
+      displayName: "clone depot_tools"
+
+    - checkout: self
+      lfs: true
+    
+    - powershell: gclient sync
+      env: PATH=%PATH%;~\depot_tools
+      displayName: "sync dependencies"
+    
+    - powershell: gn gen out/Default
+      env: PATH=%PATH%;~\depot_tools
+      displayName: "generate build rules"
+    
+    - powershell: ninja -C peerconnection_serverless
+      env: PATH=%PATH%;~\depot_tools
+      displayName: "make peerconnection"
