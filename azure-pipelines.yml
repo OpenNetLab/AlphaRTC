@@ -48,7 +48,7 @@ jobs:
         addToPath: true
     
     - powershell: git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
-      workingDirectory: ${Pipeline.Workspace}
+      workingDirectory: $(Pipeline.Workspace)
       displayName: "clone depot_tools"
 
     - checkout: self
