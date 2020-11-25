@@ -55,11 +55,7 @@ jobs:
       lfs: true
     
     - powershell: |
-        $oldpath = (Get-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\Environment' -Name PATH).path
-        $newpath = "$(Pipeline.Workspace)\depot_tools;$oldpath" 
-        Set-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\Environment' -Name PATH -Value $newpath
-    - script: |
-        SET PATH=$(Pipeline.Workspace)\depot_tools;%PATH%
+        Write-Host "##vso[task.prependpath]$(Pipeline.Workspace)/depot_tools"
     
     - powershell: gclient sync
       displayName: "sync dependencies"
