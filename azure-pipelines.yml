@@ -47,7 +47,9 @@ jobs:
         versionSpec: "2.x"
         addToPath: true
     
-    - powershell: git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+    - powershell: |
+        Invoke-WebRequest -Uri "https://storage.googleapis.com/chrome-infra/depot_tools.zip" -OutFile "depot_tools.zip"
+        Expand-Archive "./depot_tools.zip"
       workingDirectory: $(Pipeline.Workspace)
       displayName: "clone depot_tools"
 
