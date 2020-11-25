@@ -54,8 +54,14 @@ jobs:
     - checkout: self
       lfs: true
     
+    - powershell: |
+        $oldpath = (Get-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\Environment' -Name PATH).path
+        $newpath = "~\depot_tools;$oldpath" 
+        Set-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\Environment' -Name PATH -Value $newpath
+    - script: |
+        SET PATH=C:\depot_tools;%PATH%
+    
     - powershell: gclient sync
-      env: PATH=%PATH%;~\depot_tools
       displayName: "sync dependencies"
     
     - powershell: gn gen out/Default
