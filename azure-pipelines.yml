@@ -78,5 +78,5 @@ jobs:
     - powershell: gn gen out/Default
       displayName: "generate build rules"
     
-    - powershell: ninja -C out/default peerconnection_serverless
+    - powershell: ninja -C out/Default peerconnection_serverless
       displayName: "make peerconnection"
