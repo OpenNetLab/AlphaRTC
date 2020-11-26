@@ -12,6 +12,7 @@ trigger:
 
 
 jobs:
+
 - job: Linux
   pool:
     vmImage: 'ubuntu-latest'
@@ -39,7 +40,13 @@ jobs:
 - job: Windows
   pool:
     vmImage: VS2017-Win2016
-  
+
+  variables:
+  - name: DEPOT_TOOLS_WIN_TOOLCHAIN
+    value: 0
+  - name: GYP_MSVS_VERSION
+    value: 2017
+
   steps:
 
     - task: UsePythonVersion@0
@@ -58,9 +65,15 @@ jobs:
     
     - powershell: |
         Write-Host "##vso[task.prependpath]$(Pipeline.Workspace)/depot_tools"
+      displayName: "set path"
     
     - powershell: gclient sync
       displayName: "sync dependencies"
+    
+    - powershell: |
+        Get-ChildItem -Path "src" -Recurse | Move-Item -Destination "."
+        Remove-Item 'src'
+      displayName: "move src"
     
     - powershell: gn gen out/Default
       displayName: "generate build rules"
