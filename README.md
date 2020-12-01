@@ -79,6 +79,8 @@ To compile AlphaRTC, please refer to the following steps
 ### Option 2: Compile from Scratch
 If you don't want to use Docker, or have other reasons to compile from scratch (e.g., you want a native Windows build), you may use this method.
 
+Note: all commands below work for both Linux (sh) and Windows (pwsh), unless otherwise specified
+
 1. Grab essential tools
 
     You may follow the guide [here](https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up) to obtain a copy of `depot_tools`
@@ -93,7 +95,7 @@ If you don't want to use Docker, or have other reasons to compile from scratch (
     ```shell
     cd AlphaRTC
     gclient sync
-    mv -fvn src/* .
+    mv src/* .
     ```
 
 4. Generate build rules
