@@ -100,7 +100,7 @@ Note: all commands below work for both Linux (sh) and Windows (pwsh), unless oth
 
 4. Generate build rules
 
-    _Windows users_: Please use __x64 Native Tools Command Prompt for VS2017__. The clang version comes with the project is 9.0.0, hence incompatible with VS2019.
+    _Windows users_: Please use __x64 Native Tools Command Prompt for VS2017__. The clang version comes with the project is 9.0.0, hence incompatible with VS2019. In addition, environmental variable `DEPOT_TOOLS_WIN_TOOLSCHAIN` has to be set to `0` and `GYP_MSVS_VERSION` has to be set to `2017`.
     
     ```shell
     gn gen out/Default
@@ -185,13 +185,51 @@ This section describes required fields for the json configuration file.
     - **file_path**: The file path of the output video file in YUV format
 
 #### Run peerconnection_serverless
+- Dockerized environment
 
-To better demonstrate the usage of peerconnection_serverless, we provide an all-inclusive corpus in `examples/peerconnection/serverless/corpus`. You can use the following commands to execute a tiny example. After these commands terminates, you will get `outvideo.yuv` and `outaudio.wav`.
+    To better demonstrate the usage of peerconnection_serverless, we provide an all-inclusive corpus in `examples/peerconnection/serverless/corpus`. You can use the following commands to execute a tiny example. After these commands terminates, you will get `outvideo.yuv` and `outaudio.wav`.
+    
+    ``` shell
+    sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
+    sudo docker exec alphartc peerconnection_serverless sender.json
+    ```
 
-``` shell
-sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
-sudo docker exec alphartc peerconnection_serverless sender.json
-```
+- Bare metal
+
+    If you compiled your own binary, you can also run it on your bare-metal machine.
+    
+    - Linux users:
+        1. Copy the provided corpus to a new directory
+            ```shell
+            cp -r examples/peerconnection/serverless/corpus/* /path/to/your/runtime
+            ```
+        2. Copy the essential dynanmic libraries and add them to searching directory
+            ```shell
+            cp modules/third_party/onnxinfer/lib/*.so /path/to/your/dll
+            export LD_LIBRARY_PATH=/path/to/your/dll:$LD_LIBRARY_PATH
+            ```
+        3. Start the receiver and the sender
+            ```shell
+            cd /path/to/your/runtime
+            /path/to/alphartc/out/Default/peerconnection ./receiver.json
+            /path/to/alphartc/out/Default/peerconnection ./sender.json
+            ```
+    - Windows users:
+        1. Copy the provided corpus to a new directory
+            ```shell
+            cp -Recursive examples/peerconnection/serverless/corpus/* /path/to/your/runtime
+            ```
+        2. Copy the essential dynanmic libraries and add them to searching directory
+            ```shell
+            cp modules/third_party/onnxinfer/bin/*.dll /path/to/your/dll
+            set PATH=/path/to/your/dll;%PATH%
+            ```
+        3. Start the receiver and the sender
+            ```shell
+            cd /path/to/your/runtime
+            /path/to/alphartc/out/Default/peerconnection ./receiver.json
+            /path/to/alphartc/out/Default/peerconnection ./sender.json
+            ```
 
 ## Who Are We
 
