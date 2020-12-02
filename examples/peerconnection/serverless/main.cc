@@ -8,6 +8,17 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "conductor.h"
+#include "peer_connection_client.h"
+
+#ifdef WIN32
+#include "rtc_base/win32_socket_init.h"
+#include "rtc_base/win32_socket_server.h"
+#endif
+#include "rtc_base/ssl_adapter.h"
+#include "rtc_base/string_utils.h"  // For ToUtf8
+#include "system_wrappers/include/field_trial.h"
+
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -16,12 +27,6 @@
 #include <future>
 #include <iostream>
 #include <memory>
-
-#include "examples/peerconnection/serverless/conductor.h"
-#include "examples/peerconnection/serverless/peer_connection_client.h"
-#include "rtc_base/ssl_adapter.h"
-#include "rtc_base/string_utils.h"  // For ToUtf8
-#include "system_wrappers/include/field_trial.h"
 
 class VideoRenderer : public rtc::VideoSinkInterface<webrtc::VideoFrame> {
  public:
@@ -48,16 +53,22 @@ class Timer {
   template <typename Function>
   void AddTimer(int ms, Function f) {
     std::shared_ptr<std::thread> t = std::make_shared<std::thread>([=] {
+      rtc::SetCurrentThreadName(("Timer: " + std::to_string(ms) + "ms").c_str());
       std::this_thread::sleep_for(std::chrono::milliseconds(ms));
       f();
     });
     timers_.push_back(t);
   }
 
-  ~Timer() {
+  void Wait() {
     for (auto thread : timers_) {
       thread.get()->join();
     }
+    timers_.clear();
+  }
+
+  ~Timer() {
+    Wait();
   }
 };
 
@@ -96,16 +107,23 @@ class MainWindowMock : public MainWindow {
     remote_renderer_.reset(new VideoRenderer(remote_video, callback_));
   }
 
-  void StopRemoteRenderer() override { remote_renderer_.reset(); }
+  void StopRemoteRenderer() override {
+    remote_renderer_.reset();
+  }
 
   void QueueUIThreadCallback(int msg_id, void* data) override {
     callback_->UIThreadCallback(msg_id, data);
   }
 
+  void Quit() {
+    t.Wait();
+    callback_->Close();
+  }
+
   void Close() {
     RTC_LOG(INFO) << "Cleaning up";
-    callback_->Close();
-    socket_thread_.get()->Stop();
+    socket_thread_->Stop();
+    StopRemoteRenderer();
   }
 
   void StartAutoCloseTimer(int interval_ms) override {
@@ -130,7 +148,12 @@ int main(int argc, char* argv[]) {
     exit(EINVAL);
   }
 
+#ifdef WIN32
+  rtc::WinsockInitializer win_sock_init;
+  rtc::Win32SocketServer socket_server;
+#else
   rtc::PhysicalSocketServer socket_server;
+#endif
 
   std::shared_ptr<rtc::AutoSocketServerThread> thread(
       new rtc::AutoSocketServerThread(&socket_server));
@@ -146,11 +169,12 @@ int main(int argc, char* argv[]) {
   if (config->is_receiver) {
     client.StartListen(config->listening_ip, config->listening_port);
   }
-  if (config->is_sender) {
+  else if (config->is_sender) {
     client.StartConnect(config->dest_ip, config->dest_port);
   }
 
-  thread.get()->Run();
+  thread->Run();
+  wnd.Quit();
 
   rtc::CleanupSSL();
   return 0;

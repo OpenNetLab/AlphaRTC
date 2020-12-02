@@ -87,30 +87,17 @@ void PeerConnectionClient::StartConnect(const std::string& ip, int port) {
 void PeerConnectionClient::SendAClientMessage(const std::string& message) {
   // enter the critical section
   rtc::CritScope cs(&cs_);
-  int retry = 3;
   // add terminal symbol in sending message
   std::string complete_message = message + messageTerminate;
-  // use sleep to prevent the situation that socket sending failed for frequently send 
-  std::this_thread::sleep_for(std::chrono::seconds(3));
-  size_t sent = message_socket_->Send(complete_message.c_str(),
-                                      complete_message.length());
-  // if sending failed, try to re-send for <retry> times 
-  while (sent != complete_message.length()) {
-    retry--;
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+  size_t sent = 0;
+  do {
     sent = message_socket_->Send(complete_message.c_str(),
                                  complete_message.length());
-    if (retry <= 0) {
-      RTC_CHECK(sent == complete_message.length());
-    }
-  }
+  } while((sent != complete_message.length()));
 }
 
 void PeerConnectionClient::SendClientMessage(const std::string& message) {
-  // start a new thread to send message
-  std::thread new_thread(&PeerConnectionClient::SendAClientMessage, this,
-                         message);
-  new_thread.detach();
+  SendAClientMessage(message);
 }
 
 void PeerConnectionClient::SignOut() {
