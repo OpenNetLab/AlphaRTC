@@ -10,6 +10,7 @@
 
 #include "conductor.h"
 #include "peer_connection_client.h"
+#include "defaults.h"
 
 #ifdef WIN32
 #include "rtc_base/win32_socket_init.h"
@@ -18,15 +19,18 @@
 #include "rtc_base/ssl_adapter.h"
 #include "rtc_base/string_utils.h"  // For ToUtf8
 #include "system_wrappers/include/field_trial.h"
+#include "api/alphacc_config.h"
 
-#include <errno.h>
-#include <stdio.h>
-#include <string.h>
 #include <chrono>
 #include <functional>
 #include <future>
 #include <iostream>
 #include <memory>
+#include <thread>
+
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
 
 class VideoRenderer : public rtc::VideoSinkInterface<webrtc::VideoFrame> {
  public:
@@ -45,43 +49,21 @@ class VideoRenderer : public rtc::VideoSinkInterface<webrtc::VideoFrame> {
   MainWndCallback* callback_;
 };
 
-class Timer {
- private:
-  std::vector<std::shared_ptr<std::thread>> timers_;
-
- public:
-  template <typename Function>
-  void AddTimer(int ms, Function f) {
-    std::shared_ptr<std::thread> t = std::make_shared<std::thread>([=] {
-      rtc::SetCurrentThreadName(("Timer: " + std::to_string(ms) + "ms").c_str());
-      std::this_thread::sleep_for(std::chrono::milliseconds(ms));
-      f();
-    });
-    timers_.push_back(t);
-  }
-
-  void Wait() {
-    for (auto thread : timers_) {
-      thread.get()->join();
-    }
-    timers_.clear();
-  }
-
-  ~Timer() {
-    Wait();
-  }
-};
-
 class MainWindowMock : public MainWindow {
  private:
   std::unique_ptr<VideoRenderer> remote_renderer_;
   MainWndCallback* callback_;
   std::shared_ptr<rtc::AutoSocketServerThread> socket_thread_;
-  Timer t;
+  const webrtc::AlphaCCConfig* config_;
+  int close_time_;
 
  public:
-  MainWindowMock(std::shared_ptr<rtc::AutoSocketServerThread> socket_thread)
-      : callback_(NULL), socket_thread_(socket_thread) {}
+  MainWindowMock(std::shared_ptr<rtc::AutoSocketServerThread> socket_thread) :
+    callback_(NULL),
+    socket_thread_(socket_thread),
+    config_(webrtc::GetAlphaCCConfig()),
+    close_time_(rtc::MessageQueue::kForever)
+    {}
   void RegisterObserver(MainWndCallback* callback) override {
     callback_ = callback;
   }
@@ -115,19 +97,25 @@ class MainWindowMock : public MainWindow {
     callback_->UIThreadCallback(msg_id, data);
   }
 
-  void Quit() {
-    t.Wait();
+  void Run() {
+    if (config_->conn_autoclose != kAutoCloseDisableValue) {
+      while (close_time_ == rtc::MessageQueue::kForever) {
+        RTC_DCHECK(socket_thread_->ProcessMessages(0));
+      }
+      if (close_time_ != rtc::MessageQueue::kForever) {
+        RTC_DCHECK(socket_thread_->ProcessMessages(close_time_));
+      }
+    } else {
+      socket_thread_->Run();
+    }
+    StopRemoteRenderer();
+    socket_thread_->Stop();
+    socket_thread_->Quit();
     callback_->Close();
   }
 
-  void Close() {
-    RTC_LOG(INFO) << "Cleaning up";
-    socket_thread_->Stop();
-    StopRemoteRenderer();
-  }
-
-  void StartAutoCloseTimer(int interval_ms) override {
-    t.AddTimer(interval_ms, std::bind(&MainWindowMock::Close, this));
+  void StartAutoCloseTimer(int close_time) override {
+    close_time_ = close_time;
   }
 };
 
@@ -173,8 +161,7 @@ int main(int argc, char* argv[]) {
     client.StartConnect(config->dest_ip, config->dest_port);
   }
 
-  thread->Run();
-  wnd.Quit();
+  wnd.Run();
 
   rtc::CleanupSSL();
   return 0;

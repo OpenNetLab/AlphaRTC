@@ -101,7 +101,8 @@ void PeerConnectionClient::SendClientMessage(const std::string& message) {
 }
 
 void PeerConnectionClient::SignOut() {
-  SendClientMessage(kByeMessage);
+  if (message_socket_ != nullptr)
+    SendClientMessage(kByeMessage);
 }
 
 void PeerConnectionClient::OnSenderConnect(rtc::AsyncSocket* socket) {
