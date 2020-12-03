@@ -12,31 +12,6 @@ trigger:
 
 
 jobs:
-
-- job: Linux
-  pool:
-    vmImage: 'ubuntu-latest'
-
-  steps:
-  - checkout: self
-    lfs: true
-
-  - script: make init
-    displayName: 'build compile environment'
-
-  - script: make sync
-    displayName: 'sync dependencies'
-
-  - script: make app
-    displayName: 'build application'
-
-  - script: make release
-    displayName: 'build release image'
-
-  - script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
-              && docker exec alphartc peerconnection_serverless sender.json
-    displayName: 'run example'
-
 - job: Windows
   pool:
     name: AlphaRTC-build
