@@ -30,9 +30,6 @@ jobs:
       workingDirectory: $(Pipeline.Workspace)
       displayName: "clone depot_tools"
 
-    - checkout: self
-      lfs: true
-    
     - powershell: |
         Write-Host "##vso[task.prependpath]$(Pipeline.Workspace)/depot_tools"
       displayName: "set path"
