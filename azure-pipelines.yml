@@ -39,6 +39,7 @@ jobs:
 
 - job: Windows
   pool:
+    name: AlphaRTC-build
     vmImage: VS2017-Win2016
 
   variables:
