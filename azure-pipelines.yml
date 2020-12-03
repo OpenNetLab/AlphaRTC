@@ -10,7 +10,6 @@ trigger:
     exclude:
     - upstream/*
 
-
 jobs:
 - job: Windows
   pool:
