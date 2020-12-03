@@ -102,15 +102,12 @@ class MainWindowMock : public MainWindow {
       while (close_time_ == rtc::MessageQueue::kForever) {
         RTC_DCHECK(socket_thread_->ProcessMessages(0));
       }
-      if (close_time_ != rtc::MessageQueue::kForever) {
-        RTC_DCHECK(socket_thread_->ProcessMessages(close_time_));
-      }
+      RTC_DCHECK(socket_thread_->ProcessMessages(close_time_));
     } else {
       socket_thread_->Run();
     }
     StopRemoteRenderer();
     socket_thread_->Stop();
-    socket_thread_->Quit();
     callback_->Close();
   }
 
