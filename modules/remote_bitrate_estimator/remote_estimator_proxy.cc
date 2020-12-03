@@ -96,7 +96,7 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   float estimation = 8*1e6;
   if (time_to_send_bew_message) {
     BweMessage bwe;
-    // estimation = onnxinfer::GetBweEstimate(onnx_infer_);
+    estimation = onnxinfer::GetBweEstimate(onnx_infer_);
     bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
     bwe.timestamp_ms = clock_->TimeInMilliseconds();
     SendbackBweEstimation(bwe);
