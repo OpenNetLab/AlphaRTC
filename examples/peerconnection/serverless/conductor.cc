@@ -305,10 +305,7 @@ bool Conductor::CreatePeerConnection(bool dtls) {
 void Conductor::DeletePeerConnection() {
   main_wnd_->StopLocalRenderer();
   main_wnd_->StopRemoteRenderer();
-  if (peer_connection_ != nullptr) {
-    peer_connection_->Close();
-    peer_connection_ = nullptr;
-  }
+  peer_connection_ = nullptr;
   peer_connection_factory_ = nullptr;
   loopback_ = false;
 }
