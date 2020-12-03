@@ -8,20 +8,29 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <errno.h>
-#include <stdio.h>
-#include <string.h>
+#include "conductor.h"
+#include "peer_connection_client.h"
+#include "defaults.h"
+
+#ifdef WIN32
+#include "rtc_base/win32_socket_init.h"
+#include "rtc_base/win32_socket_server.h"
+#endif
+#include "rtc_base/ssl_adapter.h"
+#include "rtc_base/string_utils.h"  // For ToUtf8
+#include "system_wrappers/include/field_trial.h"
+#include "api/alphacc_config.h"
+
 #include <chrono>
 #include <functional>
 #include <future>
 #include <iostream>
 #include <memory>
+#include <thread>
 
-#include "examples/peerconnection/serverless/conductor.h"
-#include "examples/peerconnection/serverless/peer_connection_client.h"
-#include "rtc_base/ssl_adapter.h"
-#include "rtc_base/string_utils.h"  // For ToUtf8
-#include "system_wrappers/include/field_trial.h"
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
 
 class VideoRenderer : public rtc::VideoSinkInterface<webrtc::VideoFrame> {
  public:
@@ -40,37 +49,21 @@ class VideoRenderer : public rtc::VideoSinkInterface<webrtc::VideoFrame> {
   MainWndCallback* callback_;
 };
 
-class Timer {
- private:
-  std::vector<std::shared_ptr<std::thread>> timers_;
-
- public:
-  template <typename Function>
-  void AddTimer(int ms, Function f) {
-    std::shared_ptr<std::thread> t = std::make_shared<std::thread>([=] {
-      std::this_thread::sleep_for(std::chrono::milliseconds(ms));
-      f();
-    });
-    timers_.push_back(t);
-  }
-
-  ~Timer() {
-    for (auto thread : timers_) {
-      thread.get()->join();
-    }
-  }
-};
-
 class MainWindowMock : public MainWindow {
  private:
   std::unique_ptr<VideoRenderer> remote_renderer_;
   MainWndCallback* callback_;
   std::shared_ptr<rtc::AutoSocketServerThread> socket_thread_;
-  Timer t;
+  const webrtc::AlphaCCConfig* config_;
+  int close_time_;
 
  public:
-  MainWindowMock(std::shared_ptr<rtc::AutoSocketServerThread> socket_thread)
-      : callback_(NULL), socket_thread_(socket_thread) {}
+  MainWindowMock(std::shared_ptr<rtc::AutoSocketServerThread> socket_thread) :
+    callback_(NULL),
+    socket_thread_(socket_thread),
+    config_(webrtc::GetAlphaCCConfig()),
+    close_time_(rtc::MessageQueue::kForever)
+    {}
   void RegisterObserver(MainWndCallback* callback) override {
     callback_ = callback;
   }
@@ -96,20 +89,30 @@ class MainWindowMock : public MainWindow {
     remote_renderer_.reset(new VideoRenderer(remote_video, callback_));
   }
 
-  void StopRemoteRenderer() override { remote_renderer_.reset(); }
+  void StopRemoteRenderer() override {
+    remote_renderer_.reset();
+  }
 
   void QueueUIThreadCallback(int msg_id, void* data) override {
     callback_->UIThreadCallback(msg_id, data);
   }
 
-  void Close() {
-    RTC_LOG(INFO) << "Cleaning up";
+  void Run() {
+    if (config_->conn_autoclose != kAutoCloseDisableValue) {
+      while (close_time_ == rtc::MessageQueue::kForever) {
+        RTC_DCHECK(socket_thread_->ProcessMessages(0));
+      }
+      RTC_DCHECK(socket_thread_->ProcessMessages(close_time_));
+    } else {
+      socket_thread_->Run();
+    }
+    StopRemoteRenderer();
+    socket_thread_->Stop();
     callback_->Close();
-    socket_thread_.get()->Stop();
   }
 
-  void StartAutoCloseTimer(int interval_ms) override {
-    t.AddTimer(interval_ms, std::bind(&MainWindowMock::Close, this));
+  void StartAutoCloseTimer(int close_time) override {
+    close_time_ = close_time;
   }
 };
 
@@ -130,7 +133,12 @@ int main(int argc, char* argv[]) {
     exit(EINVAL);
   }
 
+#ifdef WIN32
+  rtc::WinsockInitializer win_sock_init;
+  rtc::Win32SocketServer socket_server;
+#else
   rtc::PhysicalSocketServer socket_server;
+#endif
 
   std::shared_ptr<rtc::AutoSocketServerThread> thread(
       new rtc::AutoSocketServerThread(&socket_server));
@@ -146,11 +154,11 @@ int main(int argc, char* argv[]) {
   if (config->is_receiver) {
     client.StartListen(config->listening_ip, config->listening_port);
   }
-  if (config->is_sender) {
+  else if (config->is_sender) {
     client.StartConnect(config->dest_ip, config->dest_port);
   }
 
-  thread.get()->Run();
+  wnd.Run();
 
   rtc::CleanupSSL();
   return 0;
