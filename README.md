@@ -200,15 +200,18 @@ This section describes required fields for the json configuration file.
     
     - Linux users:
         1. Copy the provided corpus to a new directory
+
             ```shell
             cp -r examples/peerconnection/serverless/corpus/* /path/to/your/runtime
             ```
         2. Copy the essential dynanmic libraries and add them to searching directory
+
             ```shell
             cp modules/third_party/onnxinfer/lib/*.so /path/to/your/dll
             export LD_LIBRARY_PATH=/path/to/your/dll:$LD_LIBRARY_PATH
             ```
         3. Start the receiver and the sender
+
             ```shell
             cd /path/to/your/runtime
             /path/to/alphartc/out/Default/peerconnection ./receiver.json
@@ -216,15 +219,18 @@ This section describes required fields for the json configuration file.
             ```
     - Windows users:
         1. Copy the provided corpus to a new directory
+
             ```shell
             cp -Recursive examples/peerconnection/serverless/corpus/* /path/to/your/runtime
             ```
         2. Copy the essential dynanmic libraries and add them to searching directory
+
             ```shell
             cp modules/third_party/onnxinfer/bin/*.dll /path/to/your/dll
             set PATH=/path/to/your/dll;%PATH%
             ```
         3. Start the receiver and the sender
+
             ```shell
             cd /path/to/your/runtime
             /path/to/alphartc/out/Default/peerconnection ./receiver.json

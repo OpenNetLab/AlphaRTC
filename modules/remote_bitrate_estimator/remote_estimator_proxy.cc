@@ -93,7 +93,7 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
 
   //--- BandWidthControl: Send back bandwidth estimation into to sender ---
   bool time_to_send_bew_message = TimeToSendBweMessage();
-  float estimation = 8*1e6;
+  float estimation = 0;
   if (time_to_send_bew_message) {
     BweMessage bwe;
     estimation = onnxinfer::GetBweEstimate(onnx_infer_);
