@@ -63,6 +63,9 @@ struct AlphaCCConfig {
   int video_output_height = 0;
   int video_output_width = 0;
   int video_output_fps = 0;
+
+  bool save_log_to_file;
+  std::string log_output_path;
 };
 
 // Get alphaCC global configurations

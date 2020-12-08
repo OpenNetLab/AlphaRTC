@@ -49,5 +49,9 @@
             "fps": 10,
             "file_path": "outvideo.yuv"
         }
+    },
+    "logging": {
+        "enabled": true,
+        "log_output_path": "webrtc.log"
     }
 }
