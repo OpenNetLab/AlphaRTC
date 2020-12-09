@@ -164,6 +164,9 @@ This section describes required fields for the json configuration file.
     - **width**: The width of the input video
     - **fps**: The frames per second (FPS) of the input video
     - **file_path**: The file path of the input video in [YUV](https://en.wikipedia.org/wiki/YUV) format
+  - **logging**:
+    - **enabled**: If set to `true`, the client will write log to the file specified
+    - **log_output_path**: The out path of the log file
 
   ***Note: one and only one of `video_source.webcam.enabled` and `video_source.video_file.enabled` has to be `true`. I.e., `video_source.webcam.enabled` XOR `video_source.video_file.enabled`***
 
