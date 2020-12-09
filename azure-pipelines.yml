@@ -17,7 +17,6 @@ pool:
 
 steps:
 - checkout: self
-  lfs: true
 
 - script: make init
   displayName: 'build compile environment'

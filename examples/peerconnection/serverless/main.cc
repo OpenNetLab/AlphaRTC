@@ -8,57 +8,143 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-// clang-format off
-// clang formating would change include order.
-#include <windows.h>
-#include <shellapi.h>  // must come after windows.h
-// clang-format on
+#include "conductor.h"
+#include "peer_connection_client.h"
+#include "defaults.h"
 
-#include <cstdlib>
-#include <string>
-#include <vector>
-
-#include "examples/peerconnection/serverless/conductor.h"
-#include "examples/peerconnection/serverless/main_wnd.h"
-#include "examples/peerconnection/serverless/peer_connection_client.h"
-#include "rtc_base/checks.h"
-#include "rtc_base/constructor_magic.h"
-#include "rtc_base/ssl_adapter.h"
-#include "rtc_base/string_utils.h"  // For ToUtf8
+#ifdef WIN32
 #include "rtc_base/win32_socket_init.h"
 #include "rtc_base/win32_socket_server.h"
+#endif
+#include "rtc_base/ssl_adapter.h"
+#include "rtc_base/string_utils.h"  // For ToUtf8
 #include "system_wrappers/include/field_trial.h"
-#include "test/field_trial.h"
+#include "api/alphacc_config.h"
 
-int PASCAL wWinMain(HINSTANCE instance,
-                    HINSTANCE prev_instance,
-                    wchar_t* cmd_line,
-                    int cmd_show) {
-  rtc::WinsockInitializer winsock_init;
-  rtc::Win32SocketServer w32_ss;
-  rtc::Win32Thread w32_thread(&w32_ss);
-  rtc::ThreadManager::Instance()->SetCurrentThread(&w32_thread);
+#include <chrono>
+#include <functional>
+#include <future>
+#include <iostream>
+#include <memory>
+#include <thread>
 
-  // InitFieldTrialsFromString stores the char*, so the char array must outlive
-  // the application.
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+
+class VideoRenderer : public rtc::VideoSinkInterface<webrtc::VideoFrame> {
+ public:
+  VideoRenderer(webrtc::VideoTrackInterface* track_to_render,
+                MainWndCallback* callback)
+      : track_(track_to_render), callback_(callback) {
+    track_->AddOrUpdateSink(this, rtc::VideoSinkWants());
+  }
+  ~VideoRenderer() { track_->RemoveSink(this); }
+  void OnFrame(const webrtc::VideoFrame& frame) {
+    callback_->OnFrameCallback(frame);
+  }
+
+ private:
+  rtc::scoped_refptr<webrtc::VideoTrackInterface> track_;
+  MainWndCallback* callback_;
+};
+
+class MainWindowMock : public MainWindow {
+ private:
+  std::unique_ptr<VideoRenderer> remote_renderer_;
+  MainWndCallback* callback_;
+  std::shared_ptr<rtc::AutoSocketServerThread> socket_thread_;
+  const webrtc::AlphaCCConfig* config_;
+  int close_time_;
+
+ public:
+  MainWindowMock(std::shared_ptr<rtc::AutoSocketServerThread> socket_thread) :
+    callback_(NULL),
+    socket_thread_(socket_thread),
+    config_(webrtc::GetAlphaCCConfig()),
+    close_time_(rtc::MessageQueue::kForever)
+    {}
+  void RegisterObserver(MainWndCallback* callback) override {
+    callback_ = callback;
+  }
+
+  bool IsWindow() override { return true; }
+
+  void MessageBox(const char* caption,
+                  const char* text,
+                  bool is_error) override {
+    RTC_LOG(LS_INFO) << caption << ": " << text;
+  }
+
+  UI current_ui() override { return WAIT_FOR_CONNECTION; }
+
+  void SwitchToConnectUI() override {}
+  void SwitchToStreamingUI() override {}
+
+  void StartLocalRenderer(webrtc::VideoTrackInterface* local_video) override {}
+
+  void StopLocalRenderer() override {}
+
+  void StartRemoteRenderer(webrtc::VideoTrackInterface* remote_video) override {
+    remote_renderer_.reset(new VideoRenderer(remote_video, callback_));
+  }
+
+  void StopRemoteRenderer() override {
+    remote_renderer_.reset();
+  }
+
+  void QueueUIThreadCallback(int msg_id, void* data) override {
+    callback_->UIThreadCallback(msg_id, data);
+  }
+
+  void Run() {
+    if (config_->conn_autoclose != kAutoCloseDisableValue) {
+      while (close_time_ == rtc::MessageQueue::kForever) {
+        RTC_DCHECK(socket_thread_->ProcessMessages(0));
+      }
+      RTC_DCHECK(socket_thread_->ProcessMessages(close_time_));
+    } else {
+      socket_thread_->Run();
+    }
+    StopRemoteRenderer();
+    socket_thread_->Stop();
+    callback_->Close();
+  }
+
+  void StartAutoCloseTimer(int close_time) override {
+    close_time_ = close_time;
+  }
+};
+
+int main(int argc, char* argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s config_file\n", argv[0]);
+    exit(EINVAL);
+  }
+
   webrtc::field_trial::InitFieldTrialsFromString(
       "WebRTC-KeepAbsSendTimeExtension/Enabled/");  //  Config for
                                                     //  hasAbsSendTimestamp in
                                                     //  RTP Header extension
 
-  // Read the json-format configuration file.
-  // File path is passed through |cmd_line|
-  char cmd_line_s[1024];
-  wcstombs(cmd_line_s, cmd_line, 1024);
-  if (!webrtc::ParseAlphaCCConfig(cmd_line_s)) {
-    RTC_NOTREACHED();
-    return -1;
-  };
-  MainWnd wnd;
-  if (!wnd.Create()) {
-    RTC_NOTREACHED();
-    return -1;
+  const auto json_file_path = argv[1];
+  if (!webrtc::ParseAlphaCCConfig(json_file_path)) {
+    perror("bad config file");
+    exit(EINVAL);
   }
+
+#ifdef WIN32
+  rtc::WinsockInitializer win_sock_init;
+  rtc::Win32SocketServer socket_server;
+#else
+  rtc::PhysicalSocketServer socket_server;
+#endif
+
+  std::shared_ptr<rtc::AutoSocketServerThread> thread(
+      new rtc::AutoSocketServerThread(&socket_server));
+
+  MainWindowMock wnd(thread);
+
   rtc::InitializeSSL();
   PeerConnectionClient client;
   rtc::scoped_refptr<Conductor> conductor(
@@ -68,19 +154,11 @@ int PASCAL wWinMain(HINSTANCE instance,
   if (config->is_receiver) {
     client.StartListen(config->listening_ip, config->listening_port);
   }
-  if (config->is_sender) {
+  else if (config->is_sender) {
     client.StartConnect(config->dest_ip, config->dest_port);
   }
- 
-  // Main loop.
-  MSG msg;
-  BOOL gm;
-  while ((gm = ::GetMessage(&msg, NULL, 0, 0)) != 0 && gm != -1) {
-    if (!wnd.PreTranslateMessage(&msg)) {
-      ::TranslateMessage(&msg);
-      ::DispatchMessage(&msg);
-    }
-  }
+
+  wnd.Run();
 
   rtc::CleanupSSL();
   return 0;
