@@ -40,5 +40,8 @@
     },
     "save_to_file": {
         "enabled": false
+    },
+    "logging": {
+        "enabled": false
     }
 }

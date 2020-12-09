@@ -151,6 +151,12 @@ int main(int argc, char* argv[]) {
       new rtc::RefCountedObject<Conductor>(&client, &wnd));
 
   auto config = webrtc::GetAlphaCCConfig();
+
+  if (config->save_log_to_file) {
+    rtc::LogMessage::SetIfLogToFile(true);
+    rtc::LogMessage::SetLogFileName(config->log_output_path);
+  }
+
   if (config->is_receiver) {
     client.StartListen(config->listening_ip, config->listening_port);
   }
