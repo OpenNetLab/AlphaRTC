@@ -11,6 +11,7 @@ release_docker := alphartc
 docker_workdir := /app/AlphaRTC/
 
 docker_flags := --rm -v `pwd`:$(docker_workdir) 
+gn_flags := --args='is_debug=false'
 
 all: init sync app release
 
@@ -40,7 +41,7 @@ docker-sync:
 	gclient sync
 	mv -fvn src/* .
 	rm -rf src
-	gn gen $(output_dir)
+	gn gen $(output_dir) $(gn_flags)
 
 docker-app: docker-peerconnection_serverless
 
