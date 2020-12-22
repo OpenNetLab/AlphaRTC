@@ -6,30 +6,73 @@
 trigger:
   branches:
     include:
-    - "*"
+      - "*"
     exclude:
-    - upstream/*
+      - upstream/*
+
+jobs:
+  - job: Linux
+  pool:
+    vmImage: 'ubuntu-latest'
 
 
-pool:
-  vmImage: 'ubuntu-latest'
+  steps:
+    - checkout: self
 
+    - script: make init
+      displayName: 'build compile environment'
 
-steps:
-- checkout: self
+    - script: make sync
+      displayName: 'sync dependencies'
 
-- script: make init
-  displayName: 'build compile environment'
+    - script: make app
+      displayName: 'build application'
 
-- script: make sync
-  displayName: 'sync dependencies'
+    - script: make release
+      displayName: 'build release image'
 
-- script: make app
-  displayName: 'build application'
+    - script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
+                && docker exec alphartc peerconnection_serverless sender.json
+      displayName: 'run example'
 
-- script: make release
-  displayName: 'build release image'
+  - job: Windows
+  pool:
+    vmImage: VS2017-Win2016
 
-- script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
-            && docker exec alphartc peerconnection_serverless sender.json
-  displayName: 'run example'
+  variables:
+  - name: DEPOT_TOOLS_WIN_TOOLCHAIN
+    value: 0
+  - name: GYP_MSVS_VERSION
+    value: 2017
+
+  steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: "2.x"
+        addToPath: true
+    
+    - powershell: |
+        Invoke-WebRequest -Uri "https://storage.googleapis.com/chrome-infra/depot_tools.zip" -OutFile "depot_tools.zip"
+        Expand-Archive "./depot_tools.zip"
+      workingDirectory: $(Pipeline.Workspace)
+      displayName: "clone depot_tools"
+    - checkout: self
+      lfs: true
+    
+    - powershell: |
+        Write-Host "##vso[task.prependpath]$(Pipeline.Workspace)/depot_tools"
+      displayName: "set path"
+    
+    - powershell: gclient sync
+      displayName: "sync dependencies"
+    
+    - powershell: |
+        Get-ChildItem -Path "src" -Recurse | Move-Item -Destination "."
+        Remove-Item 'src'
+      displayName: "move src"
+    
+    - powershell: gn gen out/Default --args='is_debug=false'
+      displayName: "generate build rules"
+    
+    - powershell: ninja -C out/Default peerconnection_serverless
+      displayName: "make peerconnection"
