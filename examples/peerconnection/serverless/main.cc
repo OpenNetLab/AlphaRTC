@@ -122,16 +122,18 @@ int main(int argc, char* argv[]) {
     exit(EINVAL);
   }
 
-  webrtc::field_trial::InitFieldTrialsFromString(
-      "WebRTC-KeepAbsSendTimeExtension/Enabled/");  //  Config for
-                                                    //  hasAbsSendTimestamp in
-                                                    //  RTP Header extension
-
   const auto json_file_path = argv[1];
   if (!webrtc::ParseAlphaCCConfig(json_file_path)) {
     perror("bad config file");
     exit(EINVAL);
   }
+
+  rtc::LogMessage::LogToDebug(rtc::LS_INFO);
+
+  webrtc::field_trial::InitFieldTrialsFromString(
+      "WebRTC-KeepAbsSendTimeExtension/Enabled/");  //  Config for
+                                                    //  hasAbsSendTimestamp in
+                                                    //  RTP Header extension
 
 #ifdef WIN32
   rtc::WinsockInitializer win_sock_init;
