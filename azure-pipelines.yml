@@ -6,36 +6,38 @@
 trigger:
   branches:
     include:
-      - "*"
+    - "*"
     exclude:
-      - upstream/*
+    - upstream/*
+
 
 jobs:
-  - job: Linux
+
+- job: Linux
   pool:
     vmImage: 'ubuntu-latest'
 
-
   steps:
-    - checkout: self
+  - checkout: self
+    lfs: true
 
-    - script: make init
-      displayName: 'build compile environment'
+  - script: make init
+    displayName: 'build compile environment'
 
-    - script: make sync
-      displayName: 'sync dependencies'
+  - script: make sync
+    displayName: 'sync dependencies'
 
-    - script: make app
-      displayName: 'build application'
+  - script: make app
+    displayName: 'build application'
 
-    - script: make release
-      displayName: 'build release image'
+  - script: make release
+    displayName: 'build release image'
 
-    - script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
-                && docker exec alphartc peerconnection_serverless sender.json
-      displayName: 'run example'
+  - script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
+              && docker exec alphartc peerconnection_serverless sender.json
+    displayName: 'run example'
 
-  - job: Windows
+- job: Windows
   pool:
     vmImage: VS2017-Win2016
 
@@ -46,6 +48,7 @@ jobs:
     value: 2017
 
   steps:
+
     - task: UsePythonVersion@0
       inputs:
         versionSpec: "2.x"
@@ -56,6 +59,7 @@ jobs:
         Expand-Archive "./depot_tools.zip"
       workingDirectory: $(Pipeline.Workspace)
       displayName: "clone depot_tools"
+
     - checkout: self
       lfs: true
     
