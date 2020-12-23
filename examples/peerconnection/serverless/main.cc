@@ -101,6 +101,7 @@ class MainWindowMock : public MainWindow {
     if (config_->conn_autoclose != kAutoCloseDisableValue) {
       while (close_time_ == rtc::MessageQueue::kForever) {
         RTC_CHECK(socket_thread_->ProcessMessages(0));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
       }
       RTC_CHECK(socket_thread_->ProcessMessages(close_time_));
     } else {
