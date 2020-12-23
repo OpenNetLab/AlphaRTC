@@ -19,7 +19,6 @@ jobs:
 
   steps:
   - checkout: self
-    lfs: true
 
   - script: make init
     displayName: 'build compile environment'
@@ -61,7 +60,6 @@ jobs:
       displayName: "clone depot_tools"
 
     - checkout: self
-      lfs: true
     
     - powershell: |
         Write-Host "##vso[task.prependpath]$(Pipeline.Workspace)/depot_tools"
