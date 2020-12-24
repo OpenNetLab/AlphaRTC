@@ -100,9 +100,10 @@ class MainWindowMock : public MainWindow {
   void Run() {
     if (config_->conn_autoclose != kAutoCloseDisableValue) {
       while (close_time_ == rtc::MessageQueue::kForever) {
-        RTC_DCHECK(socket_thread_->ProcessMessages(0));
+        RTC_CHECK(socket_thread_->ProcessMessages(0));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
       }
-      RTC_DCHECK(socket_thread_->ProcessMessages(close_time_));
+      RTC_CHECK(socket_thread_->ProcessMessages(close_time_));
     } else {
       socket_thread_->Run();
     }
@@ -134,6 +135,7 @@ int main(int argc, char* argv[]) {
     rtc::LogMessage::SetIfLogToFile(true);
     rtc::LogMessage::SetLogFileName(config->log_output_path);
   }
+  rtc::LogMessage::LogToDebug(rtc::LS_INFO);
 
   webrtc::field_trial::InitFieldTrialsFromString(
       "WebRTC-KeepAbsSendTimeExtension/Enabled/");  //  Config for
