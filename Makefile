@@ -2,7 +2,7 @@ dockers_dir := dockers
 build_dockerfile := $(dockers_dir)/Dockerfile.compile
 release_dockerfile := $(dockers_dir)/Dockerfile.release
 output_dir := out/Default
-target_dir := target/
+target_dir := target
 target_lib_dir := $(target_dir)/lib
 target_bin_dir := $(target_dir)/bin
 
@@ -19,7 +19,7 @@ all:
 	make release
 
 init:
-	docker build dockers -f $(build_dockerfile) -t $(compile_docker)
+	docker build dockers --build-arg UID=$(shell id -u) --build-arg GUID=$(shell id -g) -f $(build_dockerfile) -t $(compile_docker)
 
 release:
 	docker build $(target_dir) -f $(release_dockerfile) -t $(release_docker)
