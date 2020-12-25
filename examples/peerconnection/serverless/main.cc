@@ -125,10 +125,16 @@ int main(int argc, char* argv[]) {
 
   const auto json_file_path = argv[1];
   if (!webrtc::ParseAlphaCCConfig(json_file_path)) {
-    perror("bad config file");
+    std::cerr << "bad config file" << std::endl;
     exit(EINVAL);
   }
 
+  auto config = webrtc::GetAlphaCCConfig();
+
+  if (config->save_log_to_file) {
+    rtc::LogMessage::SetIfLogToFile(true);
+    rtc::LogMessage::SetLogFileName(config->log_output_path);
+  }
   rtc::LogMessage::LogToDebug(rtc::LS_INFO);
 
   webrtc::field_trial::InitFieldTrialsFromString(
@@ -152,13 +158,6 @@ int main(int argc, char* argv[]) {
   PeerConnectionClient client;
   rtc::scoped_refptr<Conductor> conductor(
       new rtc::RefCountedObject<Conductor>(&client, &wnd));
-
-  auto config = webrtc::GetAlphaCCConfig();
-
-  if (config->save_log_to_file) {
-    rtc::LogMessage::SetIfLogToFile(true);
-    rtc::LogMessage::SetLogFileName(config->log_output_path);
-  }
 
   if (config->is_receiver) {
     client.StartListen(config->listening_ip, config->listening_port);
