@@ -24,7 +24,8 @@ release:
 sync:
 	docker run $(docker_flags) $(compile_docker) \
 		make docker-$@ \
-		output_dir=$(output_dir)
+		output_dir=$(output_dir) \
+		gn_flags = $(gn_flags)
 
 app: peerconnection_serverless
 
