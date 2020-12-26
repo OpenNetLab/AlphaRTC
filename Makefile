@@ -12,11 +12,7 @@ docker_workdir := /app/AlphaRTC/
 
 docker_flags := --rm -v `pwd`:$(docker_workdir) 
 
-all:
-	make init
-	make sync
-	make app
-	make release
+all: init sync app release
 
 init:
 	docker build dockers --build-arg UID=$(shell id -u) --build-arg GUID=$(shell id -g) -f $(build_dockerfile) -t $(compile_docker)
@@ -25,13 +21,18 @@ release:
 	docker build $(target_dir) -f $(release_dockerfile) -t $(release_docker)
 
 sync:
-	docker run $(docker_flags) $(compile_docker) make docker-$@
+	docker run $(docker_flags) $(compile_docker) \
+		make docker-$@ \
+		output_dir=$(output_dir)
 
-app:
-	docker run $(docker_flags) $(compile_docker) make docker-$@
+app: peerconnection_serverless
 
 peerconnection_serverless:
-	docker run $(docker_flags) $(compile_docker) make docker-$@
+	docker run $(docker_flags) $(compile_docker) \
+		make docker-$@ \
+		output_dir=$(output_dir) \
+		target_lib_dir=$(target_lib_dir) \
+		target_bin_dir=$(target_bin_dir)
 
 # Docker internal command
 
