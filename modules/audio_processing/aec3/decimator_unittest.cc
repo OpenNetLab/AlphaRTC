@@ -11,9 +11,11 @@
 #include "modules/audio_processing/aec3/decimator.h"
 
 #include <math.h>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <numeric>
 #include <string>
 #include <vector>
@@ -56,7 +58,6 @@ void ProduceDecimatedSinusoidalOutputPower(int sample_rate_hz,
 
   for (size_t k = 0; k < kNumBlocks; ++k) {
     std::vector<float> sub_block(sub_block_size);
-
     decimator.Decimate(
         rtc::ArrayView<const float>(&input[k * kBlockSize], kBlockSize),
         sub_block);
@@ -89,7 +90,7 @@ void ProduceDecimatedSinusoidalOutputPower(int sample_rate_hz,
 TEST(Decimator, NoLeakageFromUpperFrequencies) {
   float input_power;
   float output_power;
-  for (auto rate : {8000, 16000, 32000, 48000}) {
+  for (auto rate : {16000, 32000, 48000}) {
     for (auto down_sampling_factor : kDownSamplingFactors) {
       ProduceDebugText(rate);
       ProduceDecimatedSinusoidalOutputPower(rate, down_sampling_factor,
@@ -104,7 +105,7 @@ TEST(Decimator, NoLeakageFromUpperFrequencies) {
 // Verifies the check for the input size.
 TEST(Decimator, WrongInputSize) {
   Decimator decimator(4);
-  std::vector<float> x(std::vector<float>(kBlockSize - 1, 0.f));
+  std::vector<float> x(kBlockSize - 1, 0.f);
   std::array<float, kBlockSize / 4> x_downsampled;
   EXPECT_DEATH(decimator.Decimate(x, x_downsampled), "");
 }
@@ -112,14 +113,14 @@ TEST(Decimator, WrongInputSize) {
 // Verifies the check for non-null output parameter.
 TEST(Decimator, NullOutput) {
   Decimator decimator(4);
-  std::vector<float> x(std::vector<float>(kBlockSize, 0.f));
+  std::vector<float> x(kBlockSize, 0.f);
   EXPECT_DEATH(decimator.Decimate(x, nullptr), "");
 }
 
 // Verifies the check for the output size.
 TEST(Decimator, WrongOutputSize) {
   Decimator decimator(4);
-  std::vector<float> x(std::vector<float>(kBlockSize, 0.f));
+  std::vector<float> x(kBlockSize, 0.f);
   std::array<float, kBlockSize / 4 - 1> x_downsampled;
   EXPECT_DEATH(decimator.Decimate(x, x_downsampled), "");
 }

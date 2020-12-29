@@ -8,11 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "call/rtx_receive_stream.h"
+
 #include <string.h>
+
 #include <utility>
 
 #include "api/array_view.h"
-#include "call/rtx_receive_stream.h"
 #include "modules/rtp_rtcp/include/receive_statistics.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
@@ -62,6 +64,7 @@ void RtxReceiveStream::OnRtpPacket(const RtpPacketReceived& rtx_packet) {
   media_packet.SetSequenceNumber((payload[0] << 8) + payload[1]);
   media_packet.SetPayloadType(it->second);
   media_packet.set_recovered(true);
+  media_packet.set_arrival_time_ms(rtx_packet.arrival_time_ms());
 
   // Skip the RTX header.
   rtc::ArrayView<const uint8_t> rtx_payload = payload.subview(kRtxHeaderSize);

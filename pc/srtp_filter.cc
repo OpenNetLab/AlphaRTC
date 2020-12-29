@@ -11,8 +11,10 @@
 #include "pc/srtp_filter.h"
 
 #include <string.h>
+
 #include <cstdint>
 
+#include "absl/strings/match.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/ssl_stream_adapter.h"
 #include "rtc_base/third_party/base64/base64.h"
@@ -256,7 +258,7 @@ bool SrtpFilter::ParseKeyParams(const std::string& key_params,
   // example key_params: "inline:YUJDZGVmZ2hpSktMbW9QUXJzVHVWd3l6MTIzNDU2"
 
   // Fail if key-method is wrong.
-  if (key_params.find("inline:") != 0) {
+  if (!absl::StartsWith(key_params, "inline:")) {
     return false;
   }
 

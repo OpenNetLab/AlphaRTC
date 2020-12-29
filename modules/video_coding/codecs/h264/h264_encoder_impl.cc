@@ -19,11 +19,6 @@
 #include <limits>
 #include <string>
 
-#include "third_party/openh264/src/codec/api/svc/codec_api.h"
-#include "third_party/openh264/src/codec/api/svc/codec_app_def.h"
-#include "third_party/openh264/src/codec/api/svc/codec_def.h"
-#include "third_party/openh264/src/codec/api/svc/codec_ver.h"
-
 #include "absl/strings/match.h"
 #include "common_video/libyuv/include/webrtc_libyuv.h"
 #include "modules/video_coding/utility/simulcast_rate_allocator.h"
@@ -34,6 +29,10 @@
 #include "system_wrappers/include/metrics.h"
 #include "third_party/libyuv/include/libyuv/convert.h"
 #include "third_party/libyuv/include/libyuv/scale.h"
+#include "third_party/openh264/src/codec/api/svc/codec_api.h"
+#include "third_party/openh264/src/codec/api/svc/codec_app_def.h"
+#include "third_party/openh264/src/codec/api/svc/codec_def.h"
+#include "third_party/openh264/src/codec/api/svc/codec_ver.h"
 
 namespace webrtc {
 
@@ -99,7 +98,6 @@ VideoFrameType ConvertToVideoFrameType(EVideoFrameType type) {
 // is updated to point to each fragment, with offsets and lengths set as to
 // exclude the start codes.
 static void RtpFragmentize(EncodedImage* encoded_image,
-                           const VideoFrameBuffer& frame_buffer,
                            SFrameBSInfo* info,
                            RTPFragmentationHeader* frag_header) {
   // Calculate minimum buffer size required to hold encoded data.
@@ -295,8 +293,9 @@ int32_t H264EncoderImpl::InitEncode(const VideoCodec* inst,
   }
 
   SimulcastRateAllocator init_allocator(codec_);
-  VideoBitrateAllocation allocation = init_allocator.GetAllocation(
-      codec_.startBitrate * 1000, codec_.maxFramerate);
+  VideoBitrateAllocation allocation =
+      init_allocator.Allocate(VideoBitrateAllocationParameters(
+          DataRate::KilobitsPerSec(codec_.startBitrate), codec_.maxFramerate));
   SetRates(RateControlParameters(allocation, codec_.maxFramerate));
   return WEBRTC_VIDEO_CODEC_OK;
 }
@@ -379,7 +378,7 @@ int32_t H264EncoderImpl::Encode(
   if (!encoded_image_callback_) {
     RTC_LOG(LS_WARNING)
         << "InitEncode() has been called, but a callback function "
-        << "has not been set with RegisterEncodeCompleteCallback()";
+           "has not been set with RegisterEncodeCompleteCallback()";
     ReportError();
     return WEBRTC_VIDEO_CODEC_UNINITIALIZED;
   }
@@ -487,7 +486,7 @@ int32_t H264EncoderImpl::Encode(
     // Split encoded image up into fragments. This also updates
     // |encoded_image_|.
     RTPFragmentationHeader frag_header;
-    RtpFragmentize(&encoded_images_[i], *frame_buffer, &info, &frag_header);
+    RtpFragmentize(&encoded_images_[i], &info, &frag_header);
 
     // Encoder can skip frames to save bandwidth in which case
     // |encoded_images_[i]._length| == 0.
@@ -543,7 +542,9 @@ SEncParamExt H264EncoderImpl::CreateEncoderParams(size_t i) const {
   encoder_params.iPicWidth = configurations_[i].width;
   encoder_params.iPicHeight = configurations_[i].height;
   encoder_params.iTargetBitrate = configurations_[i].target_bps;
-  encoder_params.iMaxBitrate = configurations_[i].max_bps;
+  // Keep unspecified. WebRTC's max codec bitrate is not the same setting
+  // as OpenH264's iMaxBitrate. More details in https://crbug.com/webrtc/11543
+  encoder_params.iMaxBitrate = UNSPECIFIED_BIT_RATE;
   // Rate Control mode
   encoder_params.iRCMode = RC_BITRATE_MODE;
   encoder_params.fMaxFrameRate = configurations_[i].max_frame_rate;
@@ -623,6 +624,7 @@ VideoEncoder::EncoderInfo H264EncoderImpl::GetEncoderInfo() const {
       VideoEncoder::ScalingSettings(kLowH264QpThreshold, kHighH264QpThreshold);
   info.is_hardware_accelerated = false;
   info.has_internal_source = false;
+  info.supports_simulcast = true;
   return info;
 }
 

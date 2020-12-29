@@ -12,6 +12,7 @@
 #define MODULES_AUDIO_MIXER_AUDIO_MIXER_IMPL_H_
 
 #include <stddef.h>
+
 #include <memory>
 #include <vector>
 
@@ -46,7 +47,7 @@ class AudioMixerImpl : public AudioMixer {
 
   // AudioProcessing only accepts 10 ms frames.
   static const int kFrameDurationInMs = 10;
-  static const int kMaximumAmountOfMixedAudioSources = 3;
+  enum : int { kMaximumAmountOfMixedAudioSources = 3 };
 
   static rtc::scoped_refptr<AudioMixerImpl> Create();
 

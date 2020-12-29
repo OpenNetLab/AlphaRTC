@@ -7,6 +7,8 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
+#include "modules/audio_device/include/test_audio_device.h"
+
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
@@ -16,11 +18,9 @@
 #include <utility>
 #include <vector>
 
-#include "absl/memory/memory.h"
 #include "api/array_view.h"
 #include "common_audio/wav_file.h"
 #include "modules/audio_device/include/audio_device_default.h"
-#include "modules/audio_device/include/test_audio_device.h"
 #include "rtc_base/buffer.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/critical_section.h"
@@ -100,12 +100,12 @@ class TestAudioDeviceModuleImpl
 
   int32_t Init() override {
     task_queue_ =
-        absl::make_unique<rtc::TaskQueue>(task_queue_factory_->CreateTaskQueue(
+        std::make_unique<rtc::TaskQueue>(task_queue_factory_->CreateTaskQueue(
             "TestAudioDeviceModuleImpl", TaskQueueFactory::Priority::NORMAL));
 
     RepeatingTaskHandle::Start(task_queue_->Get(), [this]() {
       ProcessAudio();
-      return TimeDelta::us(process_interval_us_);
+      return TimeDelta::Micros(process_interval_us_);
     });
     return 0;
   }
@@ -284,7 +284,7 @@ class WavFileReader final : public TestAudioDeviceModule::Capturer {
                 int sampling_frequency_in_hz,
                 int num_channels,
                 bool repeat)
-      : WavFileReader(absl::make_unique<WavReader>(filename),
+      : WavFileReader(std::make_unique<WavReader>(filename),
                       sampling_frequency_in_hz,
                       num_channels,
                       repeat) {}
@@ -337,9 +337,9 @@ class WavFileWriter final : public TestAudioDeviceModule::Renderer {
   WavFileWriter(std::string filename,
                 int sampling_frequency_in_hz,
                 int num_channels)
-      : WavFileWriter(absl::make_unique<WavWriter>(filename,
-                                                   sampling_frequency_in_hz,
-                                                   num_channels),
+      : WavFileWriter(std::make_unique<WavWriter>(filename,
+                                                  sampling_frequency_in_hz,
+                                                  num_channels),
                       sampling_frequency_in_hz,
                       num_channels) {}
 
@@ -480,23 +480,23 @@ std::unique_ptr<TestAudioDeviceModule::PulsedNoiseCapturer>
 TestAudioDeviceModule::CreatePulsedNoiseCapturer(int16_t max_amplitude,
                                                  int sampling_frequency_in_hz,
                                                  int num_channels) {
-  return absl::make_unique<PulsedNoiseCapturerImpl>(
+  return std::make_unique<PulsedNoiseCapturerImpl>(
       max_amplitude, sampling_frequency_in_hz, num_channels);
 }
 
 std::unique_ptr<TestAudioDeviceModule::Renderer>
 TestAudioDeviceModule::CreateDiscardRenderer(int sampling_frequency_in_hz,
                                              int num_channels) {
-  return absl::make_unique<DiscardRenderer>(sampling_frequency_in_hz,
-                                            num_channels);
+  return std::make_unique<DiscardRenderer>(sampling_frequency_in_hz,
+                                           num_channels);
 }
 
 std::unique_ptr<TestAudioDeviceModule::Capturer>
 TestAudioDeviceModule::CreateWavFileReader(std::string filename,
                                            int sampling_frequency_in_hz,
                                            int num_channels) {
-  return absl::make_unique<WavFileReader>(filename, sampling_frequency_in_hz,
-                                          num_channels, false);
+  return std::make_unique<WavFileReader>(filename, sampling_frequency_in_hz,
+                                         num_channels, false);
 }
 
 std::unique_ptr<TestAudioDeviceModule::Capturer>
@@ -504,23 +504,23 @@ TestAudioDeviceModule::CreateWavFileReader(std::string filename, bool repeat) {
   WavReader reader(filename);
   int sampling_frequency_in_hz = reader.sample_rate();
   int num_channels = rtc::checked_cast<int>(reader.num_channels());
-  return absl::make_unique<WavFileReader>(filename, sampling_frequency_in_hz,
-                                          num_channels, repeat);
+  return std::make_unique<WavFileReader>(filename, sampling_frequency_in_hz,
+                                         num_channels, repeat);
 }
 
 std::unique_ptr<TestAudioDeviceModule::Renderer>
 TestAudioDeviceModule::CreateWavFileWriter(std::string filename,
                                            int sampling_frequency_in_hz,
                                            int num_channels) {
-  return absl::make_unique<WavFileWriter>(filename, sampling_frequency_in_hz,
-                                          num_channels);
+  return std::make_unique<WavFileWriter>(filename, sampling_frequency_in_hz,
+                                         num_channels);
 }
 
 std::unique_ptr<TestAudioDeviceModule::Renderer>
 TestAudioDeviceModule::CreateBoundedWavFileWriter(std::string filename,
                                                   int sampling_frequency_in_hz,
                                                   int num_channels) {
-  return absl::make_unique<BoundedWavFileWriter>(
+  return std::make_unique<BoundedWavFileWriter>(
       filename, sampling_frequency_in_hz, num_channels);
 }
 

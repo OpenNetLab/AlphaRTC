@@ -8,8 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/audio_device/linux/audio_device_alsa_linux.h"
 #include "modules/audio_device/linux/audio_mixer_manager_alsa_linux.h"
+
+#include "modules/audio_device/linux/audio_device_alsa_linux.h"
 #include "rtc_base/logging.h"
 
 // Accesses ALSA functions through our late-binding symbol table instead of
@@ -180,7 +181,8 @@ int32_t AudioMixerManagerLinuxALSA::OpenSpeaker(char* deviceName) {
   if (errVal < 0) {
     RTC_LOG(LS_ERROR)
         << "snd_mixer_selem_register(_outputMixerHandle, NULL, NULL), "
-        << "error: " << LATE(snd_strerror)(errVal);
+           "error: "
+        << LATE(snd_strerror)(errVal);
     _outputMixerHandle = NULL;
     return -1;
   }
@@ -261,7 +263,8 @@ int32_t AudioMixerManagerLinuxALSA::OpenMicrophone(char* deviceName) {
   if (errVal < 0) {
     RTC_LOG(LS_ERROR)
         << "snd_mixer_selem_register(_inputMixerHandle, NULL, NULL), "
-        << "error: " << LATE(snd_strerror)(errVal);
+           "error: "
+        << LATE(snd_strerror)(errVal);
 
     _inputMixerHandle = NULL;
     return -1;

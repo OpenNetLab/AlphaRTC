@@ -111,9 +111,9 @@ NetworkControlUpdate GoogCcNetworkController::OnTargetRateConstraints(
 NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
     Timestamp at_time) {
   //*-----Set target_rate-----*//
-  int32_t default_bitrate_bps = 300000;  // default: 300000 bps = 300 kbps
-  DataRate bandwidth = DataRate::bps(default_bitrate_bps);
-  TimeDelta rtt = TimeDelta::ms(last_estimated_rtt_ms_);
+  constexpr int32_t default_bitrate_bps = 300000;  // default: 300000 bps = 300 kbps
+  DataRate bandwidth = DataRate::BitsPerSec(default_bitrate_bps);
+  TimeDelta rtt = TimeDelta::Millis(last_estimated_rtt_ms_);
   NetworkControlUpdate update;
   update.target_rate = TargetTransferRate();
   update.target_rate->network_estimate.at_time = at_time;
@@ -122,7 +122,7 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
       last_estimated_fraction_loss_ / 255.0;
   update.target_rate->network_estimate.round_trip_time = rtt;
 
-  TimeDelta default_bwe_period = TimeDelta::seconds(3);  // the default is 3sec
+  TimeDelta default_bwe_period = TimeDelta::Seconds(3);  // the default is 3sec
   update.target_rate->network_estimate.bwe_period = default_bwe_period;
   update.target_rate->at_time = at_time;
   update.target_rate->target_rate = bandwidth;
@@ -130,11 +130,11 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
   //*-----Set pacing & padding_rate-----*//
   int32_t default_pacing_rate = 300000;   // default:300000;=> 750000 bps = 750 kbps
   int32_t default_padding_rate = 0;  // default: 0bps = 0kbps
-  DataRate pacing_rate = DataRate::bps(default_pacing_rate * pacing_factor_);
-  DataRate padding_rate = DataRate::bps(default_padding_rate);
+  DataRate pacing_rate = DataRate::BitsPerSec(default_pacing_rate * pacing_factor_);
+  DataRate padding_rate = DataRate::BitsPerSec(default_padding_rate);
   PacerConfig msg;
   msg.at_time = at_time;
-  msg.time_window = TimeDelta::seconds(1);
+  msg.time_window = TimeDelta::Seconds(1);
   msg.data_window = pacing_rate * msg.time_window;
   msg.pad_window = padding_rate * msg.time_window;
 
@@ -160,29 +160,29 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
 
 NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
   int32_t default_bitrate_bps = static_cast<int32_t>(bwe.target_rate);  // default: 300000 bps = 300 kbps
-  DataRate bandwidth = DataRate::bps(default_bitrate_bps);
-  TimeDelta rtt = TimeDelta::ms(last_estimated_rtt_ms_);
+  DataRate bandwidth = DataRate::BitsPerSec(default_bitrate_bps);
+  TimeDelta rtt = TimeDelta::Millis(last_estimated_rtt_ms_);
   NetworkControlUpdate update;
   update.target_rate = TargetTransferRate();
-  update.target_rate->network_estimate.at_time = Timestamp::ms(bwe.timestamp_ms);
+  update.target_rate->network_estimate.at_time = Timestamp::Millis(bwe.timestamp_ms);
   update.target_rate->network_estimate.bandwidth = bandwidth;
   update.target_rate->network_estimate.loss_rate_ratio =
       last_estimated_fraction_loss_ / 255.0;
   update.target_rate->network_estimate.round_trip_time = rtt;
 
-  TimeDelta default_bwe_period = TimeDelta::seconds(3);  // the default is 3sec
+  TimeDelta default_bwe_period = TimeDelta::Seconds(3);  // the default is 3sec
   update.target_rate->network_estimate.bwe_period = default_bwe_period;
-  update.target_rate->at_time = Timestamp::ms(bwe.timestamp_ms);
+  update.target_rate->at_time = Timestamp::Millis(bwe.timestamp_ms);
   update.target_rate->target_rate = bandwidth;
 
   //*-----Set pacing & padding_rate-----*//
   int32_t default_pacing_rate = static_cast<int32_t>(bwe.pacing_rate); 
   int32_t default_padding_rate = 0;  // default: 0bps = 0kbps
-  DataRate pacing_rate = DataRate::bps(default_pacing_rate * pacing_factor_);
-  DataRate padding_rate = DataRate::bps(default_padding_rate);
+  DataRate pacing_rate = DataRate::BitsPerSec(default_pacing_rate * pacing_factor_);
+  DataRate padding_rate = DataRate::BitsPerSec(default_padding_rate);
   PacerConfig msg;
-  msg.at_time = Timestamp::ms(bwe.timestamp_ms);
-  msg.time_window = TimeDelta::seconds(1);
+  msg.at_time = Timestamp::Millis(bwe.timestamp_ms);
+  msg.time_window = TimeDelta::Seconds(1);
   msg.data_window = pacing_rate * msg.time_window;
   msg.pad_window = padding_rate * msg.time_window;
 

@@ -31,9 +31,9 @@ void ProcessOneFrame(int sample_rate_hz,
   }
 
   std::vector<int16_t> render_audio;
-  GainControlImpl::PackRenderAudioBuffer(render_audio_buffer, &render_audio);
+  GainControlImpl::PackRenderAudioBuffer(*render_audio_buffer, &render_audio);
   gain_controller->ProcessRenderAudio(render_audio);
-  gain_controller->AnalyzeCaptureAudio(capture_audio_buffer);
+  gain_controller->AnalyzeCaptureAudio(*capture_audio_buffer);
   gain_controller->ProcessCaptureAudio(capture_audio_buffer, false);
 
   if (sample_rate_hz > AudioProcessing::kSampleRate16kHz) {
@@ -52,7 +52,6 @@ void SetupComponent(int sample_rate_hz,
                     GainControlImpl* gain_controller) {
   gain_controller->Initialize(1, sample_rate_hz);
   GainControl* gc = static_cast<GainControl*>(gain_controller);
-  gc->Enable(true);
   gc->set_mode(mode);
   gc->set_stream_analog_level(stream_analog_level);
   gc->set_target_level_dbfs(target_level_dbfs);
@@ -80,16 +79,16 @@ void RunBitExactnessTest(int sample_rate_hz,
   const int samples_per_channel = rtc::CheckedDivExact(sample_rate_hz, 100);
   const StreamConfig render_config(sample_rate_hz, num_channels, false);
   AudioBuffer render_buffer(
-      render_config.num_frames(), render_config.num_channels(),
-      render_config.num_frames(), 1, render_config.num_frames());
+      render_config.sample_rate_hz(), render_config.num_channels(),
+      render_config.sample_rate_hz(), 1, render_config.sample_rate_hz(), 1);
   test::InputAudioFile render_file(
       test::GetApmRenderTestVectorFileName(sample_rate_hz));
   std::vector<float> render_input(samples_per_channel * num_channels);
 
   const StreamConfig capture_config(sample_rate_hz, num_channels, false);
   AudioBuffer capture_buffer(
-      capture_config.num_frames(), capture_config.num_channels(),
-      capture_config.num_frames(), 1, capture_config.num_frames());
+      capture_config.sample_rate_hz(), capture_config.num_channels(),
+      capture_config.sample_rate_hz(), 1, capture_config.sample_rate_hz(), 1);
   test::InputAudioFile capture_file(
       test::GetApmCaptureTestVectorFileName(sample_rate_hz));
   std::vector<float> capture_input(samples_per_channel * num_channels);
@@ -132,21 +131,6 @@ void RunBitExactnessTest(int sample_rate_hz,
 // TODO(peah): Activate all these tests for ARM and ARM64 once the issue on the
 // Chromium ARM and ARM64 boths have been identified. This is tracked in the
 // issue https://bugs.chromium.org/p/webrtc/issues/detail?id=5711.
-
-#if !(defined(WEBRTC_ARCH_ARM64) || defined(WEBRTC_ARCH_ARM) || \
-      defined(WEBRTC_ANDROID))
-TEST(GainControlBitExactnessTest,
-     Mono8kHz_AdaptiveAnalog_Tl10_SL50_CG5_Lim_AL0_100) {
-#else
-TEST(GainControlBitExactnessTest,
-     DISABLED_Mono8kHz_AdaptiveAnalog_Tl10_SL50_CG5_Lim_AL0_100) {
-#endif
-  const int kStreamAnalogLevelReference = 50;
-  const float kOutputReference[] = {-0.006622f, -0.002747f, 0.001587f};
-  RunBitExactnessTest(8000, 1, GainControl::Mode::kAdaptiveAnalog, 10, 50, 5,
-                      true, 0, 100, kStreamAnalogLevelReference,
-                      kOutputReference);
-}
 
 #if !(defined(WEBRTC_ARCH_ARM64) || defined(WEBRTC_ARCH_ARM) || \
       defined(WEBRTC_ANDROID))
@@ -212,21 +196,6 @@ TEST(GainControlBitExactnessTest,
 #if !(defined(WEBRTC_ARCH_ARM64) || defined(WEBRTC_ARCH_ARM) || \
       defined(WEBRTC_ANDROID))
 TEST(GainControlBitExactnessTest,
-     Mono8kHz_AdaptiveDigital_Tl10_SL50_CG5_Lim_AL0_100) {
-#else
-TEST(GainControlBitExactnessTest,
-     DISABLED_Mono8kHz_AdaptiveDigital_Tl10_SL50_CG5_Lim_AL0_100) {
-#endif
-  const int kStreamAnalogLevelReference = 50;
-  const float kOutputReference[] = {-0.004028f, -0.001678f, 0.000946f};
-  RunBitExactnessTest(8000, 1, GainControl::Mode::kAdaptiveDigital, 10, 50, 5,
-                      true, 0, 100, kStreamAnalogLevelReference,
-                      kOutputReference);
-}
-
-#if !(defined(WEBRTC_ARCH_ARM64) || defined(WEBRTC_ARCH_ARM) || \
-      defined(WEBRTC_ANDROID))
-TEST(GainControlBitExactnessTest,
      Mono16kHz_AdaptiveDigital_Tl10_SL50_CG5_Lim_AL0_100) {
 #else
 TEST(GainControlBitExactnessTest,
@@ -264,7 +233,7 @@ TEST(GainControlBitExactnessTest,
      DISABLED_Mono32kHz_AdaptiveDigital_Tl10_SL50_CG5_Lim_AL0_100) {
 #endif
   const int kStreamAnalogLevelReference = 50;
-  const float kOutputReference[] = {-0.006104f, -0.005524f, -0.004974f};
+  const float kOutputReference[] = {-0.006134f, -0.005524f, -0.005005f};
   RunBitExactnessTest(32000, 1, GainControl::Mode::kAdaptiveDigital, 10, 50, 5,
                       true, 0, 100, kStreamAnalogLevelReference,
                       kOutputReference);
@@ -279,23 +248,8 @@ TEST(GainControlBitExactnessTest,
      DISABLED_Mono48kHz_AdaptiveDigital_Tl10_SL50_CG5_Lim_AL0_100) {
 #endif
   const int kStreamAnalogLevelReference = 50;
-  const float kOutputReference[] = {-0.006104f, -0.005524f, -0.004974f};
+  const float kOutputReference[] = {-0.006134f, -0.005524f, -0.005005};
   RunBitExactnessTest(32000, 1, GainControl::Mode::kAdaptiveDigital, 10, 50, 5,
-                      true, 0, 100, kStreamAnalogLevelReference,
-                      kOutputReference);
-}
-
-#if !(defined(WEBRTC_ARCH_ARM64) || defined(WEBRTC_ARCH_ARM) || \
-      defined(WEBRTC_ANDROID))
-TEST(GainControlBitExactnessTest,
-     Mono8kHz_FixedDigital_Tl10_SL50_CG5_Lim_AL0_100) {
-#else
-TEST(GainControlBitExactnessTest,
-     DISABLED_Mono8kHz_FixedDigital_Tl10_SL50_CG5_Lim_AL0_100) {
-#endif
-  const int kStreamAnalogLevelReference = 50;
-  const float kOutputReference[] = {-0.011871f, -0.004944f, 0.002838f};
-  RunBitExactnessTest(8000, 1, GainControl::Mode::kFixedDigital, 10, 50, 5,
                       true, 0, 100, kStreamAnalogLevelReference,
                       kOutputReference);
 }
@@ -324,8 +278,8 @@ TEST(GainControlBitExactnessTest,
      DISABLED_Stereo16kHz_FixedDigital_Tl10_SL50_CG5_Lim_AL0_100) {
 #endif
   const int kStreamAnalogLevelReference = 50;
-  const float kOutputReference[] = {-0.048950f, -0.028503f, -0.050354f,
-                                    -0.048950f, -0.028503f, -0.050354f};
+  const float kOutputReference[] = {-0.048896f, -0.028479f, -0.050345f,
+                                    -0.048896f, -0.028479f, -0.050345f};
   RunBitExactnessTest(16000, 2, GainControl::Mode::kFixedDigital, 10, 50, 5,
                       true, 0, 100, kStreamAnalogLevelReference,
                       kOutputReference);
@@ -340,7 +294,7 @@ TEST(GainControlBitExactnessTest,
      DISABLED_Mono32kHz_FixedDigital_Tl10_SL50_CG5_Lim_AL0_100) {
 #endif
   const int kStreamAnalogLevelReference = 50;
-  const float kOutputReference[] = {-0.018188f, -0.016418f, -0.014862f};
+  const float kOutputReference[] = {-0.018158f, -0.016357f, -0.014832f};
   RunBitExactnessTest(32000, 1, GainControl::Mode::kFixedDigital, 10, 50, 5,
                       true, 0, 100, kStreamAnalogLevelReference,
                       kOutputReference);
@@ -355,7 +309,7 @@ TEST(GainControlBitExactnessTest,
      DISABLED_Mono48kHz_FixedDigital_Tl10_SL50_CG5_Lim_AL0_100) {
 #endif
   const int kStreamAnalogLevelReference = 50;
-  const float kOutputReference[] = {-0.018188f, -0.016418f, -0.014862f};
+  const float kOutputReference[] = {-0.018158f, -0.016357f, -0.014832f};
   RunBitExactnessTest(32000, 1, GainControl::Mode::kFixedDigital, 10, 50, 5,
                       true, 0, 100, kStreamAnalogLevelReference,
                       kOutputReference);

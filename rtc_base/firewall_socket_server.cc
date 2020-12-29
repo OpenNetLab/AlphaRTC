@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
+
 #include <string>
 
 #include "absl/algorithm/container.h"
@@ -209,7 +210,7 @@ AsyncSocket* FirewallSocketServer::CreateAsyncSocket(int family, int type) {
   return WrapSocket(server_->CreateAsyncSocket(family, type), type);
 }
 
-void FirewallSocketServer::SetMessageQueue(MessageQueue* queue) {
+void FirewallSocketServer::SetMessageQueue(Thread* queue) {
   server_->SetMessageQueue(queue);
 }
 

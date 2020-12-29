@@ -13,12 +13,13 @@
 
 #include "absl/memory/memory.h"
 #include "api/audio/echo_canceller3_factory.h"
+#include "api/task_queue/default_task_queue_factory.h"
 #include "modules/audio_processing/aec_dump/aec_dump_factory.h"
 #include "modules/audio_processing/include/audio_processing.h"
+#include "modules/audio_processing/test/audio_processing_builder_for_testing.h"
 #include "rtc_base/arraysize.h"
 #include "rtc_base/numerics/safe_minmax.h"
 #include "rtc_base/task_queue.h"
-#include "rtc_base/task_queue_stdlib.h"
 #include "system_wrappers/include/field_trial.h"
 #include "test/fuzzers/audio_processing_fuzzer_helper.h"
 #include "test/fuzzers/fuzz_data_helper.h"
@@ -41,8 +42,6 @@ std::unique_ptr<AudioProcessing> CreateApm(test::FuzzDataHelper* fuzz_data,
   bool exp_agc = fuzz_data->ReadOrDefaultValue(true);
   bool exp_ns = fuzz_data->ReadOrDefaultValue(true);
   static_cast<void>(fuzz_data->ReadOrDefaultValue(true));
-  bool ef = fuzz_data->ReadOrDefaultValue(true);
-  bool raf = fuzz_data->ReadOrDefaultValue(true);
   static_cast<void>(fuzz_data->ReadOrDefaultValue(true));
   static_cast<void>(fuzz_data->ReadOrDefaultValue(true));
   bool red = fuzz_data->ReadOrDefaultValue(true);
@@ -93,7 +92,7 @@ std::unique_ptr<AudioProcessing> CreateApm(test::FuzzDataHelper* fuzz_data,
   // Filter out incompatible settings that lead to CHECK failures.
   if ((use_aecm && use_aec) ||      // These settings cause CHECK failure.
       (use_aecm && aec3 && use_ns)  // These settings trigger webrtc:9489.
-      ) {
+  ) {
     return nullptr;
   }
 
@@ -108,12 +107,9 @@ std::unique_ptr<AudioProcessing> CreateApm(test::FuzzDataHelper* fuzz_data,
 
   config.Set<ExperimentalAgc>(new ExperimentalAgc(exp_agc));
   config.Set<ExperimentalNs>(new ExperimentalNs(exp_ns));
-  config.Set<ExtendedFilter>(new ExtendedFilter(ef));
-  config.Set<RefinedAdaptiveFilter>(new RefinedAdaptiveFilter(raf));
-  config.Set<DelayAgnostic>(new DelayAgnostic(true));
 
   std::unique_ptr<AudioProcessing> apm(
-      AudioProcessingBuilder()
+      AudioProcessingBuilderForTesting()
           .SetEchoControlFactory(std::move(echo_control_factory))
           .Create(config));
 
@@ -122,6 +118,8 @@ std::unique_ptr<AudioProcessing> CreateApm(test::FuzzDataHelper* fuzz_data,
 #endif
 
   webrtc::AudioProcessing::Config apm_config;
+  apm_config.pipeline.multi_channel_render = true;
+  apm_config.pipeline.multi_channel_capture = true;
   apm_config.echo_canceller.enabled = use_aec || use_aecm;
   apm_config.echo_canceller.mobile_mode = use_aecm;
   apm_config.residual_echo_detector.enabled = red;
@@ -142,23 +140,15 @@ std::unique_ptr<AudioProcessing> CreateApm(test::FuzzDataHelper* fuzz_data,
       use_agc2_adaptive_digital_saturation_protector;
   apm_config.noise_suppression.enabled = use_ns;
   apm_config.voice_detection.enabled = use_vad;
+  apm_config.level_estimation.enabled = use_le;
   apm->ApplyConfig(apm_config);
-
-  apm->level_estimator()->Enable(use_le);
-  apm->voice_detection()->Enable(use_vad);
 
   return apm;
 }
 
 TaskQueueFactory* GetTaskQueueFactory() {
-  // Chromium hijacked DefaultTaskQueueFactory with own implementation, but
-  // unable to use it without base::test::ScopedTaskEnvironment. Actual used
-  // task queue implementation shouldn't matter for the purpose of this fuzzer,
-  // so use stdlib implementation: that one is multiplatform.
-  // When bugs.webrtc.org/10284 is resolved and chromium stops hijacking
-  // DefaultTaskQueueFactory, Stdlib can be replaced with default one.
   static TaskQueueFactory* const factory =
-      CreateTaskQueueStdlibFactory().release();
+      CreateDefaultTaskQueueFactory().release();
   return factory;
 }
 

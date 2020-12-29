@@ -12,7 +12,6 @@
 
 #include <memory>
 
-#include "absl/memory/memory.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "p2p/base/fake_packet_transport.h"
 #include "pc/rtp_transport.h"
@@ -34,17 +33,17 @@ class CompositeRtpTransportTest : public ::testing::Test,
  public:
   CompositeRtpTransportTest()
       : packet_transport_1_(
-            absl::make_unique<rtc::FakePacketTransport>(kTransportName)),
+            std::make_unique<rtc::FakePacketTransport>(kTransportName)),
         packet_transport_2_(
-            absl::make_unique<rtc::FakePacketTransport>(kTransportName)),
+            std::make_unique<rtc::FakePacketTransport>(kTransportName)),
         rtcp_transport_1_(
-            absl::make_unique<rtc::FakePacketTransport>(kRtcpTransportName)),
+            std::make_unique<rtc::FakePacketTransport>(kRtcpTransportName)),
         rtcp_transport_2_(
-            absl::make_unique<rtc::FakePacketTransport>(kRtcpTransportName)) {}
+            std::make_unique<rtc::FakePacketTransport>(kRtcpTransportName)) {}
 
   void SetupRtpTransports(bool rtcp_mux) {
-    transport_1_ = absl::make_unique<RtpTransport>(rtcp_mux);
-    transport_2_ = absl::make_unique<RtpTransport>(rtcp_mux);
+    transport_1_ = std::make_unique<RtpTransport>(rtcp_mux);
+    transport_2_ = std::make_unique<RtpTransport>(rtcp_mux);
 
     transport_1_->SetRtpPacketTransport(packet_transport_1_.get());
     transport_2_->SetRtpPacketTransport(packet_transport_2_.get());
@@ -53,7 +52,7 @@ class CompositeRtpTransportTest : public ::testing::Test,
       transport_2_->SetRtcpPacketTransport(rtcp_transport_2_.get());
     }
 
-    composite_ = absl::make_unique<CompositeRtpTransport>(
+    composite_ = std::make_unique<CompositeRtpTransport>(
         std::vector<RtpTransportInternal*>{transport_1_.get(),
                                            transport_2_.get()});
 
@@ -230,17 +229,17 @@ TEST_F(CompositeRtpTransportTest, NetworkRouteChange) {
   SetupRtpTransports(/*rtcp_mux=*/true);
 
   rtc::NetworkRoute route;
-  route.local_network_id = 7;
+  route.local = rtc::RouteEndpoint::CreateWithNetworkId(7);
   packet_transport_1_->SetNetworkRoute(route);
 
   EXPECT_EQ(1, network_route_count_);
-  EXPECT_EQ(7, last_network_route_->local_network_id);
+  EXPECT_EQ(7, last_network_route_->local.network_id());
 
-  route.local_network_id = 8;
+  route.local = rtc::RouteEndpoint::CreateWithNetworkId(8);
   packet_transport_2_->SetNetworkRoute(route);
 
   EXPECT_EQ(2, network_route_count_);
-  EXPECT_EQ(8, last_network_route_->local_network_id);
+  EXPECT_EQ(8, last_network_route_->local.network_id());
 }
 
 TEST_F(CompositeRtpTransportTest, RemoveTransport) {
@@ -250,7 +249,7 @@ TEST_F(CompositeRtpTransportTest, RemoveTransport) {
 
   // Check that signals are disconnected.
   rtc::NetworkRoute route;
-  route.local_network_id = 7;
+  route.local = rtc::RouteEndpoint::CreateWithNetworkId(7);
   packet_transport_1_->SetNetworkRoute(route);
 
   EXPECT_EQ(0, network_route_count_);

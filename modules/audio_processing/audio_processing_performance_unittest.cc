@@ -7,8 +7,6 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
-#include "modules/audio_processing/audio_processing_impl.h"
-
 #include <math.h>
 
 #include <algorithm>
@@ -16,6 +14,8 @@
 #include <vector>
 
 #include "api/array_view.h"
+#include "modules/audio_processing/audio_processing_impl.h"
+#include "modules/audio_processing/test/audio_processing_builder_for_testing.h"
 #include "modules/audio_processing/test/test_utils.h"
 #include "rtc_base/atomic_ops.h"
 #include "rtc_base/event.h"
@@ -447,30 +447,27 @@ class CallSimulator : public ::testing::TestWithParam<SimulationConfig> {
   void SetUp() override {
     // Lambda function for setting the default APM runtime settings for desktop.
     auto set_default_desktop_apm_runtime_settings = [](AudioProcessing* apm) {
-      ASSERT_EQ(apm->kNoError, apm->level_estimator()->Enable(true));
-      ASSERT_EQ(apm->kNoError, apm->gain_control()->Enable(true));
-      ASSERT_EQ(apm->kNoError,
-                apm->gain_control()->set_mode(GainControl::kAdaptiveDigital));
-      ASSERT_EQ(apm->kNoError, apm->gain_control()->Enable(true));
-      ASSERT_EQ(apm->kNoError, apm->noise_suppression()->Enable(true));
       AudioProcessing::Config apm_config = apm->GetConfig();
       apm_config.echo_canceller.enabled = true;
       apm_config.echo_canceller.mobile_mode = false;
+      apm_config.noise_suppression.enabled = true;
+      apm_config.gain_controller1.enabled = true;
+      apm_config.gain_controller1.mode =
+          AudioProcessing::Config::GainController1::kAdaptiveDigital;
+      apm_config.level_estimation.enabled = true;
       apm_config.voice_detection.enabled = true;
       apm->ApplyConfig(apm_config);
     };
 
     // Lambda function for setting the default APM runtime settings for mobile.
     auto set_default_mobile_apm_runtime_settings = [](AudioProcessing* apm) {
-      ASSERT_EQ(apm->kNoError, apm->level_estimator()->Enable(true));
-      ASSERT_EQ(apm->kNoError, apm->gain_control()->Enable(true));
-      ASSERT_EQ(apm->kNoError,
-                apm->gain_control()->set_mode(GainControl::kAdaptiveDigital));
-      ASSERT_EQ(apm->kNoError, apm->gain_control()->Enable(true));
-      ASSERT_EQ(apm->kNoError, apm->noise_suppression()->Enable(true));
       AudioProcessing::Config apm_config = apm->GetConfig();
       apm_config.echo_canceller.enabled = true;
       apm_config.echo_canceller.mobile_mode = true;
+      apm_config.noise_suppression.enabled = true;
+      apm_config.gain_controller1.mode =
+          AudioProcessing::Config::GainController1::kAdaptiveDigital;
+      apm_config.level_estimation.enabled = true;
       apm_config.voice_detection.enabled = true;
       apm->ApplyConfig(apm_config);
     };
@@ -478,52 +475,40 @@ class CallSimulator : public ::testing::TestWithParam<SimulationConfig> {
     // Lambda function for turning off all of the APM runtime settings
     // submodules.
     auto turn_off_default_apm_runtime_settings = [](AudioProcessing* apm) {
-      ASSERT_EQ(apm->kNoError, apm->level_estimator()->Enable(false));
-      ASSERT_EQ(apm->kNoError, apm->gain_control()->Enable(false));
-      ASSERT_EQ(apm->kNoError,
-                apm->gain_control()->set_mode(GainControl::kAdaptiveDigital));
-      ASSERT_EQ(apm->kNoError, apm->gain_control()->Enable(false));
-      ASSERT_EQ(apm->kNoError, apm->noise_suppression()->Enable(false));
       AudioProcessing::Config apm_config = apm->GetConfig();
       apm_config.echo_canceller.enabled = false;
+      apm_config.gain_controller1.enabled = false;
+      apm_config.level_estimation.enabled = false;
+      apm_config.noise_suppression.enabled = false;
       apm_config.voice_detection.enabled = false;
       apm->ApplyConfig(apm_config);
-    };
-
-    // Lambda function for adding default desktop APM settings to a config.
-    auto add_default_desktop_config = [](Config* config) {
-      config->Set<ExtendedFilter>(new ExtendedFilter(true));
-      config->Set<DelayAgnostic>(new DelayAgnostic(true));
     };
 
     int num_capture_channels = 1;
     switch (simulation_config_.simulation_settings) {
       case SettingsType::kDefaultApmMobile: {
-        apm_.reset(AudioProcessingBuilder().Create());
+        apm_.reset(AudioProcessingBuilderForTesting().Create());
         ASSERT_TRUE(!!apm_);
         set_default_mobile_apm_runtime_settings(apm_.get());
         break;
       }
       case SettingsType::kDefaultApmDesktop: {
         Config config;
-        add_default_desktop_config(&config);
-        apm_.reset(AudioProcessingBuilder().Create(config));
+        apm_.reset(AudioProcessingBuilderForTesting().Create(config));
         ASSERT_TRUE(!!apm_);
         set_default_desktop_apm_runtime_settings(apm_.get());
         apm_->SetExtraOptions(config);
         break;
       }
       case SettingsType::kAllSubmodulesTurnedOff: {
-        apm_.reset(AudioProcessingBuilder().Create());
+        apm_.reset(AudioProcessingBuilderForTesting().Create());
         ASSERT_TRUE(!!apm_);
         turn_off_default_apm_runtime_settings(apm_.get());
         break;
       }
       case SettingsType::kDefaultApmDesktopWithoutDelayAgnostic: {
         Config config;
-        config.Set<ExtendedFilter>(new ExtendedFilter(true));
-        config.Set<DelayAgnostic>(new DelayAgnostic(false));
-        apm_.reset(AudioProcessingBuilder().Create(config));
+        apm_.reset(AudioProcessingBuilderForTesting().Create(config));
         ASSERT_TRUE(!!apm_);
         set_default_desktop_apm_runtime_settings(apm_.get());
         apm_->SetExtraOptions(config);
@@ -531,9 +516,7 @@ class CallSimulator : public ::testing::TestWithParam<SimulationConfig> {
       }
       case SettingsType::kDefaultApmDesktopWithoutExtendedFilter: {
         Config config;
-        config.Set<ExtendedFilter>(new ExtendedFilter(false));
-        config.Set<DelayAgnostic>(new DelayAgnostic(true));
-        apm_.reset(AudioProcessingBuilder().Create(config));
+        apm_.reset(AudioProcessingBuilderForTesting().Create(config));
         ASSERT_TRUE(!!apm_);
         set_default_desktop_apm_runtime_settings(apm_.get());
         apm_->SetExtraOptions(config);

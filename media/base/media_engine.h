@@ -11,10 +11,6 @@
 #ifndef MEDIA_BASE_MEDIA_ENGINE_H_
 #define MEDIA_BASE_MEDIA_ENGINE_H_
 
-#if defined(WEBRTC_MAC) && !defined(WEBRTC_IOS)
-#include <CoreAudio/CoreAudio.h>
-#endif
-
 #include <memory>
 #include <string>
 #include <vector>
@@ -52,7 +48,17 @@ struct RtpCapabilities {
   std::vector<webrtc::RtpExtension> header_extensions;
 };
 
-class VoiceEngineInterface {
+class RtpHeaderExtensionQueryInterface {
+ public:
+  virtual ~RtpHeaderExtensionQueryInterface() = default;
+
+  // Returns a vector of RtpHeaderExtensionCapability, whose direction is
+  // kStopped if the extension is stopped (not used) by default.
+  virtual std::vector<webrtc::RtpHeaderExtensionCapability>
+  GetRtpHeaderExtensions() const = 0;
+};
+
+class VoiceEngineInterface : public RtpHeaderExtensionQueryInterface {
  public:
   VoiceEngineInterface() = default;
   virtual ~VoiceEngineInterface() = default;
@@ -75,7 +81,6 @@ class VoiceEngineInterface {
 
   virtual const std::vector<AudioCodec>& send_codecs() const = 0;
   virtual const std::vector<AudioCodec>& recv_codecs() const = 0;
-  virtual RtpCapabilities GetCapabilities() const = 0;
 
   // Starts AEC dump using existing file, a maximum file size in bytes can be
   // specified. Logging is stopped just before the size limit is exceeded.
@@ -87,7 +92,7 @@ class VoiceEngineInterface {
   virtual void StopAecDump() = 0;
 };
 
-class VideoEngineInterface {
+class VideoEngineInterface : public RtpHeaderExtensionQueryInterface {
  public:
   VideoEngineInterface() = default;
   virtual ~VideoEngineInterface() = default;
@@ -103,8 +108,8 @@ class VideoEngineInterface {
       webrtc::VideoBitrateAllocatorFactory*
           video_bitrate_allocator_factory) = 0;
 
-  virtual std::vector<VideoCodec> codecs() const = 0;
-  virtual RtpCapabilities GetCapabilities() const = 0;
+  virtual std::vector<VideoCodec> send_codecs() const = 0;
+  virtual std::vector<VideoCodec> recv_codecs() const = 0;
 };
 
 // MediaEngineInterface is an abstraction of a media engine which can be
@@ -147,7 +152,18 @@ enum DataChannelType {
   DCT_NONE = 0,
   DCT_RTP = 1,
   DCT_SCTP = 2,
-  DCT_MEDIA_TRANSPORT = 3
+
+  // Data channel transport over media transport.
+  DCT_MEDIA_TRANSPORT = 3,
+
+  // Data channel transport over datagram transport (with no fallback).  This is
+  // the same behavior as data channel transport over media transport, and is
+  // usable without DTLS.
+  DCT_DATA_CHANNEL_TRANSPORT = 4,
+
+  // Data channel transport over datagram transport (with SCTP negotiation
+  // semantics and a fallback to SCTP).  Only usable with DTLS.
+  DCT_DATA_CHANNEL_TRANSPORT_SCTP = 5,
 };
 
 class DataEngineInterface {
@@ -159,6 +175,13 @@ class DataEngineInterface {
 
 webrtc::RtpParameters CreateRtpParametersWithOneEncoding();
 webrtc::RtpParameters CreateRtpParametersWithEncodings(StreamParams sp);
+
+// Returns a vector of RTP extensions as visible from RtpSender/Receiver
+// GetCapabilities(). The returned vector only shows what will definitely be
+// offered by default, i.e. the list of extensions returned from
+// GetRtpHeaderExtensions() that are not kStopped.
+std::vector<webrtc::RtpExtension> GetDefaultEnabledRtpHeaderExtensions(
+    const RtpHeaderExtensionQueryInterface& query_interface);
 
 }  // namespace cricket
 

@@ -8,10 +8,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "modules/congestion_controller/pcc/bitrate_controller.h"
+
+#include <memory>
 #include <utility>
 
-#include "absl/memory/memory.h"
-#include "modules/congestion_controller/pcc/bitrate_controller.h"
 #include "modules/congestion_controller/pcc/monitor_interval.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -31,13 +32,13 @@ constexpr double kThroughputPower = 0.99;
 constexpr double kDelayGradientThreshold = 0.01;
 constexpr double kDelayGradientNegativeBound = 10;
 
-const DataRate kTargetSendingRate = DataRate::kbps(300);
+const DataRate kTargetSendingRate = DataRate::KilobitsPerSec(300);
 const double kEpsilon = 0.05;
-const Timestamp kStartTime = Timestamp::us(0);
-const TimeDelta kPacketsDelta = TimeDelta::ms(1);
-const TimeDelta kIntervalDuration = TimeDelta::ms(1000);
-const TimeDelta kDefaultRtt = TimeDelta::ms(1000);
-const DataSize kDefaultDataSize = DataSize::bytes(100);
+const Timestamp kStartTime = Timestamp::Micros(0);
+const TimeDelta kPacketsDelta = TimeDelta::Millis(1);
+const TimeDelta kIntervalDuration = TimeDelta::Millis(1000);
+const TimeDelta kDefaultRtt = TimeDelta::Millis(1000);
+const DataSize kDefaultDataSize = DataSize::Bytes(100);
 
 std::vector<PacketResult> CreatePacketResults(
     const std::vector<Timestamp>& packets_send_times,
@@ -108,7 +109,7 @@ TEST(PccBitrateControllerTest, IncreaseRateWhenNoChangesForTestBitrates) {
 
 TEST(PccBitrateControllerTest, NoChangesWhenUtilityFunctionDoesntChange) {
   std::unique_ptr<MockUtilityFunction> mock_utility_function =
-      absl::make_unique<MockUtilityFunction>();
+      std::make_unique<MockUtilityFunction>();
   EXPECT_CALL(*mock_utility_function, Compute(::testing::_))
       .Times(2)
       .WillOnce(::testing::Return(100))
@@ -139,7 +140,7 @@ TEST(PccBitrateControllerTest, NoChangesWhenUtilityFunctionDoesntChange) {
 
 TEST(PccBitrateControllerTest, NoBoundaryWhenSmallGradient) {
   std::unique_ptr<MockUtilityFunction> mock_utility_function =
-      absl::make_unique<MockUtilityFunction>();
+      std::make_unique<MockUtilityFunction>();
   constexpr double kFirstMonitorIntervalUtility = 0;
   const double kSecondMonitorIntervalUtility =
       2 * kTargetSendingRate.bps() * kEpsilon;
@@ -176,7 +177,7 @@ TEST(PccBitrateControllerTest, NoBoundaryWhenSmallGradient) {
 
 TEST(PccBitrateControllerTest, FaceBoundaryWhenLargeGradient) {
   std::unique_ptr<MockUtilityFunction> mock_utility_function =
-      absl::make_unique<MockUtilityFunction>();
+      std::make_unique<MockUtilityFunction>();
   constexpr double kFirstMonitorIntervalUtility = 0;
   const double kSecondMonitorIntervalUtility =
       10 * kInitialDynamicBoundary * kTargetSendingRate.bps() * 2 *
@@ -218,7 +219,7 @@ TEST(PccBitrateControllerTest, FaceBoundaryWhenLargeGradient) {
 
 TEST(PccBitrateControllerTest, SlowStartMode) {
   std::unique_ptr<MockUtilityFunction> mock_utility_function =
-      absl::make_unique<MockUtilityFunction>();
+      std::make_unique<MockUtilityFunction>();
   constexpr double kFirstUtilityFunction = 1000;
   EXPECT_CALL(*mock_utility_function, Compute(::testing::_))
       .Times(4)
@@ -255,7 +256,7 @@ TEST(PccBitrateControllerTest, SlowStartMode) {
 
 TEST(PccBitrateControllerTest, StepSizeIncrease) {
   std::unique_ptr<MockUtilityFunction> mock_utility_function =
-      absl::make_unique<MockUtilityFunction>();
+      std::make_unique<MockUtilityFunction>();
   constexpr double kFirstMiUtilityFunction = 0;
   const double kSecondMiUtilityFunction =
       2 * kTargetSendingRate.bps() * kEpsilon;

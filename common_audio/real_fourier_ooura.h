@@ -12,6 +12,7 @@
 #define COMMON_AUDIO_REAL_FOURIER_OOURA_H_
 
 #include <stddef.h>
+
 #include <complex>
 #include <memory>
 
@@ -34,7 +35,7 @@ class RealFourierOoura : public RealFourier {
   const size_t length_;
   const size_t complex_length_;
   // These are work arrays for Ooura. The names are based on the comments in
-  // fft4g.c.
+  // common_audio/third_party/ooura/fft_size_256/fft4g.cc.
   const std::unique_ptr<size_t[]> work_ip_;
   const std::unique_ptr<float[]> work_w_;
 };

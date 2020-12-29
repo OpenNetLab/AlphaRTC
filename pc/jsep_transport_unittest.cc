@@ -8,18 +8,20 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "pc/jsep_transport.h"
+
 #include <memory>
 #include <tuple>
 #include <utility>
 
-#include "absl/memory/memory.h"
+#include "api/ice_transport_factory.h"
 #include "media/base/fake_rtp.h"
 #include "p2p/base/fake_dtls_transport.h"
 #include "p2p/base/fake_ice_transport.h"
-#include "pc/jsep_transport.h"
 #include "rtc_base/gunit.h"
 
 namespace cricket {
+namespace {
 using webrtc::SdpType;
 
 static const char kIceUfrag1[] = "U001";
@@ -40,12 +42,22 @@ struct NegotiateRoleParams {
   SdpType remote_type;
 };
 
+rtc::scoped_refptr<webrtc::IceTransportInterface> CreateIceTransport(
+    std::unique_ptr<FakeIceTransport> internal) {
+  if (!internal) {
+    return nullptr;
+  }
+
+  return new rtc::RefCountedObject<FakeIceTransportWrapper>(
+      std::move(internal));
+}
+
 class JsepTransport2Test : public ::testing::Test, public sigslot::has_slots<> {
  protected:
   std::unique_ptr<webrtc::SrtpTransport> CreateSdesTransport(
       rtc::PacketTransportInternal* rtp_packet_transport,
       rtc::PacketTransportInternal* rtcp_packet_transport) {
-    auto srtp_transport = absl::make_unique<webrtc::SrtpTransport>(
+    auto srtp_transport = std::make_unique<webrtc::SrtpTransport>(
         rtcp_packet_transport == nullptr);
 
     srtp_transport->SetRtpPacketTransport(rtp_packet_transport);
@@ -58,7 +70,7 @@ class JsepTransport2Test : public ::testing::Test, public sigslot::has_slots<> {
   std::unique_ptr<webrtc::DtlsSrtpTransport> CreateDtlsSrtpTransport(
       cricket::DtlsTransportInternal* rtp_dtls_transport,
       cricket::DtlsTransportInternal* rtcp_dtls_transport) {
-    auto dtls_srtp_transport = absl::make_unique<webrtc::DtlsSrtpTransport>(
+    auto dtls_srtp_transport = std::make_unique<webrtc::DtlsSrtpTransport>(
         rtcp_dtls_transport == nullptr);
     dtls_srtp_transport->SetDtlsTransports(rtp_dtls_transport,
                                            rtcp_dtls_transport);
@@ -69,18 +81,21 @@ class JsepTransport2Test : public ::testing::Test, public sigslot::has_slots<> {
   // FakeIceTransport.
   std::unique_ptr<JsepTransport> CreateJsepTransport2(bool rtcp_mux_enabled,
                                                       SrtpMode srtp_mode) {
-    auto ice = absl::make_unique<FakeIceTransport>(kTransportName,
-                                                   ICE_CANDIDATE_COMPONENT_RTP);
-    auto rtp_dtls_transport = absl::make_unique<FakeDtlsTransport>(ice.get());
+    auto ice_internal = std::make_unique<FakeIceTransport>(
+        kTransportName, ICE_CANDIDATE_COMPONENT_RTP);
+    auto rtp_dtls_transport =
+        std::make_unique<FakeDtlsTransport>(ice_internal.get());
+    auto ice = CreateIceTransport(std::move(ice_internal));
 
-    std::unique_ptr<FakeIceTransport> rtcp_ice;
+    std::unique_ptr<FakeIceTransport> rtcp_ice_internal;
     std::unique_ptr<FakeDtlsTransport> rtcp_dtls_transport;
     if (!rtcp_mux_enabled) {
-      rtcp_ice = absl::make_unique<FakeIceTransport>(
+      rtcp_ice_internal = std::make_unique<FakeIceTransport>(
           kTransportName, ICE_CANDIDATE_COMPONENT_RTCP);
       rtcp_dtls_transport =
-          absl::make_unique<FakeDtlsTransport>(rtcp_ice.get());
+          std::make_unique<FakeDtlsTransport>(rtcp_ice_internal.get());
     }
+    auto rtcp_ice = CreateIceTransport(std::move(rtcp_ice_internal));
 
     std::unique_ptr<webrtc::RtpTransport> unencrypted_rtp_transport;
     std::unique_ptr<webrtc::SrtpTransport> sdes_transport;
@@ -99,20 +114,15 @@ class JsepTransport2Test : public ::testing::Test, public sigslot::has_slots<> {
         RTC_NOTREACHED();
     }
 
-    // TODO(sukhanov): Currently there is no media_transport specific
-    // logic in jseptransport, so jseptransport unittests are created with
-    // media_transport = nullptr. In the future we will probably add
-    // more logic that require unit tests. Note that creation of media_transport
-    // is covered in jseptransportcontroller_unittest.
-    auto jsep_transport = absl::make_unique<JsepTransport>(
+    auto jsep_transport = std::make_unique<JsepTransport>(
         kTransportName, /*local_certificate=*/nullptr, std::move(ice),
         std::move(rtcp_ice), std::move(unencrypted_rtp_transport),
         std::move(sdes_transport), std::move(dtls_srtp_transport),
         /*datagram_rtp_transport=*/nullptr, std::move(rtp_dtls_transport),
         std::move(rtcp_dtls_transport),
-        /*datagram_dtls_transport=*/nullptr,
-        /*media_transport=*/nullptr,
-        /*datagram_transport=*/nullptr);
+        /*sctp_transport=*/nullptr,
+        /*datagram_transport=*/nullptr,
+        /*data_channel_transport=*/nullptr);
 
     signal_rtcp_mux_active_received_ = false;
     jsep_transport->SignalRtcpMuxActive.connect(
@@ -215,11 +225,11 @@ TEST_P(JsepTransport2WithRtcpMux, SetDtlsParameters) {
 
   // Create certificates.
   rtc::scoped_refptr<rtc::RTCCertificate> local_cert =
-      rtc::RTCCertificate::Create(std::unique_ptr<rtc::SSLIdentity>(
-          rtc::SSLIdentity::Generate("local", rtc::KT_DEFAULT)));
+      rtc::RTCCertificate::Create(
+          rtc::SSLIdentity::Create("local", rtc::KT_DEFAULT));
   rtc::scoped_refptr<rtc::RTCCertificate> remote_cert =
-      rtc::RTCCertificate::Create(std::unique_ptr<rtc::SSLIdentity>(
-          rtc::SSLIdentity::Generate("remote", rtc::KT_DEFAULT)));
+      rtc::RTCCertificate::Create(
+          rtc::SSLIdentity::Create("remote", rtc::KT_DEFAULT));
   jsep_transport_->SetLocalCertificate(local_cert);
 
   // Apply offer.
@@ -266,11 +276,11 @@ TEST_P(JsepTransport2WithRtcpMux, SetDtlsParametersWithPassiveAnswer) {
 
   // Create certificates.
   rtc::scoped_refptr<rtc::RTCCertificate> local_cert =
-      rtc::RTCCertificate::Create(std::unique_ptr<rtc::SSLIdentity>(
-          rtc::SSLIdentity::Generate("local", rtc::KT_DEFAULT)));
+      rtc::RTCCertificate::Create(
+          rtc::SSLIdentity::Create("local", rtc::KT_DEFAULT));
   rtc::scoped_refptr<rtc::RTCCertificate> remote_cert =
-      rtc::RTCCertificate::Create(std::unique_ptr<rtc::SSLIdentity>(
-          rtc::SSLIdentity::Generate("remote", rtc::KT_DEFAULT)));
+      rtc::RTCCertificate::Create(
+          rtc::SSLIdentity::Create("remote", rtc::KT_DEFAULT));
   jsep_transport_->SetLocalCertificate(local_cert);
 
   // Apply offer.
@@ -383,8 +393,8 @@ TEST_P(JsepTransport2WithRtcpMux, VerifyCertificateFingerprint) {
 
   for (auto& key_type : key_types) {
     rtc::scoped_refptr<rtc::RTCCertificate> certificate =
-        rtc::RTCCertificate::Create(std::unique_ptr<rtc::SSLIdentity>(
-            rtc::SSLIdentity::Generate("testing", key_type)));
+        rtc::RTCCertificate::Create(
+            rtc::SSLIdentity::Create("testing", key_type));
     ASSERT_NE(nullptr, certificate);
 
     std::string digest_algorithm;
@@ -423,8 +433,8 @@ TEST_P(JsepTransport2WithRtcpMux, ValidDtlsRoleNegotiation) {
   // Just use the same certificate for both sides; doesn't really matter in a
   // non end-to-end test.
   rtc::scoped_refptr<rtc::RTCCertificate> certificate =
-      rtc::RTCCertificate::Create(std::unique_ptr<rtc::SSLIdentity>(
-          rtc::SSLIdentity::Generate("testing", rtc::KT_ECDSA)));
+      rtc::RTCCertificate::Create(
+          rtc::SSLIdentity::Create("testing", rtc::KT_ECDSA));
 
   JsepTransportDescription local_description = MakeJsepTransportDescription(
       rtcp_mux_enabled, kIceUfrag1, kIcePwd1, certificate);
@@ -522,8 +532,8 @@ TEST_P(JsepTransport2WithRtcpMux, InvalidDtlsRoleNegotiation) {
   // Just use the same certificate for both sides; doesn't really matter in a
   // non end-to-end test.
   rtc::scoped_refptr<rtc::RTCCertificate> certificate =
-      rtc::RTCCertificate::Create(std::unique_ptr<rtc::SSLIdentity>(
-          rtc::SSLIdentity::Generate("testing", rtc::KT_ECDSA)));
+      rtc::RTCCertificate::Create(
+          rtc::SSLIdentity::Create("testing", rtc::KT_ECDSA));
 
   JsepTransportDescription local_description = MakeJsepTransportDescription(
       rtcp_mux_enabled, kIceUfrag1, kIcePwd1, certificate);
@@ -653,8 +663,8 @@ TEST_F(JsepTransport2Test, ValidDtlsReofferFromAnswerer) {
   // Just use the same certificate for both sides; doesn't really matter in a
   // non end-to-end test.
   rtc::scoped_refptr<rtc::RTCCertificate> certificate =
-      rtc::RTCCertificate::Create(std::unique_ptr<rtc::SSLIdentity>(
-          rtc::SSLIdentity::Generate("testing", rtc::KT_ECDSA)));
+      rtc::RTCCertificate::Create(
+          rtc::SSLIdentity::Create("testing", rtc::KT_ECDSA));
   bool rtcp_mux_enabled = true;
   jsep_transport_ = CreateJsepTransport2(rtcp_mux_enabled, SrtpMode::kDtlsSrtp);
   jsep_transport_->SetLocalCertificate(certificate);
@@ -700,8 +710,8 @@ TEST_F(JsepTransport2Test, InvalidDtlsReofferFromAnswerer) {
   // Just use the same certificate for both sides; doesn't really matter in a
   // non end-to-end test.
   rtc::scoped_refptr<rtc::RTCCertificate> certificate =
-      rtc::RTCCertificate::Create(std::unique_ptr<rtc::SSLIdentity>(
-          rtc::SSLIdentity::Generate("testing", rtc::KT_ECDSA)));
+      rtc::RTCCertificate::Create(
+          rtc::SSLIdentity::Create("testing", rtc::KT_ECDSA));
   bool rtcp_mux_enabled = true;
   jsep_transport_ = CreateJsepTransport2(rtcp_mux_enabled, SrtpMode::kDtlsSrtp);
   jsep_transport_->SetLocalCertificate(certificate);
@@ -746,8 +756,8 @@ TEST_F(JsepTransport2Test, InvalidDtlsReofferFromAnswerer) {
 // since JSEP requires generating "actpass".
 TEST_F(JsepTransport2Test, RemoteOfferWithCurrentNegotiatedDtlsRole) {
   rtc::scoped_refptr<rtc::RTCCertificate> certificate =
-      rtc::RTCCertificate::Create(std::unique_ptr<rtc::SSLIdentity>(
-          rtc::SSLIdentity::Generate("testing", rtc::KT_ECDSA)));
+      rtc::RTCCertificate::Create(
+          rtc::SSLIdentity::Create("testing", rtc::KT_ECDSA));
   bool rtcp_mux_enabled = true;
   jsep_transport_ = CreateJsepTransport2(rtcp_mux_enabled, SrtpMode::kDtlsSrtp);
   jsep_transport_->SetLocalCertificate(certificate);
@@ -791,8 +801,8 @@ TEST_F(JsepTransport2Test, RemoteOfferWithCurrentNegotiatedDtlsRole) {
 // role is rejected.
 TEST_F(JsepTransport2Test, RemoteOfferThatChangesNegotiatedDtlsRole) {
   rtc::scoped_refptr<rtc::RTCCertificate> certificate =
-      rtc::RTCCertificate::Create(std::unique_ptr<rtc::SSLIdentity>(
-          rtc::SSLIdentity::Generate("testing", rtc::KT_ECDSA)));
+      rtc::RTCCertificate::Create(
+          rtc::SSLIdentity::Create("testing", rtc::KT_ECDSA));
   bool rtcp_mux_enabled = true;
   jsep_transport_ = CreateJsepTransport2(rtcp_mux_enabled, SrtpMode::kDtlsSrtp);
   jsep_transport_->SetLocalCertificate(certificate);
@@ -836,8 +846,8 @@ TEST_F(JsepTransport2Test, RemoteOfferThatChangesNegotiatedDtlsRole) {
 // interpreted as having an active role.
 TEST_F(JsepTransport2Test, DtlsSetupWithLegacyAsAnswerer) {
   rtc::scoped_refptr<rtc::RTCCertificate> certificate =
-      rtc::RTCCertificate::Create(std::unique_ptr<rtc::SSLIdentity>(
-          rtc::SSLIdentity::Generate("testing", rtc::KT_ECDSA)));
+      rtc::RTCCertificate::Create(
+          rtc::SSLIdentity::Create("testing", rtc::KT_ECDSA));
   bool rtcp_mux_enabled = true;
   jsep_transport_ = CreateJsepTransport2(rtcp_mux_enabled, SrtpMode::kDtlsSrtp);
   jsep_transport_->SetLocalCertificate(certificate);
@@ -1042,13 +1052,11 @@ class JsepTransport2HeaderExtensionTest
         this, &JsepTransport2HeaderExtensionTest::OnReadPacket2);
 
     if (mode == SrtpMode::kDtlsSrtp) {
-      auto cert1 =
-          rtc::RTCCertificate::Create(std::unique_ptr<rtc::SSLIdentity>(
-              rtc::SSLIdentity::Generate("session1", rtc::KT_DEFAULT)));
+      auto cert1 = rtc::RTCCertificate::Create(
+          rtc::SSLIdentity::Create("session1", rtc::KT_DEFAULT));
       jsep_transport1_->rtp_dtls_transport()->SetLocalCertificate(cert1);
-      auto cert2 =
-          rtc::RTCCertificate::Create(std::unique_ptr<rtc::SSLIdentity>(
-              rtc::SSLIdentity::Generate("session1", rtc::KT_DEFAULT)));
+      auto cert2 = rtc::RTCCertificate::Create(
+          rtc::SSLIdentity::Create("session1", rtc::KT_DEFAULT));
       jsep_transport2_->rtp_dtls_transport()->SetLocalCertificate(cert2);
     }
   }
@@ -1247,4 +1255,38 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple(Scenario::kDtlsBeforeCallerSetAnswer, false),
         std::make_tuple(Scenario::kDtlsAfterCallerSetAnswer, false)));
 
+// This test verifies the ICE parameters are properly applied to the transports.
+TEST_F(JsepTransport2Test, SetIceParametersWithRenomination) {
+  jsep_transport_ =
+      CreateJsepTransport2(/* rtcp_mux_enabled= */ true, SrtpMode::kDtlsSrtp);
+
+  JsepTransportDescription jsep_description;
+  jsep_description.transport_desc = TransportDescription(kIceUfrag1, kIcePwd1);
+  jsep_description.transport_desc.AddOption(ICE_OPTION_RENOMINATION);
+  ASSERT_TRUE(
+      jsep_transport_
+          ->SetLocalJsepTransportDescription(jsep_description, SdpType::kOffer)
+          .ok());
+  auto fake_ice_transport = static_cast<FakeIceTransport*>(
+      jsep_transport_->rtp_dtls_transport()->ice_transport());
+  EXPECT_EQ(ICEMODE_FULL, fake_ice_transport->remote_ice_mode());
+  EXPECT_EQ(kIceUfrag1, fake_ice_transport->ice_ufrag());
+  EXPECT_EQ(kIcePwd1, fake_ice_transport->ice_pwd());
+  EXPECT_TRUE(fake_ice_transport->ice_parameters().renomination);
+
+  jsep_description.transport_desc = TransportDescription(kIceUfrag2, kIcePwd2);
+  jsep_description.transport_desc.AddOption(ICE_OPTION_RENOMINATION);
+  ASSERT_TRUE(jsep_transport_
+                  ->SetRemoteJsepTransportDescription(jsep_description,
+                                                      SdpType::kAnswer)
+                  .ok());
+  fake_ice_transport = static_cast<FakeIceTransport*>(
+      jsep_transport_->rtp_dtls_transport()->ice_transport());
+  EXPECT_EQ(ICEMODE_FULL, fake_ice_transport->remote_ice_mode());
+  EXPECT_EQ(kIceUfrag2, fake_ice_transport->remote_ice_ufrag());
+  EXPECT_EQ(kIcePwd2, fake_ice_transport->remote_ice_pwd());
+  EXPECT_TRUE(fake_ice_transport->remote_ice_parameters().renomination);
+}
+
+}  // namespace
 }  // namespace cricket

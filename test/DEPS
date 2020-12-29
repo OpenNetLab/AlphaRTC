@@ -46,7 +46,15 @@ specific_include_rules = {
   ".*stun_validator_fuzzer\.cc": [
     "+p2p/base/stun.h",
   ],
+  ".*test_main\.cc": [
+    "+absl/debugging/failure_signal_handler.h",
+    "+absl/debugging/symbolize.h",
+  ],
   ".*test_peer\.(h|cc)": [
+    "+pc",
+    "+p2p",
+  ],
+  ".*test_peer_factory\.(h|cc)": [
     "+pc",
     "+p2p",
   ],
@@ -61,5 +69,8 @@ specific_include_rules = {
   ".*sdp_changer\.(h|cc)": [
     "+pc",
     "+p2p",
+  ],
+  ".*test_video_capturer_video_track_source.h": [
+    "+pc",
   ]
 }

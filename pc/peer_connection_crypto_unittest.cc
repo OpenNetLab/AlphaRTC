@@ -8,6 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include <memory>
+
 #include "api/audio_codecs/builtin_audio_decoder_factory.h"
 #include "api/audio_codecs/builtin_audio_encoder_factory.h"
 #include "api/create_peerconnection_factory.h"
@@ -20,7 +22,6 @@
 #ifdef WEBRTC_ANDROID
 #include "pc/test/android_test_initializer.h"
 #endif
-#include "absl/memory/memory.h"
 #include "pc/test/fake_audio_capture_module.h"
 #include "pc/test/fake_rtc_certificate_generator.h"
 #include "rtc_base/gunit.h"
@@ -30,8 +31,8 @@ namespace webrtc {
 
 using RTCConfiguration = PeerConnectionInterface::RTCConfiguration;
 using RTCOfferAnswerOptions = PeerConnectionInterface::RTCOfferAnswerOptions;
-using ::testing::Values;
 using ::testing::Combine;
+using ::testing::Values;
 
 constexpr int kGenerateCertTimeout = 1000;
 
@@ -65,9 +66,9 @@ class PeerConnectionCryptoBaseTest : public ::testing::Test {
   WrapperPtr CreatePeerConnection(
       const RTCConfiguration& config,
       std::unique_ptr<rtc::RTCCertificateGeneratorInterface> cert_gen) {
-    auto fake_port_allocator = absl::make_unique<cricket::FakePortAllocator>(
+    auto fake_port_allocator = std::make_unique<cricket::FakePortAllocator>(
         rtc::Thread::Current(), nullptr);
-    auto observer = absl::make_unique<MockPeerConnectionObserver>();
+    auto observer = std::make_unique<MockPeerConnectionObserver>();
     RTCConfiguration modified_config = config;
     modified_config.sdp_semantics = sdp_semantics_;
     auto pc = pc_factory_->CreatePeerConnection(
@@ -78,8 +79,8 @@ class PeerConnectionCryptoBaseTest : public ::testing::Test {
     }
 
     observer->SetPeerConnectionInterface(pc.get());
-    return absl::make_unique<PeerConnectionWrapper>(pc_factory_, pc,
-                                                    std::move(observer));
+    return std::make_unique<PeerConnectionWrapper>(pc_factory_, pc,
+                                                   std::move(observer));
   }
 
   // Accepts the same arguments as CreatePeerConnection and adds default audio
@@ -148,9 +149,12 @@ SdpContentPredicate HaveSdesGcmCryptos(size_t num_crypto_suites) {
     if (cryptos.size() != num_crypto_suites) {
       return false;
     }
-    const cricket::CryptoParams first_params = cryptos[0];
-    return first_params.key_params.size() == 67U &&
-           first_params.cipher_suite == "AEAD_AES_256_GCM";
+    for (size_t i = 0; i < cryptos.size(); ++i) {
+      if (cryptos[i].key_params.size() == 67U &&
+          cryptos[i].cipher_suite == "AEAD_AES_256_GCM")
+        return true;
+    }
+    return false;
   };
 }
 
@@ -332,7 +336,14 @@ TEST_P(PeerConnectionCryptoTest, CorrectCryptoInAnswerWithSdesAndGcm) {
   auto caller = CreatePeerConnectionWithAudioVideo(config);
   auto callee = CreatePeerConnectionWithAudioVideo(config);
 
-  callee->SetRemoteDescription(caller->CreateOffer());
+  auto offer = caller->CreateOffer();
+  for (cricket::ContentInfo& content : offer->description()->contents()) {
+    auto cryptos = content.media_description()->cryptos();
+    cryptos.erase(cryptos.begin());  // Assumes that non-GCM is the default.
+    content.media_description()->set_cryptos(cryptos);
+  }
+
+  callee->SetRemoteDescription(std::move(offer));
   auto answer = callee->CreateAnswer();
   ASSERT_TRUE(answer);
 
@@ -591,7 +602,7 @@ TEST_P(PeerConnectionCryptoDtlsCertGenTest, TestCertificateGeneration) {
   RTCConfiguration config;
   config.enable_dtls_srtp.emplace(true);
   auto owned_fake_certificate_generator =
-      absl::make_unique<FakeRTCCertificateGenerator>();
+      std::make_unique<FakeRTCCertificateGenerator>();
   auto* fake_certificate_generator = owned_fake_certificate_generator.get();
   fake_certificate_generator->set_should_fail(cert_gen_result_ ==
                                               CertGenResult::kFail);

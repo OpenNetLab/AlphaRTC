@@ -14,6 +14,7 @@
 #define MODULES_REMOTE_BITRATE_ESTIMATOR_INCLUDE_REMOTE_BITRATE_ESTIMATOR_H_
 
 #include <map>
+#include <memory>
 #include <vector>
 
 #include "modules/include/module.h"
@@ -22,9 +23,6 @@
 #include "modules/rtp_rtcp/source/rtcp_packet/app.h"
 
 namespace webrtc {
-namespace rtcp {
-class TransportFeedback;
-}  // namespace rtcp
 
 class Clock;
 
@@ -43,8 +41,9 @@ class RemoteBitrateObserver {
 class TransportFeedbackSenderInterface {
  public:
   virtual ~TransportFeedbackSenderInterface() = default;
-  virtual bool SendTransportFeedback(rtcp::TransportFeedback* packet) = 0;
-  virtual bool SendApplicationPacket(rtcp::App* packet) = 0;
+
+  virtual bool SendCombinedRtcpPacket(
+      std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets) = 0;
 };
 
 // TODO(holmer): Remove when all implementations have been updated.

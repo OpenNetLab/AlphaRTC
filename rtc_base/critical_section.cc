@@ -31,7 +31,7 @@ CriticalSection::CriticalSection() {
 #if defined(WEBRTC_WIN)
   InitializeCriticalSection(&crit_);
 #elif defined(WEBRTC_POSIX)
-#if defined(WEBRTC_MAC) && !USE_NATIVE_MUTEX_ON_MAC
+#if defined(WEBRTC_MAC) && !RTC_USE_NATIVE_MUTEX_ON_MAC
   lock_queue_ = 0;
   owning_thread_ = 0;
   recursion_ = 0;
@@ -60,7 +60,7 @@ CriticalSection::~CriticalSection() {
 #if defined(WEBRTC_WIN)
   DeleteCriticalSection(&crit_);
 #elif defined(WEBRTC_POSIX)
-#if defined(WEBRTC_MAC) && !USE_NATIVE_MUTEX_ON_MAC
+#if defined(WEBRTC_MAC) && !RTC_USE_NATIVE_MUTEX_ON_MAC
   dispatch_release(semaphore_);
 #else
   pthread_mutex_destroy(&mutex_);
@@ -74,7 +74,7 @@ void CriticalSection::Enter() const RTC_EXCLUSIVE_LOCK_FUNCTION() {
 #if defined(WEBRTC_WIN)
   EnterCriticalSection(&crit_);
 #elif defined(WEBRTC_POSIX)
-#if defined(WEBRTC_MAC) && !USE_NATIVE_MUTEX_ON_MAC
+#if defined(WEBRTC_MAC) && !RTC_USE_NATIVE_MUTEX_ON_MAC
   int spin = 3000;
   PlatformThreadRef self = CurrentThreadRef();
   bool have_lock = false;
@@ -133,7 +133,7 @@ bool CriticalSection::TryEnter() const RTC_EXCLUSIVE_TRYLOCK_FUNCTION(true) {
 #if defined(WEBRTC_WIN)
   return TryEnterCriticalSection(&crit_) != FALSE;
 #elif defined(WEBRTC_POSIX)
-#if defined(WEBRTC_MAC) && !USE_NATIVE_MUTEX_ON_MAC
+#if defined(WEBRTC_MAC) && !RTC_USE_NATIVE_MUTEX_ON_MAC
   if (!IsThreadRefEqual(owning_thread_, CurrentThreadRef())) {
     if (AtomicOps::CompareAndSwap(&lock_queue_, 0, 1) != 0)
       return false;
@@ -173,7 +173,7 @@ void CriticalSection::Leave() const RTC_UNLOCK_FUNCTION() {
   if (!recursion_count_)
     thread_ = 0;
 #endif
-#if defined(WEBRTC_MAC) && !USE_NATIVE_MUTEX_ON_MAC
+#if defined(WEBRTC_MAC) && !RTC_USE_NATIVE_MUTEX_ON_MAC
   RTC_DCHECK(IsThreadRefEqual(owning_thread_, CurrentThreadRef()));
   RTC_DCHECK_GE(recursion_, 0);
   --recursion_;
@@ -216,15 +216,16 @@ CritScope::~CritScope() {
   cs_->Leave();
 }
 
-void GlobalLockPod::Lock() {
-#if !defined(WEBRTC_WIN) && (!defined(WEBRTC_MAC) || USE_NATIVE_MUTEX_ON_MAC)
+void GlobalLock::Lock() {
+#if !defined(WEBRTC_WIN) && \
+    (!defined(WEBRTC_MAC) || RTC_USE_NATIVE_MUTEX_ON_MAC)
   const struct timespec ts_null = {0};
 #endif
 
-  while (AtomicOps::CompareAndSwap(&lock_acquired, 0, 1)) {
+  while (AtomicOps::CompareAndSwap(&lock_acquired_, 0, 1)) {
 #if defined(WEBRTC_WIN)
     ::Sleep(0);
-#elif defined(WEBRTC_MAC) && !USE_NATIVE_MUTEX_ON_MAC
+#elif defined(WEBRTC_MAC) && !RTC_USE_NATIVE_MUTEX_ON_MAC
     sched_yield();
 #else
     nanosleep(&ts_null, nullptr);
@@ -232,16 +233,12 @@ void GlobalLockPod::Lock() {
   }
 }
 
-void GlobalLockPod::Unlock() {
-  int old_value = AtomicOps::CompareAndSwap(&lock_acquired, 1, 0);
+void GlobalLock::Unlock() {
+  int old_value = AtomicOps::CompareAndSwap(&lock_acquired_, 1, 0);
   RTC_DCHECK_EQ(1, old_value) << "Unlock called without calling Lock first";
 }
 
-GlobalLock::GlobalLock() {
-  lock_acquired = 0;
-}
-
-GlobalLockScope::GlobalLockScope(GlobalLockPod* lock) : lock_(lock) {
+GlobalLockScope::GlobalLockScope(GlobalLock* lock) : lock_(lock) {
   lock_->Lock();
 }
 

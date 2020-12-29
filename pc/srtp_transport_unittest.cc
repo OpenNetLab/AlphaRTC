@@ -8,16 +8,18 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "pc/srtp_transport.h"
+
 #include <string.h>
+
+#include <memory>
 #include <set>
 #include <vector>
 
-#include "absl/memory/memory.h"
 #include "call/rtp_demuxer.h"
 #include "media/base/fake_rtp.h"
 #include "p2p/base/dtls_transport_internal.h"
 #include "p2p/base/fake_packet_transport.h"
-#include "pc/srtp_transport.h"
 #include "pc/test/rtp_transport_test_util.h"
 #include "pc/test/srtp_test_util.h"
 #include "rtc_base/async_packet_socket.h"
@@ -48,16 +50,16 @@ class SrtpTransportTest : public ::testing::Test, public sigslot::has_slots<> {
     bool rtcp_mux_enabled = true;
 
     rtp_packet_transport1_ =
-        absl::make_unique<rtc::FakePacketTransport>("fake_packet_transport1");
+        std::make_unique<rtc::FakePacketTransport>("fake_packet_transport1");
     rtp_packet_transport2_ =
-        absl::make_unique<rtc::FakePacketTransport>("fake_packet_transport2");
+        std::make_unique<rtc::FakePacketTransport>("fake_packet_transport2");
 
     bool asymmetric = false;
     rtp_packet_transport1_->SetDestination(rtp_packet_transport2_.get(),
                                            asymmetric);
 
-    srtp_transport1_ = absl::make_unique<SrtpTransport>(rtcp_mux_enabled);
-    srtp_transport2_ = absl::make_unique<SrtpTransport>(rtcp_mux_enabled);
+    srtp_transport1_ = std::make_unique<SrtpTransport>(rtcp_mux_enabled);
+    srtp_transport2_ = std::make_unique<SrtpTransport>(rtcp_mux_enabled);
 
     srtp_transport1_->SetRtpPacketTransport(rtp_packet_transport1_.get());
     srtp_transport2_->SetRtpPacketTransport(rtp_packet_transport2_.get());

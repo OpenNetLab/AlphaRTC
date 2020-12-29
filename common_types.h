@@ -12,6 +12,7 @@
 #define COMMON_TYPES_H_
 
 #include <stddef.h>  // For size_t
+
 #include <cstdint>
 
 namespace webrtc {
@@ -28,14 +29,6 @@ class FrameCountObserver {
   virtual ~FrameCountObserver() {}
   virtual void FrameCountUpdated(const FrameCounts& frame_counts,
                                  uint32_t ssrc) = 0;
-};
-
-// Callback, used to notify an observer when the overhead per packet
-// has changed.
-class OverheadObserver {
- public:
-  virtual ~OverheadObserver() = default;
-  virtual void OnOverheadChanged(size_t overhead_bytes_per_packet) = 0;
 };
 
 // ==================================================================
@@ -88,8 +81,16 @@ typedef SpatialLayer SimulcastStream;
 // Note: Given that this gets embedded in a union, it is up-to the owner to
 // initialize these values.
 struct PlayoutDelay {
+  PlayoutDelay(int min_ms, int max_ms) : min_ms(min_ms), max_ms(max_ms) {}
   int min_ms;
   int max_ms;
+
+  static PlayoutDelay Noop() { return PlayoutDelay(-1, -1); }
+
+  bool IsNoop() const { return min_ms == -1 && max_ms == -1; }
+  bool operator==(const PlayoutDelay& rhs) const {
+    return min_ms == rhs.min_ms && max_ms == rhs.max_ms;
+  }
 };
 
 }  // namespace webrtc

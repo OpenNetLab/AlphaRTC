@@ -11,23 +11,32 @@
 #include "modules/video_coding/generic_decoder.h"
 
 #include <stddef.h>
+
 #include <algorithm>
 
 #include "api/video/video_timing.h"
 #include "modules/video_coding/include/video_error_codes.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
+#include "rtc_base/thread.h"
 #include "rtc_base/time_utils.h"
 #include "rtc_base/trace_event.h"
 #include "system_wrappers/include/clock.h"
+#include "system_wrappers/include/field_trial.h"
 
 namespace webrtc {
 
 VCMDecodedFrameCallback::VCMDecodedFrameCallback(VCMTiming* timing,
                                                  Clock* clock)
-    : _clock(clock), _timing(timing), _timestampMap(kDecoderFrameMemoryLength) {
+    : _clock(clock),
+      _timing(timing),
+      _timestampMap(kDecoderFrameMemoryLength),
+      _extra_decode_time("t", absl::nullopt) {
   ntp_offset_ =
       _clock->CurrentNtpInMilliseconds() - _clock->TimeInMilliseconds();
+
+  ParseFieldTrial({&_extra_decode_time},
+                  field_trial::FindFullName("WebRTC-SlowDownDecoder"));
 }
 
 VCMDecodedFrameCallback::~VCMDecodedFrameCallback() {}
@@ -48,6 +57,8 @@ VCMReceiveCallback* VCMDecodedFrameCallback::UserReceiveCallback() {
 }
 
 int32_t VCMDecodedFrameCallback::Decoded(VideoFrame& decodedImage) {
+  // This function may be called on the decode TaskQueue, but may also be called
+  // on an OS provided queue such as on iOS (see e.g. b/153465112).
   return Decoded(decodedImage, -1);
 }
 
@@ -63,6 +74,11 @@ int32_t VCMDecodedFrameCallback::Decoded(VideoFrame& decodedImage,
 void VCMDecodedFrameCallback::Decoded(VideoFrame& decodedImage,
                                       absl::optional<int32_t> decode_time_ms,
                                       absl::optional<uint8_t> qp) {
+  // Wait some extra time to simulate a slow decoder.
+  if (_extra_decode_time) {
+    rtc::Thread::SleepMs(_extra_decode_time->ms());
+  }
+
   RTC_DCHECK(_receiveCallback) << "Callback must not be null at this point";
   TRACE_EVENT_INSTANT1("webrtc", "VCMDecodedFrameCallback::Decoded",
                        "timestamp", decodedImage.timestamp());
@@ -77,21 +93,21 @@ void VCMDecodedFrameCallback::Decoded(VideoFrame& decodedImage,
   if (frameInfo == NULL) {
     RTC_LOG(LS_WARNING) << "Too many frames backed up in the decoder, dropping "
                            "this one.";
+    _receiveCallback->OnDroppedFrames(1);
     return;
   }
 
   decodedImage.set_ntp_time_ms(frameInfo->ntp_time_ms);
-  if (frameInfo->color_space) {
-    decodedImage.set_color_space(frameInfo->color_space);
-  }
   decodedImage.set_packet_infos(frameInfo->packet_infos);
   decodedImage.set_rotation(frameInfo->rotation);
 
-  const int64_t now_ms = _clock->TimeInMilliseconds();
+  const Timestamp now = _clock->CurrentTime();
+  RTC_DCHECK(frameInfo->decodeStart);
   if (!decode_time_ms) {
-    decode_time_ms = now_ms - frameInfo->decodeStartTimeMs;
+    decode_time_ms = (now - *frameInfo->decodeStart).ms();
   }
-  _timing->StopDecodeTimer(*decode_time_ms, now_ms);
+  _timing->StopDecodeTimer(*decode_time_ms, now.ms());
+  decodedImage.set_processing_time({*frameInfo->decodeStart, now});
 
   // Report timing information.
   TimingFrameInfo timing_frame_info;
@@ -119,7 +135,6 @@ void VCMDecodedFrameCallback::Decoded(VideoFrame& decodedImage,
           1;
     }
 
-
     timing_frame_info.capture_time_ms = capture_time_ms - sender_delta_ms;
     timing_frame_info.encode_start_ms =
         frameInfo->timing.encode_start_ms - sender_delta_ms;
@@ -136,8 +151,8 @@ void VCMDecodedFrameCallback::Decoded(VideoFrame& decodedImage,
   }
 
   timing_frame_info.flags = frameInfo->timing.flags;
-  timing_frame_info.decode_start_ms = frameInfo->decodeStartTimeMs;
-  timing_frame_info.decode_finish_ms = now_ms;
+  timing_frame_info.decode_start_ms = frameInfo->decodeStart->ms();
+  timing_frame_info.decode_finish_ms = now.ms();
   timing_frame_info.render_time_ms = frameInfo->renderTimeMs;
   timing_frame_info.rtp_timestamp = decodedImage.timestamp();
   timing_frame_info.receive_start_ms = frameInfo->timing.receive_start_ms;
@@ -166,6 +181,7 @@ int32_t VCMDecodedFrameCallback::Pop(uint32_t timestamp) {
   if (_timestampMap.Pop(timestamp) == NULL) {
     return VCM_GENERAL_ERROR;
   }
+  _receiveCallback->OnDroppedFrames(1);
   return VCM_OK;
 }
 
@@ -198,20 +214,15 @@ int32_t VCMGenericDecoder::InitDecode(const VideoCodec* settings,
   return decoder_->InitDecode(settings, numberOfCores);
 }
 
-int32_t VCMGenericDecoder::Decode(const VCMEncodedFrame& frame, int64_t nowMs) {
+int32_t VCMGenericDecoder::Decode(const VCMEncodedFrame& frame, Timestamp now) {
   TRACE_EVENT1("webrtc", "VCMGenericDecoder::Decode", "timestamp",
                frame.Timestamp());
-  _frameInfos[_nextFrameInfoIdx].decodeStartTimeMs = nowMs;
+  _frameInfos[_nextFrameInfoIdx].decodeStart = now;
   _frameInfos[_nextFrameInfoIdx].renderTimeMs = frame.RenderTimeMs();
   _frameInfos[_nextFrameInfoIdx].rotation = frame.rotation();
   _frameInfos[_nextFrameInfoIdx].timing = frame.video_timing();
   _frameInfos[_nextFrameInfoIdx].ntp_time_ms =
       frame.EncodedImage().ntp_time_ms_;
-  if (frame.ColorSpace()) {
-    _frameInfos[_nextFrameInfoIdx].color_space = *frame.ColorSpace();
-  } else {
-    _frameInfos[_nextFrameInfoIdx].color_space = absl::nullopt;
-  }
   _frameInfos[_nextFrameInfoIdx].packet_infos = frame.PacketInfos();
 
   // Set correctly only for key frames. Thus, use latest key frame

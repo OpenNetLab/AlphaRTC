@@ -8,14 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "media/base/rtp_data_engine.h"
+
 #include <string.h>
+
 #include <memory>
 #include <string>
 
-#include "api/media_transport_config.h"
 #include "media/base/fake_network_interface.h"
 #include "media/base/media_constants.h"
-#include "media/base/rtp_data_engine.h"
 #include "media/base/rtp_utils.h"
 #include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/fake_clock.h"
@@ -59,7 +60,7 @@ class RtpDataMediaChannelTest : public ::testing::Test {
     receiver_.reset(new FakeDataReceiver());
   }
 
-  void SetNow(double now) { clock_.SetTime(webrtc::Timestamp::seconds(now)); }
+  void SetNow(double now) { clock_.SetTime(webrtc::Timestamp::Seconds(now)); }
 
   cricket::RtpDataEngine* CreateEngine() {
     cricket::RtpDataEngine* dme = new cricket::RtpDataEngine();

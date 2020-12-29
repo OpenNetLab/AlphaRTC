@@ -10,6 +10,7 @@
 
 #include "api/transport/alpha_cc_factory.h"
 
+#include <memory>
 #include <utility>
 #include "absl/memory/memory.h"
 #include "modules/congestion_controller/alpha_cc/alpha_cc_network_control.h"
@@ -47,15 +48,13 @@ GoogCcNetworkControllerFactory::Create(NetworkControllerConfig config) {
         factory_config_.network_state_predictor_factory
             ->CreateNetworkStatePredictor();
   }
-  return absl::make_unique<GoogCcNetworkController>(config,
-                                                    std::move(goog_cc_config));
-                                                    
-  
+  return std::make_unique<GoogCcNetworkController>(config,
+                                                   std::move(goog_cc_config));
 }
 
 TimeDelta GoogCcNetworkControllerFactory::GetProcessInterval() const {
   const int64_t kUpdateIntervalMs = 25;
-  return TimeDelta::ms(kUpdateIntervalMs);
+  return TimeDelta::Millis(kUpdateIntervalMs);
 }
 
 GoogCcFeedbackNetworkControllerFactory::GoogCcFeedbackNetworkControllerFactory(

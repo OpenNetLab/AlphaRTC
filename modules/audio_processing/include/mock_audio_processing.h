@@ -21,46 +21,6 @@
 namespace webrtc {
 
 namespace test {
-class MockGainControl : public GainControl {
- public:
-  virtual ~MockGainControl() {}
-  MOCK_METHOD1(Enable, int(bool enable));
-  MOCK_CONST_METHOD0(is_enabled, bool());
-  MOCK_METHOD1(set_stream_analog_level, int(int level));
-  MOCK_CONST_METHOD0(stream_analog_level, int());
-  MOCK_METHOD1(set_mode, int(Mode mode));
-  MOCK_CONST_METHOD0(mode, Mode());
-  MOCK_METHOD1(set_target_level_dbfs, int(int level));
-  MOCK_CONST_METHOD0(target_level_dbfs, int());
-  MOCK_METHOD1(set_compression_gain_db, int(int gain));
-  MOCK_CONST_METHOD0(compression_gain_db, int());
-  MOCK_METHOD1(enable_limiter, int(bool enable));
-  MOCK_CONST_METHOD0(is_limiter_enabled, bool());
-  MOCK_METHOD2(set_analog_level_limits, int(int minimum, int maximum));
-  MOCK_CONST_METHOD0(analog_level_minimum, int());
-  MOCK_CONST_METHOD0(analog_level_maximum, int());
-  MOCK_CONST_METHOD0(stream_is_saturated, bool());
-};
-
-class MockLevelEstimator : public LevelEstimator {
- public:
-  virtual ~MockLevelEstimator() {}
-  MOCK_METHOD1(Enable, int(bool enable));
-  MOCK_CONST_METHOD0(is_enabled, bool());
-  MOCK_METHOD0(RMS, int());
-};
-
-class MockNoiseSuppression : public NoiseSuppression {
- public:
-  virtual ~MockNoiseSuppression() {}
-  MOCK_METHOD1(Enable, int(bool enable));
-  MOCK_CONST_METHOD0(is_enabled, bool());
-  MOCK_METHOD1(set_level, int(Level level));
-  MOCK_CONST_METHOD0(level, Level());
-  MOCK_CONST_METHOD0(speech_probability, float());
-  MOCK_METHOD0(NoiseEstimate, std::vector<float>());
-};
-
 class MockCustomProcessing : public CustomProcessing {
  public:
   virtual ~MockCustomProcessing() {}
@@ -86,30 +46,18 @@ class MockEchoControl : public EchoControl {
   MOCK_METHOD1(AnalyzeCapture, void(AudioBuffer* capture));
   MOCK_METHOD2(ProcessCapture,
                void(AudioBuffer* capture, bool echo_path_change));
+  MOCK_METHOD3(ProcessCapture,
+               void(AudioBuffer* capture,
+                    AudioBuffer* linear_output,
+                    bool echo_path_change));
   MOCK_CONST_METHOD0(GetMetrics, Metrics());
-  MOCK_METHOD1(SetAudioBufferDelay, void(size_t delay_ms));
-};
-
-class MockVoiceDetection : public VoiceDetection {
- public:
-  virtual ~MockVoiceDetection() {}
-  MOCK_METHOD1(Enable, int(bool enable));
-  MOCK_CONST_METHOD0(is_enabled, bool());
-  MOCK_CONST_METHOD0(stream_has_voice, bool());
-  MOCK_METHOD1(set_stream_has_voice, int(bool has_voice));
-  MOCK_METHOD1(set_likelihood, int(Likelihood likelihood));
-  MOCK_CONST_METHOD0(likelihood, Likelihood());
-  MOCK_METHOD1(set_frame_size_ms, int(int size));
-  MOCK_CONST_METHOD0(frame_size_ms, int());
+  MOCK_METHOD1(SetAudioBufferDelay, void(int delay_ms));
+  MOCK_CONST_METHOD0(ActiveProcessing, bool());
 };
 
 class MockAudioProcessing : public ::testing::NiceMock<AudioProcessing> {
  public:
-  MockAudioProcessing()
-      : gain_control_(new ::testing::NiceMock<MockGainControl>()),
-        level_estimator_(new ::testing::NiceMock<MockLevelEstimator>()),
-        noise_suppression_(new ::testing::NiceMock<MockNoiseSuppression>()),
-        voice_detection_(new ::testing::NiceMock<MockVoiceDetection>()) {}
+  MockAudioProcessing() {}
 
   virtual ~MockAudioProcessing() {}
 
@@ -132,7 +80,11 @@ class MockAudioProcessing : public ::testing::NiceMock<AudioProcessing> {
   MOCK_CONST_METHOD0(num_reverse_channels, size_t());
   MOCK_METHOD1(set_output_will_be_muted, void(bool muted));
   MOCK_METHOD1(SetRuntimeSetting, void(RuntimeSetting setting));
-  MOCK_METHOD1(ProcessStream, int(AudioFrame* frame));
+  MOCK_METHOD4(ProcessStream,
+               int(const int16_t* const src,
+                   const StreamConfig& input_config,
+                   const StreamConfig& output_config,
+                   int16_t* const dest));
   MOCK_METHOD7(ProcessStream,
                int(const float* const* src,
                    size_t samples_per_channel,
@@ -146,17 +98,27 @@ class MockAudioProcessing : public ::testing::NiceMock<AudioProcessing> {
                    const StreamConfig& input_config,
                    const StreamConfig& output_config,
                    float* const* dest));
-  MOCK_METHOD1(ProcessReverseStream, int(AudioFrame* frame));
+  MOCK_METHOD4(ProcessReverseStream,
+               int(const int16_t* const src,
+                   const StreamConfig& input_config,
+                   const StreamConfig& output_config,
+                   int16_t* const dest));
   MOCK_METHOD4(AnalyzeReverseStream,
                int(const float* const* data,
                    size_t samples_per_channel,
                    int sample_rate_hz,
                    ChannelLayout layout));
+  MOCK_METHOD2(AnalyzeReverseStream,
+               int(const float* const* data,
+                   const StreamConfig& reverse_config));
   MOCK_METHOD4(ProcessReverseStream,
                int(const float* const* src,
                    const StreamConfig& input_config,
                    const StreamConfig& output_config,
                    float* const* dest));
+  MOCK_CONST_METHOD1(
+      GetLinearAecOutput,
+      bool(rtc::ArrayView<std::array<float, 160>> linear_output));
   MOCK_METHOD1(set_stream_delay_ms, int(int delay));
   MOCK_CONST_METHOD0(stream_delay_ms, int());
   MOCK_CONST_METHOD0(was_stream_delay_set, bool());
@@ -165,34 +127,21 @@ class MockAudioProcessing : public ::testing::NiceMock<AudioProcessing> {
   MOCK_CONST_METHOD0(delay_offset_ms, int());
   MOCK_METHOD1(set_stream_analog_level, void(int));
   MOCK_CONST_METHOD0(recommended_stream_analog_level, int());
-
-  virtual void AttachAecDump(std::unique_ptr<AecDump> aec_dump) {}
+  MOCK_METHOD3(CreateAndAttachAecDump,
+               bool(const std::string& file_name,
+                    int64_t max_log_size_bytes,
+                    rtc::TaskQueue* worker_queue));
+  MOCK_METHOD3(CreateAndAttachAecDump,
+               bool(FILE* handle,
+                    int64_t max_log_size_bytes,
+                    rtc::TaskQueue* worker_queue));
+  MOCK_METHOD1(AttachAecDump, void(std::unique_ptr<AecDump>));
   MOCK_METHOD0(DetachAecDump, void());
 
-  virtual void AttachPlayoutAudioGenerator(
-      std::unique_ptr<AudioGenerator> audio_generator) {}
-  MOCK_METHOD0(DetachPlayoutAudioGenerator, void());
-
-  MOCK_METHOD0(UpdateHistogramsOnCallEnd, void());
-  MOCK_CONST_METHOD1(GetStatistics, AudioProcessingStats(bool));
-  virtual MockGainControl* gain_control() const { return gain_control_.get(); }
-  virtual MockLevelEstimator* level_estimator() const {
-    return level_estimator_.get();
-  }
-  virtual MockNoiseSuppression* noise_suppression() const {
-    return noise_suppression_.get();
-  }
-  virtual MockVoiceDetection* voice_detection() const {
-    return voice_detection_.get();
-  }
+  MOCK_METHOD0(GetStatistics, AudioProcessingStats());
+  MOCK_METHOD1(GetStatistics, AudioProcessingStats(bool));
 
   MOCK_CONST_METHOD0(GetConfig, AudioProcessing::Config());
-
- private:
-  std::unique_ptr<MockGainControl> gain_control_;
-  std::unique_ptr<MockLevelEstimator> level_estimator_;
-  std::unique_ptr<MockNoiseSuppression> noise_suppression_;
-  std::unique_ptr<MockVoiceDetection> voice_detection_;
 };
 
 }  // namespace test

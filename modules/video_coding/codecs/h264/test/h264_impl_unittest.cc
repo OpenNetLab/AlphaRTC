@@ -9,6 +9,7 @@
  */
 
 #include <stdint.h>
+
 #include <memory>
 
 #include "absl/types/optional.h"
@@ -54,8 +55,8 @@ class TestH264Impl : public VideoCodecUnitTest {
 #endif
 
 TEST_F(TestH264Impl, MAYBE_EncodeDecode) {
-  VideoFrame* input_frame = NextInputFrame();
-  EXPECT_EQ(WEBRTC_VIDEO_CODEC_OK, encoder_->Encode(*input_frame, nullptr));
+  VideoFrame input_frame = NextInputFrame();
+  EXPECT_EQ(WEBRTC_VIDEO_CODEC_OK, encoder_->Encode(input_frame, nullptr));
   EncodedImage encoded_frame;
   CodecSpecificInfo codec_specific_info;
   ASSERT_TRUE(WaitForEncodedFrame(&encoded_frame, &codec_specific_info));
@@ -66,7 +67,7 @@ TEST_F(TestH264Impl, MAYBE_EncodeDecode) {
   absl::optional<uint8_t> decoded_qp;
   ASSERT_TRUE(WaitForDecodedFrame(&decoded_frame, &decoded_qp));
   ASSERT_TRUE(decoded_frame);
-  EXPECT_GT(I420PSNR(input_frame, decoded_frame.get()), 36);
+  EXPECT_GT(I420PSNR(&input_frame, decoded_frame.get()), 36);
 
   const ColorSpace color_space = *decoded_frame->color_space();
   EXPECT_EQ(ColorSpace::PrimaryID::kUnspecified, color_space.primaries());
@@ -80,8 +81,7 @@ TEST_F(TestH264Impl, MAYBE_EncodeDecode) {
 }
 
 TEST_F(TestH264Impl, MAYBE_DecodedQpEqualsEncodedQp) {
-  EXPECT_EQ(WEBRTC_VIDEO_CODEC_OK,
-            encoder_->Encode(*NextInputFrame(), nullptr));
+  EXPECT_EQ(WEBRTC_VIDEO_CODEC_OK, encoder_->Encode(NextInputFrame(), nullptr));
   EncodedImage encoded_frame;
   CodecSpecificInfo codec_specific_info;
   ASSERT_TRUE(WaitForEncodedFrame(&encoded_frame, &codec_specific_info));

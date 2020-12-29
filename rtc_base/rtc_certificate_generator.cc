@@ -11,6 +11,7 @@
 #include "rtc_base/rtc_certificate_generator.h"
 
 #include <time.h>
+
 #include <algorithm>
 #include <memory>
 #include <utility>
@@ -18,7 +19,6 @@
 #include "rtc_base/checks.h"
 #include "rtc_base/location.h"
 #include "rtc_base/message_handler.h"
-#include "rtc_base/message_queue.h"
 #include "rtc_base/ref_counted_object.h"
 #include "rtc_base/ssl_identity.h"
 
@@ -109,9 +109,9 @@ scoped_refptr<RTCCertificate> RTCCertificateGenerator::GenerateCertificate(
     return nullptr;
   }
 
-  SSLIdentity* identity = nullptr;
+  std::unique_ptr<SSLIdentity> identity;
   if (!expires_ms) {
-    identity = SSLIdentity::Generate(kIdentityName, key_params);
+    identity = SSLIdentity::Create(kIdentityName, key_params);
   } else {
     uint64_t expires_s = *expires_ms / 1000;
     // Limit the expiration time to something reasonable (a year). This was
@@ -123,14 +123,12 @@ scoped_refptr<RTCCertificate> RTCCertificateGenerator::GenerateCertificate(
     // |SSLIdentity::Generate| should stop relying on |time_t|.
     // See bugs.webrtc.org/5720.
     time_t cert_lifetime_s = static_cast<time_t>(expires_s);
-    identity = SSLIdentity::GenerateWithExpiration(kIdentityName, key_params,
-                                                   cert_lifetime_s);
+    identity = SSLIdentity::Create(kIdentityName, key_params, cert_lifetime_s);
   }
   if (!identity) {
     return nullptr;
   }
-  std::unique_ptr<SSLIdentity> identity_sptr(identity);
-  return RTCCertificate::Create(std::move(identity_sptr));
+  return RTCCertificate::Create(std::move(identity));
 }
 
 RTCCertificateGenerator::RTCCertificateGenerator(Thread* signaling_thread,

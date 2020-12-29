@@ -10,11 +10,10 @@
 
 #include "media/engine/webrtc_media_engine.h"
 
+#include <memory>
 #include <utility>
 
 #include "absl/algorithm/container.h"
-#include "absl/memory/memory.h"
-#include "api/task_queue/global_task_queue_factory.h"
 #include "media/engine/webrtc_voice_engine.h"
 #include "system_wrappers/include/field_trial.h"
 
@@ -28,52 +27,24 @@ namespace cricket {
 
 std::unique_ptr<MediaEngineInterface> CreateMediaEngine(
     MediaEngineDependencies dependencies) {
-  auto audio_engine = absl::make_unique<WebRtcVoiceEngine>(
+  auto audio_engine = std::make_unique<WebRtcVoiceEngine>(
       dependencies.task_queue_factory, std::move(dependencies.adm),
       std::move(dependencies.audio_encoder_factory),
       std::move(dependencies.audio_decoder_factory),
       std::move(dependencies.audio_mixer),
       std::move(dependencies.audio_processing));
 #ifdef HAVE_WEBRTC_VIDEO
-  auto video_engine = absl::make_unique<WebRtcVideoEngine>(
+  auto video_engine = std::make_unique<WebRtcVideoEngine>(
       std::move(dependencies.video_encoder_factory),
       std::move(dependencies.video_decoder_factory));
 #else
-  auto video_engine = absl::make_unique<NullWebRtcVideoEngine>();
+  auto video_engine = std::make_unique<NullWebRtcVideoEngine>();
 #endif
-  return absl::make_unique<CompositeMediaEngine>(std::move(audio_engine),
-                                                 std::move(video_engine));
-}
-
-std::unique_ptr<MediaEngineInterface> WebRtcMediaEngineFactory::Create(
-    rtc::scoped_refptr<webrtc::AudioDeviceModule> adm,
-    rtc::scoped_refptr<webrtc::AudioEncoderFactory> audio_encoder_factory,
-    rtc::scoped_refptr<webrtc::AudioDecoderFactory> audio_decoder_factory,
-    std::unique_ptr<webrtc::VideoEncoderFactory> video_encoder_factory,
-    std::unique_ptr<webrtc::VideoDecoderFactory> video_decoder_factory,
-    rtc::scoped_refptr<webrtc::AudioMixer> audio_mixer,
-    rtc::scoped_refptr<webrtc::AudioProcessing> audio_processing) {
-#ifdef HAVE_WEBRTC_VIDEO
-  auto video_engine = absl::make_unique<WebRtcVideoEngine>(
-      std::move(video_encoder_factory), std::move(video_decoder_factory));
-#else
-  auto video_engine = absl::make_unique<NullWebRtcVideoEngine>();
-#endif
-  return std::unique_ptr<MediaEngineInterface>(new CompositeMediaEngine(
-      absl::make_unique<WebRtcVoiceEngine>(
-          &webrtc::GlobalTaskQueueFactory(), adm, audio_encoder_factory,
-          audio_decoder_factory, audio_mixer, audio_processing),
-      std::move(video_engine)));
+  return std::make_unique<CompositeMediaEngine>(std::move(audio_engine),
+                                                std::move(video_engine));
 }
 
 namespace {
-// If this FieldTrial is enabled, we will not filter out the abs-send-time
-// header extension when the TWCC extensions were also negotiated, but keep
-// kAbsSendTimeUri also if kTransportSequenceNumberUri is present.
-bool IsKeepAbsSendTimeExtensionFieldTrialEnabled() {
-  return webrtc::field_trial::IsEnabled("WebRTC-KeepAbsSendTimeExtension");
-}
-
 // Remove mutually exclusive extensions with lower priority.
 void DiscardRedundantExtensions(
     std::vector<webrtc::RtpExtension>* extensions,
@@ -115,7 +86,7 @@ bool ValidateRtpExtensions(
 
 std::vector<webrtc::RtpExtension> FilterRtpExtensions(
     const std::vector<webrtc::RtpExtension>& extensions,
-    bool (*supported)(const std::string&),
+    bool (*supported)(absl::string_view),
     bool filter_redundant_extensions) {
   RTC_DCHECK(ValidateRtpExtensions(extensions));
   RTC_DCHECK(supported);
@@ -134,12 +105,11 @@ std::vector<webrtc::RtpExtension> FilterRtpExtensions(
   // Sort by name, ascending (prioritise encryption), so that we don't reset
   // extensions if they were specified in a different order (also allows us
   // to use std::unique below).
-  absl::c_sort(
-      result,
-      [](const webrtc::RtpExtension& rhs, const webrtc::RtpExtension& lhs) {
-        return rhs.encrypt == lhs.encrypt ? rhs.uri < lhs.uri
-                                          : rhs.encrypt > lhs.encrypt;
-      });
+  absl::c_sort(result, [](const webrtc::RtpExtension& rhs,
+                          const webrtc::RtpExtension& lhs) {
+    return rhs.encrypt == lhs.encrypt ? rhs.uri < lhs.uri
+                                      : rhs.encrypt > lhs.encrypt;
+  });
 
   // Remove unnecessary extensions (used on send side).
   if (filter_redundant_extensions) {
@@ -151,14 +121,14 @@ std::vector<webrtc::RtpExtension> FilterRtpExtensions(
     result.erase(it, result.end());
 
     // Keep just the highest priority extension of any in the following lists.
-    if (IsKeepAbsSendTimeExtensionFieldTrialEnabled()) {
+    if (webrtc::field_trial::IsEnabled("WebRTC-FilterAbsSendTimeExtension")) {
       static const char* const kBweExtensionPriorities[] = {
+          webrtc::RtpExtension::kTransportSequenceNumberUri,
           webrtc::RtpExtension::kAbsSendTimeUri,
           webrtc::RtpExtension::kTimestampOffsetUri};
       DiscardRedundantExtensions(&result, kBweExtensionPriorities);
     } else {
       static const char* const kBweExtensionPriorities[] = {
-          webrtc::RtpExtension::kTransportSequenceNumberUri,
           webrtc::RtpExtension::kAbsSendTimeUri,
           webrtc::RtpExtension::kTimestampOffsetUri};
       DiscardRedundantExtensions(&result, kBweExtensionPriorities);

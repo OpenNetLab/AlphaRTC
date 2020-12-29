@@ -24,7 +24,6 @@
 #include <string>
 #include <vector>
 
-#include "absl/memory/memory.h"
 #include "absl/strings/match.h"
 #include "modules/audio_coding/codecs/opus/audio_coder_opus_common.h"
 #include "rtc_base/arraysize.h"
@@ -134,8 +133,8 @@ AudioEncoderMultiChannelOpusImpl::MakeAudioEncoder(
   if (!config.IsOk()) {
     return nullptr;
   }
-  return absl::make_unique<AudioEncoderMultiChannelOpusImpl>(config,
-                                                             payload_type);
+  return std::make_unique<AudioEncoderMultiChannelOpusImpl>(config,
+                                                            payload_type);
 }
 
 AudioEncoderMultiChannelOpusImpl::AudioEncoderMultiChannelOpusImpl(
@@ -163,6 +162,12 @@ size_t AudioEncoderMultiChannelOpusImpl::SufficientOutputBufferSize() const {
 
 void AudioEncoderMultiChannelOpusImpl::Reset() {
   RTC_CHECK(RecreateEncoderInstance(config_));
+}
+
+absl::optional<std::pair<TimeDelta, TimeDelta>>
+AudioEncoderMultiChannelOpusImpl::GetFrameLengthRange() const {
+  return {{TimeDelta::Millis(config_.frame_size_ms),
+           TimeDelta::Millis(config_.frame_size_ms)}};
 }
 
 // If the given config is OK, recreate the Opus encoder instance with those

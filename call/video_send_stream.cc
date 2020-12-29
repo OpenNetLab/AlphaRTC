@@ -17,12 +17,31 @@
 
 namespace webrtc {
 
+namespace {
+
+const char* StreamTypeToString(VideoSendStream::StreamStats::StreamType type) {
+  switch (type) {
+    case VideoSendStream::StreamStats::StreamType::kMedia:
+      return "media";
+    case VideoSendStream::StreamStats::StreamType::kRtx:
+      return "rtx";
+    case VideoSendStream::StreamStats::StreamType::kFlexfec:
+      return "flexfec";
+  }
+}
+
+}  // namespace
+
 VideoSendStream::StreamStats::StreamStats() = default;
 VideoSendStream::StreamStats::~StreamStats() = default;
 
 std::string VideoSendStream::StreamStats::ToString() const {
   char buf[1024];
   rtc::SimpleStringBuilder ss(buf);
+  ss << "type: " << StreamTypeToString(type);
+  if (referenced_media_ssrc.has_value())
+    ss << " (for: " << referenced_media_ssrc.value() << ")";
+  ss << ", ";
   ss << "width: " << width << ", ";
   ss << "height: " << height << ", ";
   ss << "key: " << frame_counts.key_frames << ", ";
@@ -64,7 +83,8 @@ std::string VideoSendStream::Stats::ToString(int64_t time_ms) const {
   ss << "#quality_adaptations: " << number_of_quality_adapt_changes;
   ss << '}';
   for (const auto& substream : substreams) {
-    if (!substream.second.is_rtx && !substream.second.is_flexfec) {
+    if (substream.second.type ==
+        VideoSendStream::StreamStats::StreamType::kMedia) {
       ss << " {ssrc: " << substream.first << ", ";
       ss << substream.second.ToString();
       ss << '}';
@@ -75,14 +95,10 @@ std::string VideoSendStream::Stats::ToString(int64_t time_ms) const {
 
 VideoSendStream::Config::Config(const Config&) = default;
 VideoSendStream::Config::Config(Config&&) = default;
-VideoSendStream::Config::Config(Transport* send_transport,
-                                MediaTransportInterface* media_transport)
+VideoSendStream::Config::Config(Transport* send_transport)
     : rtp(),
       encoder_settings(VideoEncoder::Capabilities(rtp.lntf.enabled)),
-      send_transport(send_transport),
-      media_transport(media_transport) {}
-VideoSendStream::Config::Config(Transport* send_transport)
-    : Config(send_transport, nullptr) {}
+      send_transport(send_transport) {}
 
 VideoSendStream::Config& VideoSendStream::Config::operator=(Config&&) = default;
 VideoSendStream::Config::Config::~Config() = default;
@@ -95,7 +111,6 @@ std::string VideoSendStream::Config::ToString() const {
   ss << ", rtp: " << rtp.ToString();
   ss << ", rtcp_report_interval_ms: " << rtcp_report_interval_ms;
   ss << ", send_transport: " << (send_transport ? "(Transport)" : "nullptr");
-  ss << ", media_transport: " << (media_transport ? "(Transport)" : "nullptr");
   ss << ", render_delay_ms: " << render_delay_ms;
   ss << ", target_delay_ms: " << target_delay_ms;
   ss << ", suspend_below_min_bitrate: "

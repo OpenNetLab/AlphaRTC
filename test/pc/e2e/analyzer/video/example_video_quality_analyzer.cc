@@ -52,7 +52,8 @@ void ExampleVideoQualityAnalyzer::OnFramePreEncode(
 
 void ExampleVideoQualityAnalyzer::OnFrameEncoded(
     uint16_t frame_id,
-    const webrtc::EncodedImage& encoded_image) {
+    const webrtc::EncodedImage& encoded_image,
+    const EncoderStats& stats) {
   rtc::CritScope crit(&lock_);
   ++frames_encoded_;
 }
@@ -64,7 +65,7 @@ void ExampleVideoQualityAnalyzer::OnFrameDropped(
   ++frames_dropped_;
 }
 
-void ExampleVideoQualityAnalyzer::OnFrameReceived(
+void ExampleVideoQualityAnalyzer::OnFramePreDecode(
     uint16_t frame_id,
     const webrtc::EncodedImage& encoded_image) {
   rtc::CritScope crit(&lock_);
@@ -73,8 +74,7 @@ void ExampleVideoQualityAnalyzer::OnFrameReceived(
 
 void ExampleVideoQualityAnalyzer::OnFrameDecoded(
     const webrtc::VideoFrame& frame,
-    absl::optional<int32_t> decode_time_ms,
-    absl::optional<uint8_t> qp) {
+    const DecoderStats& stats) {
   rtc::CritScope crit(&lock_);
   ++frames_decoded_;
 }

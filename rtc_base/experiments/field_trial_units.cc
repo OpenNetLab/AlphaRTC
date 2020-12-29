@@ -10,6 +10,7 @@
 #include "rtc_base/experiments/field_trial_units.h"
 
 #include <stdio.h>
+
 #include <limits>
 #include <string>
 
@@ -50,9 +51,9 @@ absl::optional<DataRate> ParseTypedParameter<DataRate>(std::string str) {
   absl::optional<ValueWithUnit> result = ParseValueWithUnit(str);
   if (result) {
     if (result->unit.empty() || result->unit == "kbps") {
-      return DataRate::kbps(result->value);
+      return DataRate::KilobitsPerSec(result->value);
     } else if (result->unit == "bps") {
-      return DataRate::bps(result->value);
+      return DataRate::BitsPerSec(result->value);
     }
   }
   return absl::nullopt;
@@ -63,7 +64,7 @@ absl::optional<DataSize> ParseTypedParameter<DataSize>(std::string str) {
   absl::optional<ValueWithUnit> result = ParseValueWithUnit(str);
   if (result) {
     if (result->unit.empty() || result->unit == "bytes")
-      return DataSize::bytes(result->value);
+      return DataSize::Bytes(result->value);
   }
   return absl::nullopt;
 }
@@ -73,14 +74,30 @@ absl::optional<TimeDelta> ParseTypedParameter<TimeDelta>(std::string str) {
   absl::optional<ValueWithUnit> result = ParseValueWithUnit(str);
   if (result) {
     if (result->unit == "s" || result->unit == "seconds") {
-      return TimeDelta::seconds(result->value);
+      return TimeDelta::Seconds(result->value);
     } else if (result->unit == "us") {
-      return TimeDelta::us(result->value);
+      return TimeDelta::Micros(result->value);
     } else if (result->unit.empty() || result->unit == "ms") {
-      return TimeDelta::ms(result->value);
+      return TimeDelta::Millis(result->value);
     }
   }
   return absl::nullopt;
+}
+
+template <>
+absl::optional<absl::optional<DataRate>>
+ParseTypedParameter<absl::optional<DataRate>>(std::string str) {
+  return ParseOptionalParameter<DataRate>(str);
+}
+template <>
+absl::optional<absl::optional<DataSize>>
+ParseTypedParameter<absl::optional<DataSize>>(std::string str) {
+  return ParseOptionalParameter<DataSize>(str);
+}
+template <>
+absl::optional<absl::optional<TimeDelta>>
+ParseTypedParameter<absl::optional<TimeDelta>>(std::string str) {
+  return ParseOptionalParameter<TimeDelta>(str);
 }
 
 template class FieldTrialParameter<DataRate>;

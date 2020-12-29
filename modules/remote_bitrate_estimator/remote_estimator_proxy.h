@@ -14,6 +14,7 @@
 #include <map>
 #include <vector>
 
+#include "api/transport/network_control.h"
 #include "api/transport/webrtc_key_value_config.h"
 #include "modules/remote_bitrate_estimator/include/remote_bitrate_estimator.h"
 #include "modules/third_party/onnxinfer/ONNXInferInterface.h"
@@ -38,7 +39,8 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
  public:
   RemoteEstimatorProxy(Clock* clock,
                        TransportFeedbackSenderInterface* feedback_sender,
-                       const WebRtcKeyValueConfig* key_value_config);
+                       const WebRtcKeyValueConfig* key_value_config,
+                       NetworkStateEstimator* network_state_estimator);
   ~RemoteEstimatorProxy() override;
 
   void IncomingPacket(int64_t arrival_time_ms,
@@ -56,10 +58,11 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
 
  private:
   struct TransportWideFeedbackConfig {
-    FieldTrialParameter<TimeDelta> back_window{"wind", TimeDelta::ms(500)};
-    FieldTrialParameter<TimeDelta> min_interval{"min", TimeDelta::ms(50)};
-    FieldTrialParameter<TimeDelta> max_interval{"max", TimeDelta::ms(250)};
-    FieldTrialParameter<TimeDelta> default_interval{"def", TimeDelta::ms(100)};
+    FieldTrialParameter<TimeDelta> back_window{"wind", TimeDelta::Millis(500)};
+    FieldTrialParameter<TimeDelta> min_interval{"min", TimeDelta::Millis(50)};
+    FieldTrialParameter<TimeDelta> max_interval{"max", TimeDelta::Millis(250)};
+    FieldTrialParameter<TimeDelta> default_interval{"def",
+                                                    TimeDelta::Millis(100)};
     FieldTrialParameter<double> bandwidth_fraction{"frac", 0.05};
     explicit TransportWideFeedbackConfig(
         const WebRtcKeyValueConfig* key_value_config) {
@@ -103,7 +106,9 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   int64_t last_process_time_ms_;
 
   rtc::CriticalSection lock_;
-
+  //  |network_state_estimator_| may be null.
+  NetworkStateEstimator* const network_state_estimator_
+      RTC_PT_GUARDED_BY(&lock_);
   uint32_t media_ssrc_ RTC_GUARDED_BY(&lock_);
   uint8_t feedback_packet_count_ RTC_GUARDED_BY(&lock_);
   SeqNumUnwrapper<uint16_t> unwrapper_ RTC_GUARDED_BY(&lock_);
