@@ -12,6 +12,7 @@
 #define RTC_BASE_SWAP_QUEUE_H_
 
 #include <stddef.h>
+
 #include <atomic>
 #include <utility>
 #include <vector>
@@ -197,6 +198,16 @@ class SwapQueue {
     RTC_DCHECK_LT(next_read_index_, queue_.size());
 
     return true;
+  }
+
+  // Returns the current number of elements in the queue. Since elements may be
+  // concurrently added to the queue, the caller must treat this as a lower
+  // bound, not an exact count.
+  // May only be called by the consumer.
+  size_t SizeAtLeast() const {
+    // Acquire memory ordering ensures that we wait for the producer to finish
+    // inserting any element in progress.
+    return std::atomic_load_explicit(&num_elements_, std::memory_order_acquire);
   }
 
  private:

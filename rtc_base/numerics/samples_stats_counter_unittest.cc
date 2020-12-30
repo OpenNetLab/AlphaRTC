@@ -11,6 +11,7 @@
 #include "rtc_base/numerics/samples_stats_counter.h"
 
 #include <math.h>
+
 #include <random>
 #include <vector>
 
@@ -60,7 +61,7 @@ TEST(SamplesStatsCounterTest, FullSimpleTest) {
   EXPECT_TRUE(!stats.IsEmpty());
   EXPECT_DOUBLE_EQ(stats.GetMin(), 1.0);
   EXPECT_DOUBLE_EQ(stats.GetMax(), 100.0);
-  EXPECT_DOUBLE_EQ(stats.GetAverage(), 50.5);
+  EXPECT_NEAR(stats.GetAverage(), 50.5, 1e-6);
   for (int i = 1; i <= 100; i++) {
     double p = i / 100.0;
     EXPECT_GE(stats.GetPercentile(p), i);

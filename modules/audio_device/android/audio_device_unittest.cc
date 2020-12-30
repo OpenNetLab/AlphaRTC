@@ -8,6 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "modules/audio_device/include/audio_device.h"
+
 #include <algorithm>
 #include <limits>
 #include <list>
@@ -24,7 +26,6 @@
 #include "modules/audio_device/android/build_info.h"
 #include "modules/audio_device/android/ensure_initialized.h"
 #include "modules/audio_device/audio_device_impl.h"
-#include "modules/audio_device/include/audio_device.h"
 #include "modules/audio_device/include/mock_audio_transport.h"
 #include "rtc_base/arraysize.h"
 #include "rtc_base/critical_section.h"
@@ -186,7 +187,7 @@ class FifoAudioStream : public AudioStreamInterface {
     const size_t size = fifo_->size();
     if (size > largest_size_) {
       largest_size_ = size;
-      PRINTD("(%" PRIuS ")", largest_size_);
+      PRINTD("(%" RTC_PRIuS ")", largest_size_);
     }
     total_written_elements_ += size;
   }
@@ -531,12 +532,12 @@ class AudioDeviceTest : public ::testing::Test {
 #ifdef ENABLE_PRINTF
     PRINT("file name: %s\n", file_name.c_str());
     const size_t bytes = test::GetFileSize(file_name);
-    PRINT("file size: %" PRIuS " [bytes]\n", bytes);
-    PRINT("file size: %" PRIuS " [samples]\n", bytes / kBytesPerSample);
+    PRINT("file size: %" RTC_PRIuS " [bytes]\n", bytes);
+    PRINT("file size: %" RTC_PRIuS " [samples]\n", bytes / kBytesPerSample);
     const int seconds =
         static_cast<int>(bytes / (sample_rate * kBytesPerSample));
     PRINT("file size: %d [secs]\n", seconds);
-    PRINT("file size: %" PRIuS " [callbacks]\n",
+    PRINT("file size: %" RTC_PRIuS " [callbacks]\n",
           seconds * kNumCallbacksPerSecond);
 #endif
     return file_name;

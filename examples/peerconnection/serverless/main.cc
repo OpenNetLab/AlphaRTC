@@ -62,7 +62,7 @@ class MainWindowMock : public MainWindow {
     callback_(NULL),
     socket_thread_(socket_thread),
     config_(webrtc::GetAlphaCCConfig()),
-    close_time_(rtc::MessageQueue::kForever)
+    close_time_(rtc::Thread::kForever)
     {}
   void RegisterObserver(MainWndCallback* callback) override {
     callback_ = callback;
@@ -99,7 +99,7 @@ class MainWindowMock : public MainWindow {
 
   void Run() {
     if (config_->conn_autoclose != kAutoCloseDisableValue) {
-      while (close_time_ == rtc::MessageQueue::kForever) {
+      while (close_time_ == rtc::Thread::kForever) {
         RTC_CHECK(socket_thread_->ProcessMessages(0));
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
       }
@@ -132,8 +132,10 @@ int main(int argc, char* argv[]) {
   auto config = webrtc::GetAlphaCCConfig();
 
   if (config->save_log_to_file) {
-    rtc::LogMessage::SetIfLogToFile(true);
-    rtc::LogMessage::SetLogFileName(config->log_output_path);
+    // Temporary Fix
+    // TODO(zhongyang xia): Try to leverage rtc::LogMessage::AddLogToStream
+    // rtc::LogMessage::SetIfLogToFile(true);
+    // rtc::LogMessage::SetLogFileName(config->log_output_path);
   }
   rtc::LogMessage::LogToDebug(rtc::LS_INFO);
 

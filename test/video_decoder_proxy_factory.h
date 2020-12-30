@@ -14,14 +14,13 @@
 #include <memory>
 #include <vector>
 
-#include "absl/memory/memory.h"
 #include "api/video_codecs/video_decoder.h"
 #include "api/video_codecs/video_decoder_factory.h"
 
 namespace webrtc {
 namespace test {
 
-// An decoder factory with a single underlying VideoDecoder object, intended for
+// A decoder factory with a single underlying VideoDecoder object, intended for
 // test purposes. Each call to CreateVideoDecoder returns a proxy for the same
 // decoder, typically an instance of FakeDecoder or MockEncoder.
 class VideoDecoderProxyFactory final : public VideoDecoderFactory {
@@ -37,7 +36,7 @@ class VideoDecoderProxyFactory final : public VideoDecoderFactory {
 
   std::unique_ptr<VideoDecoder> CreateVideoDecoder(
       const SdpVideoFormat& format) override {
-    return absl::make_unique<DecoderProxy>(decoder_);
+    return std::make_unique<DecoderProxy>(decoder_);
   }
 
  private:

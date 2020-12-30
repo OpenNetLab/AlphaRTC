@@ -10,7 +10,8 @@
 
 #include "modules/audio_device/win/core_audio_output_win.h"
 
-#include "absl/memory/memory.h"
+#include <memory>
+
 #include "modules/audio_device/audio_device_buffer.h"
 #include "modules/audio_device/fine_audio_buffer.h"
 #include "rtc_base/bind.h"
@@ -23,10 +24,12 @@ using Microsoft::WRL::ComPtr;
 namespace webrtc {
 namespace webrtc_win {
 
-CoreAudioOutput::CoreAudioOutput()
-    : CoreAudioBase(CoreAudioBase::Direction::kOutput,
-                    [this](uint64_t freq) { return OnDataCallback(freq); },
-                    [this](ErrorType err) { return OnErrorCallback(err); }) {
+CoreAudioOutput::CoreAudioOutput(bool automatic_restart)
+    : CoreAudioBase(
+          CoreAudioBase::Direction::kOutput,
+          automatic_restart,
+          [this](uint64_t freq) { return OnDataCallback(freq); },
+          [this](ErrorType err) { return OnErrorCallback(err); }) {
   RTC_DLOG(INFO) << __FUNCTION__;
   RTC_DCHECK_RUN_ON(&thread_checker_);
   thread_checker_audio_.Detach();
@@ -58,12 +61,16 @@ int CoreAudioOutput::NumDevices() const {
 
 int CoreAudioOutput::SetDevice(int index) {
   RTC_DLOG(INFO) << __FUNCTION__ << ": " << index;
+  RTC_DCHECK_GE(index, 0);
   RTC_DCHECK_RUN_ON(&thread_checker_);
   return CoreAudioBase::SetDevice(index);
 }
 
 int CoreAudioOutput::SetDevice(AudioDeviceModule::WindowsDeviceType device) {
-  RTC_DLOG(INFO) << __FUNCTION__ << ": " << device;
+  RTC_DLOG(INFO) << __FUNCTION__ << ": "
+                 << ((device == AudioDeviceModule::kDefaultDevice)
+                         ? "Default"
+                         : "DefaultCommunication");
   RTC_DCHECK_RUN_ON(&thread_checker_);
   return SetDevice((device == AudioDeviceModule::kDefaultDevice) ? 0 : 1);
 }
@@ -118,7 +125,7 @@ int CoreAudioOutput::InitPlayout() {
   // of samples (and not only multiple of 10ms) to match the optimal
   // buffer size per callback used by Core Audio.
   // TODO(henrika): can we share one FineAudioBuffer with the input side?
-  fine_audio_buffer_ = absl::make_unique<FineAudioBuffer>(audio_device_buffer_);
+  fine_audio_buffer_ = std::make_unique<FineAudioBuffer>(audio_device_buffer_);
 
   // Create an IAudioRenderClient for an initialized IAudioClient.
   // The IAudioRenderClient interface enables us to write output data to
@@ -146,12 +153,16 @@ int CoreAudioOutput::InitPlayout() {
 int CoreAudioOutput::StartPlayout() {
   RTC_DLOG(INFO) << __FUNCTION__ << ": " << IsRestarting();
   RTC_DCHECK(!Playing());
+  RTC_DCHECK(fine_audio_buffer_);
+  RTC_DCHECK(audio_device_buffer_);
   if (!initialized_) {
     RTC_DLOG(LS_WARNING)
         << "Playout can not start since InitPlayout must succeed first";
   }
-  if (fine_audio_buffer_) {
-    fine_audio_buffer_->ResetPlayout();
+
+  fine_audio_buffer_->ResetPlayout();
+  if (!IsRestarting()) {
+    audio_device_buffer_->StartPlayout();
   }
 
   if (!core_audio_utility::FillRenderEndpointBufferWithSilence(
@@ -187,6 +198,11 @@ int CoreAudioOutput::StopPlayout() {
   if (!Stop()) {
     RTC_LOG(LS_ERROR) << "StopPlayout failed";
     return -1;
+  }
+
+  if (!IsRestarting()) {
+    RTC_DCHECK(audio_device_buffer_);
+    audio_device_buffer_->StopPlayout();
   }
 
   // Release all allocated resources to allow for a restart without
@@ -361,8 +377,8 @@ int CoreAudioOutput::EstimateOutputLatencyMillis(uint64_t device_frequency) {
 
     // Convert latency in number of frames into milliseconds.
     webrtc::TimeDelta delay =
-        webrtc::TimeDelta::us(delay_frames * rtc::kNumMicrosecsPerSec /
-                              format_.Format.nSamplesPerSec);
+        webrtc::TimeDelta::Micros(delay_frames * rtc::kNumMicrosecsPerSec /
+                                  format_.Format.nSamplesPerSec);
     delay_ms = delay.ms();
   }
   return delay_ms;
@@ -381,6 +397,7 @@ int CoreAudioOutput::EstimateOutputLatencyMillis(uint64_t device_frequency) {
 bool CoreAudioOutput::HandleStreamDisconnected() {
   RTC_DLOG(INFO) << "<<<--- " << __FUNCTION__;
   RTC_DCHECK_RUN_ON(&thread_checker_audio_);
+  RTC_DCHECK(automatic_restart());
 
   if (StopPlayout() != 0) {
     return false;

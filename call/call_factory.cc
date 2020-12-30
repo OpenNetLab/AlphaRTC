@@ -11,6 +11,7 @@
 #include "call/call_factory.h"
 
 #include <stdio.h>
+
 #include <memory>
 #include <string>
 
@@ -77,8 +78,8 @@ Call* CallFactory::CreateCall(const Call::Config& config) {
 
   if (send_degradation_config || receive_degradation_config) {
     return new DegradedCall(std::unique_ptr<Call>(Call::Create(config)),
-                            send_degradation_config,
-                            receive_degradation_config);
+                            send_degradation_config, receive_degradation_config,
+                            config.task_queue_factory);
   }
 
   return Call::Create(config);

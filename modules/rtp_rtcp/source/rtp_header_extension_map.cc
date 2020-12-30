@@ -46,9 +46,9 @@ constexpr ExtensionInfo kExtensions[] = {
     CreateExtensionInfo<RepairedRtpStreamId>(),
     CreateExtensionInfo<RtpMid>(),
     CreateExtensionInfo<RtpGenericFrameDescriptorExtension00>(),
-    CreateExtensionInfo<RtpGenericFrameDescriptorExtension01>(),
     CreateExtensionInfo<RtpDependencyDescriptorExtension>(),
     CreateExtensionInfo<ColorSpaceExtension>(),
+    CreateExtensionInfo<InbandComfortNoiseExtension>(),
 };
 
 // Because of kRtpExtensionNone, NumberOfExtension is 1 bigger than the actual
@@ -85,7 +85,7 @@ bool RtpHeaderExtensionMap::RegisterByType(int id, RTPExtensionType type) {
   return false;
 }
 
-bool RtpHeaderExtensionMap::RegisterByUri(int id, const std::string& uri) {
+bool RtpHeaderExtensionMap::RegisterByUri(int id, absl::string_view uri) {
   for (const ExtensionInfo& extension : kExtensions)
     if (uri == extension.uri)
       return Register(id, extension.type, extension.uri);
@@ -111,6 +111,15 @@ int32_t RtpHeaderExtensionMap::Deregister(RTPExtensionType type) {
     ids_[type] = kInvalidId;
   }
   return 0;
+}
+
+void RtpHeaderExtensionMap::Deregister(absl::string_view uri) {
+  for (const ExtensionInfo& extension : kExtensions) {
+    if (extension.uri == uri) {
+      ids_[extension.type] = kInvalidId;
+      break;
+    }
+  }
 }
 
 bool RtpHeaderExtensionMap::Register(int id,

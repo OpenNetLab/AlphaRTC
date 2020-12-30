@@ -34,7 +34,7 @@ class RmsLevel {
     int peak;
   };
 
-  static constexpr int kMinLevelDb = 127;
+  enum : int { kMinLevelDb = 127 };
 
   RmsLevel();
   ~RmsLevel();
@@ -45,6 +45,7 @@ class RmsLevel {
 
   // Pass each chunk of audio to Analyze() to accumulate the level.
   void Analyze(rtc::ArrayView<const int16_t> data);
+  void Analyze(rtc::ArrayView<const float> data);
 
   // If all samples with the given |length| have a magnitude of zero, this is
   // a shortcut to avoid some computation.

@@ -66,16 +66,34 @@ class FileWrapper final {
   // Calling Close on an already closed file does nothing and returns success.
   bool Close();
 
+  // Releases and returns the wrapped file without closing it. This call passes
+  // the ownership of the file to the caller, and the wrapper is no longer
+  // responsible for closing it. Similarly the previously wrapped file is no
+  // longer available for the wrapper to use in any aspect.
+  FILE* Release();
+
   // Write any buffered data to the underlying file. Returns true on success,
   // false on write error. Note: Flushing when closing, is not required.
   bool Flush();
 
   // Seeks to the beginning of file. Returns true on success, false on failure,
   // e.g., if the underlying file isn't seekable.
-  bool Rewind();
+  bool Rewind() { return SeekTo(0); }
+  // TODO(nisse): The seek functions are used only by the WavReader. If that
+  // code is demoted to test code, seek functions can be deleted from this
+  // utility.
+  // Seek relative to current file position.
+  bool SeekRelative(int64_t offset);
+  // Seek to given position.
+  bool SeekTo(int64_t position);
 
   // Returns number of bytes read. Short count indicates EOF or error.
   size_t Read(void* buf, size_t length);
+
+  // If the most recent Read() returned a short count, this methods returns true
+  // if the short count was due to EOF, and false it it was due to some i/o
+  // error.
+  bool ReadEof() const;
 
   // Returns true if all data was successfully written (or buffered), or false
   // if there was an error. Writing buffered data can fail later, and is

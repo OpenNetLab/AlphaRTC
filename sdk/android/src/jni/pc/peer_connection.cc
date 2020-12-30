@@ -32,7 +32,6 @@
 #include <string>
 #include <utility>
 
-#include "absl/memory/memory.h"
 #include "api/peer_connection_interface.h"
 #include "api/rtc_event_log_output_file.h"
 #include "api/rtp_receiver_interface.h"
@@ -41,6 +40,7 @@
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/safe_conversions.h"
+#include "sdk/android/generated_peerconnection_jni/CandidatePairChangeEvent_jni.h"
 #include "sdk/android/generated_peerconnection_jni/PeerConnection_jni.h"
 #include "sdk/android/native_api/jni/java_types.h"
 #include "sdk/android/src/jni/jni_helpers.h"
@@ -120,7 +120,23 @@ SdpSemantics JavaToNativeSdpSemantics(JNIEnv* jni,
   return SdpSemantics::kPlanB;
 }
 
+ScopedJavaLocalRef<jobject> NativeToJavaCandidatePairChange(
+    JNIEnv* env,
+    const cricket::CandidatePairChangeEvent& event) {
+  const auto& selected_pair = event.selected_candidate_pair;
+  return Java_CandidatePairChangeEvent_Constructor(
+      env, NativeToJavaCandidate(env, selected_pair.local_candidate()),
+      NativeToJavaCandidate(env, selected_pair.remote_candidate()),
+      static_cast<int>(event.last_data_received_ms),
+      NativeToJavaString(env, event.reason));
+}
+
 }  // namespace
+
+ScopedJavaLocalRef<jobject> NativeToJavaAdapterType(JNIEnv* env,
+                                                    int adapterType) {
+  return Java_AdapterType_fromNativeIndex(env, adapterType);
+}
 
 void JavaToNativeRTCConfiguration(
     JNIEnv* jni,
@@ -142,6 +158,8 @@ void JavaToNativeRTCConfiguration(
       Java_RTCConfiguration_getIceServers(jni, j_rtc_config);
   ScopedJavaLocalRef<jobject> j_continual_gathering_policy =
       Java_RTCConfiguration_getContinualGatheringPolicy(jni, j_rtc_config);
+  ScopedJavaLocalRef<jobject> j_turn_port_prune_policy =
+      Java_RTCConfiguration_getTurnPortPrunePolicy(jni, j_rtc_config);
   ScopedJavaLocalRef<jobject> j_turn_customizer =
       Java_RTCConfiguration_getTurnCustomizer(jni, j_rtc_config);
   ScopedJavaLocalRef<jobject> j_network_preference =
@@ -183,6 +201,8 @@ void JavaToNativeRTCConfiguration(
       Java_RTCConfiguration_getIceCandidatePoolSize(jni, j_rtc_config);
   rtc_config->prune_turn_ports =
       Java_RTCConfiguration_getPruneTurnPorts(jni, j_rtc_config);
+  rtc_config->turn_port_prune_policy =
+      JavaToNativePortPrunePolicy(jni, j_turn_port_prune_policy);
   rtc_config->presume_writable_when_fully_relayed =
       Java_RTCConfiguration_getPresumeWritableWhenFullyRelayed(jni,
                                                                j_rtc_config);
@@ -220,13 +240,6 @@ void JavaToNativeRTCConfiguration(
       Java_RTCConfiguration_getDisableIPv6OnWifi(jni, j_rtc_config);
   rtc_config->max_ipv6_networks =
       Java_RTCConfiguration_getMaxIPv6Networks(jni, j_rtc_config);
-  ScopedJavaLocalRef<jobject> j_ice_regather_interval_range =
-      Java_RTCConfiguration_getIceRegatherIntervalRange(jni, j_rtc_config);
-  if (!IsNull(jni, j_ice_regather_interval_range)) {
-    int min = Java_IntervalRange_getMin(jni, j_ice_regather_interval_range);
-    int max = Java_IntervalRange_getMax(jni, j_ice_regather_interval_range);
-    rtc_config->ice_regather_interval_range.emplace(min, max);
-  }
 
   rtc_config->turn_customizer = GetNativeTurnCustomizer(jni, j_turn_customizer);
 
@@ -258,6 +271,15 @@ void JavaToNativeRTCConfiguration(
                                                                 j_rtc_config);
   rtc_config->crypto_options =
       JavaToNativeOptionalCryptoOptions(jni, j_crypto_options);
+
+  rtc_config->allow_codec_switching = JavaToNativeOptionalBool(
+      jni, Java_RTCConfiguration_getAllowCodecSwitching(jni, j_rtc_config));
+
+  ScopedJavaLocalRef<jstring> j_turn_logging_id =
+      Java_RTCConfiguration_getTurnLoggingId(jni, j_rtc_config);
+  if (!IsNull(jni, j_turn_logging_id)) {
+    rtc_config->turn_logging_id = JavaToNativeString(jni, j_turn_logging_id);
+  }
 }
 
 rtc::KeyType GetRtcConfigKeyType(JNIEnv* env,
@@ -323,6 +345,13 @@ void PeerConnectionObserverJni::OnIceConnectionReceivingChange(bool receiving) {
   JNIEnv* env = AttachCurrentThreadIfNeeded();
   Java_Observer_onIceConnectionReceivingChange(env, j_observer_global_,
                                                receiving);
+}
+
+void PeerConnectionObserverJni::OnIceSelectedCandidatePairChanged(
+    const cricket::CandidatePairChangeEvent& event) {
+  JNIEnv* env = AttachCurrentThreadIfNeeded();
+  Java_Observer_onSelectedCandidatePairChanged(
+      env, j_observer_global_, NativeToJavaCandidatePairChange(env, event));
 }
 
 void PeerConnectionObserverJni::OnIceGatheringChange(
@@ -569,7 +598,7 @@ static jboolean JNI_PeerConnection_SetConfiguration(
   if (owned_pc->constraints()) {
     CopyConstraintsIntoRtcConfiguration(owned_pc->constraints(), &rtc_config);
   }
-  return owned_pc->pc()->SetConfiguration(rtc_config);
+  return owned_pc->pc()->SetConfiguration(rtc_config).ok();
 }
 
 static jboolean JNI_PeerConnection_AddIceCandidate(
@@ -756,7 +785,7 @@ static jboolean JNI_PeerConnection_StartRtcEventLog(
     return false;
   }
   return ExtractNativePC(jni, j_pc)->StartRtcEventLog(
-      absl::make_unique<RtcEventLogOutputFile>(f, max_size));
+      std::make_unique<RtcEventLogOutputFile>(f, max_size));
 }
 
 static void JNI_PeerConnection_StopRtcEventLog(

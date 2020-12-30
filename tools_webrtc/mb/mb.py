@@ -56,6 +56,8 @@ class MetaBuildWrapper(object):
     self.configs = {}
     self.masters = {}
     self.mixins = {}
+    self.isolate_exe = 'isolate.exe' if self.platform.startswith(
+        'win') else 'isolate'
 
   def Main(self, args):
     self.ParseArgs(args)
@@ -121,6 +123,8 @@ class MetaBuildWrapper(object):
     subp.add_argument('output_path', nargs=1,
                       help='path to a file containing the output arguments '
                            'as a JSON object.')
+    subp.add_argument('--json-output',
+                      help='Write errors to json.output')
     subp.set_defaults(func=self.CmdAnalyze)
 
     subp = subps.add_parser('export',
@@ -139,6 +143,8 @@ class MetaBuildWrapper(object):
     subp.add_argument('--swarming-targets-file',
                       help='save runtime dependencies for targets listed '
                            'in file.')
+    subp.add_argument('--json-output',
+                      help='Write errors to json.output')
     subp.add_argument('path', nargs=1,
                       help='path to generate build into')
     subp.set_defaults(func=self.CmdGen)
@@ -332,19 +338,37 @@ class MetaBuildWrapper(object):
     for k, v in self.args.dimensions:
       dimensions += ['-d', k, v]
 
+    archive_json_path = self.ToSrcRelPath(
+        '%s/%s.archive.json' % (build_dir, target))
     cmd = [
-        self.executable,
-        self.PathJoin('tools', 'swarming_client', 'isolate.py'),
+        self.PathJoin(self.src_dir, 'tools', 'luci-go', self.isolate_exe),
         'archive',
+        '-i',
+        self.ToSrcRelPath('%s/%s.isolate' % (build_dir, target)),
         '-s',
         self.ToSrcRelPath('%s/%s.isolated' % (build_dir, target)),
         '-I', 'isolateserver.appspot.com',
+        '-dump-json', archive_json_path,
       ]
-    ret, out, _ = self.Run(cmd, force_verbose=False)
+    ret, _, _ = self.Run(cmd, force_verbose=False)
     if ret:
       return ret
 
-    isolated_hash = out.splitlines()[0].split()[0]
+    try:
+      archive_hashes = json.loads(self.ReadFile(archive_json_path))
+    except Exception:
+      self.Print(
+          'Failed to read JSON file "%s"' % archive_json_path, file=sys.stderr)
+      return 1
+    try:
+      isolated_hash = archive_hashes[target]
+    except Exception:
+      self.Print(
+          'Cannot find hash for "%s" in "%s", file content: %s' %
+          (target, archive_json_path, archive_hashes),
+          file=sys.stderr)
+      return 1
+
     cmd = [
         self.executable,
         self.PathJoin('tools', 'swarming_client', 'swarming.py'),
@@ -360,11 +384,10 @@ class MetaBuildWrapper(object):
 
   def _RunLocallyIsolated(self, build_dir, target):
     cmd = [
-        self.executable,
-        self.PathJoin('tools', 'swarming_client', 'isolate.py'),
+        self.PathJoin(self.src_dir, 'tools', 'luci-go', self.isolate_exe),
         'run',
-        '-s',
-        self.ToSrcRelPath('%s/%s.isolated' % (build_dir, target)),
+        '-i',
+        self.ToSrcRelPath('%s/%s.isolate' % (build_dir, target)),
       ]
     if self.args.extra_args:
       cmd += ['--'] + self.args.extra_args
@@ -613,8 +636,11 @@ class MetaBuildWrapper(object):
       self.WriteFile(gn_runtime_deps_path, '\n'.join(labels) + '\n')
       cmd.append('--runtime-deps-list-file=%s' % gn_runtime_deps_path)
 
-    ret, _, _ = self.Run(cmd)
+    ret, output, _ = self.Run(cmd)
     if ret:
+        if self.args.json_output:
+          # write errors to json.output
+          self.WriteJSON({'output': output}, self.args.json_output)
         # If `gn gen` failed, we should exit early rather than trying to
         # generate isolates. Run() will have already logged any error output.
         self.Print('GN gen failed: %d' % ret)
@@ -689,13 +715,10 @@ class MetaBuildWrapper(object):
                            extra_files)
 
     ret, _, _ = self.Run([
-        self.executable,
-        self.PathJoin('tools', 'swarming_client', 'isolate.py'),
+        self.PathJoin(self.src_dir, 'tools', 'luci-go', self.isolate_exe),
         'check',
         '-i',
-        self.ToSrcRelPath('%s/%s.isolate' % (build_dir, target)),
-        '-s',
-        self.ToSrcRelPath('%s/%s.isolated' % (build_dir, target))],
+        self.ToSrcRelPath('%s/%s.isolate' % (build_dir, target))],
         buffer_output=False)
 
     return ret
@@ -824,14 +847,18 @@ class MetaBuildWrapper(object):
 
     must_retry = False
     if test_type == 'script':
-      cmdline = ['../../' + self.ToSrcRelPath(isolate_map[target]['script'])]
+      cmdline += ['../../' + self.ToSrcRelPath(isolate_map[target]['script'])]
     elif is_android:
-      cmdline = ['../../build/android/test_wrapper/logdog_wrapper.py',
-                 '--target', target,
-                 '--logdog-bin-cmd', '../../bin/logdog_butler',
-                 '--logcat-output-file', '${ISOLATED_OUTDIR}/logcats',
-                 '--store-tombstones']
+      cmdline += ['../../build/android/test_wrapper/logdog_wrapper.py',
+                  '--target', target,
+                  '--logdog-bin-cmd', '../../bin/logdog_butler',
+                  '--logcat-output-file', '${ISOLATED_OUTDIR}/logcats',
+                  '--store-tombstones']
     else:
+      if test_type == 'raw':
+        cmdline.append('../../tools_webrtc/flags_compatibility.py')
+        extra_files.append('../../tools_webrtc/flags_compatibility.py')
+
       if isolate_map[target].get('use_webcam', False):
         cmdline.append('../../tools_webrtc/ensure_webcam_is_running.py')
         extra_files.append('../../tools_webrtc/ensure_webcam_is_running.py')
@@ -962,8 +989,11 @@ class MetaBuildWrapper(object):
     try:
       self.WriteJSON(gn_inp, gn_input_path)
       cmd = self.GNCmd('analyze', build_path, gn_input_path, gn_output_path)
-      ret, _, _ = self.Run(cmd, force_verbose=True)
+      ret, output, _ = self.Run(cmd, force_verbose=True)
       if ret:
+        if self.args.json_output:
+          # write errors to json.output
+          self.WriteJSON({'output': output}, self.args.json_output)
         return ret
 
       gn_outp_str = self.ReadFile(gn_output_path)

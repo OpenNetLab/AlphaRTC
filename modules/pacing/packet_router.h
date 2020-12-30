@@ -13,14 +13,17 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include <list>
 #include <memory>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "api/transport/network_types.h"
 #include "modules/remote_bitrate_estimator/include/remote_bitrate_estimator.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
+#include "modules/rtp_rtcp/source/rtcp_packet.h"
 #include "modules/rtp_rtcp/source/rtp_packet_to_send.h"
 #include "rtc_base/constructor_magic.h"
 #include "rtc_base/critical_section.h"
@@ -29,20 +32,17 @@
 namespace webrtc {
 
 class RtpRtcp;
-namespace rtcp {
-class TransportFeedback;
-}  // namespace rtcp
 
 // PacketRouter keeps track of rtp send modules to support the pacer.
 // In addition, it handles feedback messages, which are sent on a send
 // module if possible (sender report), otherwise on receive module
 // (receiver report). For the latter case, we also keep track of the
 // receive modules.
-class PacketRouter : public TransportSequenceNumberAllocator,
-                     public RemoteBitrateObserver,
+class PacketRouter : public RemoteBitrateObserver,
                      public TransportFeedbackSenderInterface {
  public:
   PacketRouter();
+  explicit PacketRouter(uint16_t start_transport_seq);
   ~PacketRouter() override;
 
   void AddSendRtpModule(RtpRtcp* rtp_module, bool remb_candidate);
@@ -52,23 +52,13 @@ class PacketRouter : public TransportSequenceNumberAllocator,
                            bool remb_candidate);
   void RemoveReceiveRtpModule(RtcpFeedbackSenderInterface* rtcp_sender);
 
-  virtual RtpPacketSendResult TimeToSendPacket(
-      uint32_t ssrc,
-      uint16_t sequence_number,
-      int64_t capture_timestamp,
-      bool retransmission,
-      const PacedPacketInfo& packet_info);
-
   virtual void SendPacket(std::unique_ptr<RtpPacketToSend> packet,
                           const PacedPacketInfo& cluster_info);
 
-  virtual size_t TimeToSendPadding(size_t bytes,
-                                   const PacedPacketInfo& packet_info);
+  virtual std::vector<std::unique_ptr<RtpPacketToSend>> GeneratePadding(
+      size_t target_size_bytes);
 
-  virtual void GeneratePadding(size_t target_size_bytes);
-
-  void SetTransportWideSequenceNumber(uint16_t sequence_number);
-  uint16_t AllocateSequenceNumber() override;
+  uint16_t CurrentTransportSequenceNumber() const;
 
   // Called every time there is a new bitrate estimate for a receive channel
   // group. This call will trigger a new RTCP REMB packet if the bitrate
@@ -85,16 +75,11 @@ class PacketRouter : public TransportSequenceNumberAllocator,
   // Send REMB feedback.
   bool SendRemb(int64_t bitrate_bps, const std::vector<uint32_t>& ssrcs);
 
-  // Send transport feedback packet to send-side.
-  bool SendTransportFeedback(rtcp::TransportFeedback* packet) override;
-
-  // Send RTCP packet which has the subtype APP
-  bool SendApplicationPacket(rtcp::App* packet) override;
+  // Sends |packets| in one or more IP packets.
+  bool SendCombinedRtcpPacket(
+      std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets) override;
 
  private:
-  RtpRtcp* FindRtpModule(uint32_t ssrc)
-      RTC_EXCLUSIVE_LOCKS_REQUIRED(modules_crit_);
-
   void AddRembModuleCandidate(RtcpFeedbackSenderInterface* candidate_module,
                               bool media_sender)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(modules_crit_);
@@ -103,13 +88,16 @@ class PacketRouter : public TransportSequenceNumberAllocator,
       bool media_sender) RTC_EXCLUSIVE_LOCKS_REQUIRED(modules_crit_);
   void UnsetActiveRembModule() RTC_EXCLUSIVE_LOCKS_REQUIRED(modules_crit_);
   void DetermineActiveRembModule() RTC_EXCLUSIVE_LOCKS_REQUIRED(modules_crit_);
+  void AddSendRtpModuleToMap(RtpRtcp* rtp_module, uint32_t ssrc)
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(modules_crit_);
+  void RemoveSendRtpModuleFromMap(uint32_t ssrc)
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(modules_crit_);
 
   rtc::CriticalSection modules_crit_;
-  // Rtp and Rtcp modules of the rtp senders.
-  std::list<RtpRtcp*> rtp_send_modules_ RTC_GUARDED_BY(modules_crit_);
-  // Ssrc to RtpRtcp module cache.
-  std::unordered_map<uint32_t, RtpRtcp*> rtp_module_cache_map_
+  // Ssrc to RtpRtcp module;
+  std::unordered_map<uint32_t, RtpRtcp*> send_modules_map_
       RTC_GUARDED_BY(modules_crit_);
+  std::list<RtpRtcp*> send_modules_list_ RTC_GUARDED_BY(modules_crit_);
   // The last module used to send media.
   RtpRtcp* last_send_module_ RTC_GUARDED_BY(modules_crit_);
   // Rtcp modules of the rtp receivers.
@@ -135,7 +123,7 @@ class PacketRouter : public TransportSequenceNumberAllocator,
   RtcpFeedbackSenderInterface* active_remb_module_
       RTC_GUARDED_BY(modules_crit_);
 
-  volatile int transport_seq_;
+  uint64_t transport_seq_ RTC_GUARDED_BY(modules_crit_);
 
   RTC_DISALLOW_COPY_AND_ASSIGN(PacketRouter);
 };

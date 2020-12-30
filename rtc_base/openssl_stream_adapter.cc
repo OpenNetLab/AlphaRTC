@@ -25,7 +25,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/memory/memory.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/safe_conversions.h"
@@ -37,6 +36,7 @@
 #include "rtc_base/stream.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/time_utils.h"
+#include "system_wrappers/include/field_trial.h"
 
 #if (OPENSSL_VERSION_NUMBER < 0x10100000L)
 #error "webrtc requires at least OpenSSL version 1.1.0, to support DTLS-SRTP"
@@ -265,8 +265,9 @@ static long stream_ctrl(BIO* b, int cmd, long num, void* ptr) {
 // OpenSSLStreamAdapter
 /////////////////////////////////////////////////////////////////////////////
 
-OpenSSLStreamAdapter::OpenSSLStreamAdapter(StreamInterface* stream)
-    : SSLStreamAdapter(stream),
+OpenSSLStreamAdapter::OpenSSLStreamAdapter(
+    std::unique_ptr<StreamInterface> stream)
+    : SSLStreamAdapter(std::move(stream)),
       state_(SSL_NONE),
       role_(SSL_CLIENT),
       ssl_read_needs_write_(false),
@@ -274,15 +275,23 @@ OpenSSLStreamAdapter::OpenSSLStreamAdapter(StreamInterface* stream)
       ssl_(nullptr),
       ssl_ctx_(nullptr),
       ssl_mode_(SSL_MODE_TLS),
-      ssl_max_version_(SSL_PROTOCOL_TLS_12) {}
+      ssl_max_version_(SSL_PROTOCOL_TLS_12),
+      // Default is to support legacy TLS protocols.
+      // This will be changed to default non-support in M82 or M83.
+      support_legacy_tls_protocols_flag_(
+          !webrtc::field_trial::IsDisabled("WebRTC-LegacyTlsProtocols")) {}
 
 OpenSSLStreamAdapter::~OpenSSLStreamAdapter() {
   Cleanup(0);
 }
 
-void OpenSSLStreamAdapter::SetIdentity(SSLIdentity* identity) {
+void OpenSSLStreamAdapter::SetIdentity(std::unique_ptr<SSLIdentity> identity) {
   RTC_DCHECK(!identity_);
-  identity_.reset(static_cast<OpenSSLIdentity*>(identity));
+  identity_.reset(static_cast<OpenSSLIdentity*>(identity.release()));
+}
+
+OpenSSLIdentity* OpenSSLStreamAdapter::GetIdentityForTesting() const {
+  return identity_.get();
 }
 
 void OpenSSLStreamAdapter::SetServerRole(SSLRole role) {
@@ -374,9 +383,9 @@ bool OpenSSLStreamAdapter::GetSslCipherSuite(int* cipher_suite) {
   return true;
 }
 
-int OpenSSLStreamAdapter::GetSslVersion() const {
+SSLProtocolVersion OpenSSLStreamAdapter::GetSslVersion() const {
   if (state_ != SSL_CONNECTED) {
-    return -1;
+    return SSL_PROTOCOL_NOT_GIVEN;
   }
 
   int ssl_version = SSL_version(ssl_);
@@ -396,7 +405,15 @@ int OpenSSLStreamAdapter::GetSslVersion() const {
     }
   }
 
-  return -1;
+  return SSL_PROTOCOL_NOT_GIVEN;
+}
+
+bool OpenSSLStreamAdapter::GetSslVersionBytes(int* version) const {
+  if (state_ != SSL_CONNECTED) {
+    return false;
+  }
+  *version = SSL_version(ssl_);
+  return true;
 }
 
 // Key Extractor interface
@@ -652,7 +669,6 @@ StreamResult OpenSSLStreamAdapter::Read(void* data,
       RTC_LOG(LS_VERBOSE) << " -- remote side closed";
       Close();
       return SR_EOS;
-      break;
     default:
       Error("SSL_read", (ssl_error ? ssl_error : -1), 0, false);
       if (error) {
@@ -952,25 +968,34 @@ SSL_CTX* OpenSSLStreamAdapter::SetupSSLContext() {
     return nullptr;
   }
 
-  // TODO(https://bugs.webrtc.org/10261): Evaluate and drop (D)TLS 1.0 and 1.1
-  // support by default.
-  SSL_CTX_set_min_proto_version(
-      ctx, ssl_mode_ == SSL_MODE_DTLS ? DTLS1_VERSION : TLS1_VERSION);
-  switch (ssl_max_version_) {
-    case SSL_PROTOCOL_TLS_10:
-      SSL_CTX_set_max_proto_version(
-          ctx, ssl_mode_ == SSL_MODE_DTLS ? DTLS1_VERSION : TLS1_VERSION);
-      break;
-    case SSL_PROTOCOL_TLS_11:
-      SSL_CTX_set_max_proto_version(
-          ctx, ssl_mode_ == SSL_MODE_DTLS ? DTLS1_VERSION : TLS1_1_VERSION);
-      break;
-    case SSL_PROTOCOL_TLS_12:
-    default:
-      SSL_CTX_set_max_proto_version(
-          ctx, ssl_mode_ == SSL_MODE_DTLS ? DTLS1_2_VERSION : TLS1_2_VERSION);
-      break;
+  if (support_legacy_tls_protocols_flag_) {
+    // TODO(https://bugs.webrtc.org/10261): Completely remove this branch in
+    // M84.
+    SSL_CTX_set_min_proto_version(
+        ctx, ssl_mode_ == SSL_MODE_DTLS ? DTLS1_VERSION : TLS1_VERSION);
+    switch (ssl_max_version_) {
+      case SSL_PROTOCOL_TLS_10:
+        SSL_CTX_set_max_proto_version(
+            ctx, ssl_mode_ == SSL_MODE_DTLS ? DTLS1_VERSION : TLS1_VERSION);
+        break;
+      case SSL_PROTOCOL_TLS_11:
+        SSL_CTX_set_max_proto_version(
+            ctx, ssl_mode_ == SSL_MODE_DTLS ? DTLS1_VERSION : TLS1_1_VERSION);
+        break;
+      case SSL_PROTOCOL_TLS_12:
+      default:
+        SSL_CTX_set_max_proto_version(
+            ctx, ssl_mode_ == SSL_MODE_DTLS ? DTLS1_2_VERSION : TLS1_2_VERSION);
+        break;
+    }
+  } else {
+    // TODO(https://bugs.webrtc.org/10261): Make this the default in M84.
+    SSL_CTX_set_min_proto_version(
+        ctx, ssl_mode_ == SSL_MODE_DTLS ? DTLS1_2_VERSION : TLS1_2_VERSION);
+    SSL_CTX_set_max_proto_version(
+        ctx, ssl_mode_ == SSL_MODE_DTLS ? DTLS1_2_VERSION : TLS1_2_VERSION);
   }
+
 #ifdef OPENSSL_IS_BORINGSSL
   // SSL_CTX_set_current_time_cb is only supported in BoringSSL.
   if (g_use_time_callback_for_testing) {
@@ -1075,7 +1100,7 @@ int OpenSSLStreamAdapter::SSLVerifyCallback(X509_STORE_CTX* store, void* arg) {
   // Record the peer's certificate.
   X509* cert = X509_STORE_CTX_get0_cert(store);
   stream->peer_cert_chain_.reset(
-      new SSLCertChain(absl::make_unique<OpenSSLCertificate>(cert)));
+      new SSLCertChain(std::make_unique<OpenSSLCertificate>(cert)));
 #endif
 
   // If the peer certificate digest isn't known yet, we'll wait to verify

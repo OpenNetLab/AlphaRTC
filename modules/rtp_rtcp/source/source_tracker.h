@@ -19,7 +19,7 @@
 
 #include "absl/types/optional.h"
 #include "api/rtp_packet_infos.h"
-#include "api/rtp_receiver_interface.h"
+#include "api/transport/rtp/rtp_source.h"
 #include "rtc_base/critical_section.h"
 #include "rtc_base/time_utils.h"
 #include "system_wrappers/include/clock.h"
@@ -89,6 +89,11 @@ class SourceTracker {
     // |timestamp_ms|. May be absent. Only relevant for audio receivers. See the
     // specs for `RTCRtpContributingSource` for more info.
     absl::optional<uint8_t> audio_level;
+
+    // Absolute capture time header extension received or interpolated from the
+    // most recent packet used to assemble the frame. For more info see
+    // https://webrtc.org/experiments/rtp-hdrext/abs-capture-time/
+    absl::optional<AbsoluteCaptureTime> absolute_capture_time;
 
     // RTP timestamp of the most recent packet used to assemble the frame
     // associated with |timestamp_ms|.

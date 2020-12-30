@@ -59,6 +59,7 @@ void AppendFormat(std::string* s, const char* fmt, ...) {
 namespace rtc {
 namespace webrtc_checks_impl {
 
+#if RTC_CHECK_MSG_ENABLED
 // Reads one argument from args, appends it to s and advances fmt.
 // Returns true iff an argument was sucessfully parsed.
 bool ParseArg(va_list* args, const CheckArgType** fmt, std::string* s) {
@@ -157,16 +158,50 @@ RTC_NORETURN void FatalLog(const char* file,
   fflush(stdout);
   fprintf(stderr, "%s", output);
   fflush(stderr);
+#if defined(WEBRTC_WIN)
+  DebugBreak();
+#endif
   abort();
 }
+#else  // RTC_CHECK_MSG_ENABLED
+RTC_NORETURN void FatalLog(const char* file, int line) {
+  std::string s;
+  AppendFormat(&s,
+               "\n\n"
+               "#\n"
+               "# Fatal error in: %s, line %d\n"
+               "# last system error: %u\n"
+               "# Check failed.\n"
+               "# ",
+               file, line, LAST_SYSTEM_ERROR);
+  const char* output = s.c_str();
+
+#if defined(WEBRTC_ANDROID)
+  __android_log_print(ANDROID_LOG_ERROR, RTC_LOG_TAG_ANDROID, "%s\n", output);
+#endif
+
+  fflush(stdout);
+  fprintf(stderr, "%s", output);
+  fflush(stderr);
+#if defined(WEBRTC_WIN)
+  DebugBreak();
+#endif
+  abort();
+}
+#endif  // RTC_CHECK_MSG_ENABLED
 
 }  // namespace webrtc_checks_impl
 }  // namespace rtc
 
 // Function to call from the C version of the RTC_CHECK and RTC_DCHECK macros.
-RTC_NORETURN void rtc_FatalMessage(const char* file, int line,
+RTC_NORETURN void rtc_FatalMessage(const char* file,
+                                   int line,
                                    const char* msg) {
+#if RTC_CHECK_MSG_ENABLED
   static constexpr rtc::webrtc_checks_impl::CheckArgType t[] = {
       rtc::webrtc_checks_impl::CheckArgType::kEnd};
-  FatalLog(file, line, msg, t);
+  rtc::webrtc_checks_impl::FatalLog(file, line, msg, t);
+#else
+  rtc::webrtc_checks_impl::FatalLog(file, line);
+#endif
 }

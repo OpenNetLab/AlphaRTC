@@ -8,10 +8,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "p2p/base/stun_port.h"
+
 #include <memory>
 
 #include "p2p/base/basic_packet_socket_factory.h"
-#include "p2p/base/stun_port.h"
 #include "p2p/base/test_stun_server.h"
 #include "rtc_base/gunit.h"
 #include "rtc_base/helpers.h"
@@ -225,9 +226,8 @@ TEST_F(StunPortTest, TestPrepareAddressFail) {
                            cricket::SERVER_NOT_REACHABLE_ERROR, kTimeoutMs,
                            fake_clock);
   ASSERT_NE(error_event_.error_text.find("."), std::string::npos);
-  ASSERT_NE(
-      error_event_.host_candidate.find(kLocalAddr.HostAsSensitiveURIString()),
-      std::string::npos);
+  ASSERT_NE(error_event_.address.find(kLocalAddr.HostAsSensitiveURIString()),
+            std::string::npos);
   std::string server_url = "stun:" + kBadAddr.ToString();
   ASSERT_EQ(error_event_.url, server_url);
 }

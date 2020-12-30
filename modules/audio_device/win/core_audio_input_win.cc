@@ -10,7 +10,8 @@
 
 #include "modules/audio_device/win/core_audio_input_win.h"
 
-#include "absl/memory/memory.h"
+#include <memory>
+
 #include "modules/audio_device/audio_device_buffer.h"
 #include "modules/audio_device/fine_audio_buffer.h"
 #include "rtc_base/checks.h"
@@ -26,10 +27,12 @@ enum AudioDeviceMessageType : uint32_t {
   kMessageInputStreamDisconnected,
 };
 
-CoreAudioInput::CoreAudioInput()
-    : CoreAudioBase(CoreAudioBase::Direction::kInput,
-                    [this](uint64_t freq) { return OnDataCallback(freq); },
-                    [this](ErrorType err) { return OnErrorCallback(err); }) {
+CoreAudioInput::CoreAudioInput(bool automatic_restart)
+    : CoreAudioBase(
+          CoreAudioBase::Direction::kInput,
+          automatic_restart,
+          [this](uint64_t freq) { return OnDataCallback(freq); },
+          [this](ErrorType err) { return OnErrorCallback(err); }) {
   RTC_DLOG(INFO) << __FUNCTION__;
   RTC_DCHECK_RUN_ON(&thread_checker_);
   thread_checker_audio_.Detach();
@@ -43,13 +46,13 @@ CoreAudioInput::~CoreAudioInput() {
 int CoreAudioInput::Init() {
   RTC_DLOG(INFO) << __FUNCTION__;
   RTC_DCHECK_RUN_ON(&thread_checker_);
-  StopRecording();
   return 0;
 }
 
 int CoreAudioInput::Terminate() {
   RTC_DLOG(INFO) << __FUNCTION__;
   RTC_DCHECK_RUN_ON(&thread_checker_);
+  StopRecording();
   return 0;
 }
 
@@ -60,11 +63,16 @@ int CoreAudioInput::NumDevices() const {
 
 int CoreAudioInput::SetDevice(int index) {
   RTC_DLOG(INFO) << __FUNCTION__ << ": " << index;
+  RTC_DCHECK_GE(index, 0);
+  RTC_DCHECK_RUN_ON(&thread_checker_);
   return CoreAudioBase::SetDevice(index);
 }
 
 int CoreAudioInput::SetDevice(AudioDeviceModule::WindowsDeviceType device) {
-  RTC_DLOG(INFO) << __FUNCTION__ << ": " << device;
+  RTC_DLOG(INFO) << __FUNCTION__ << ": "
+                 << ((device == AudioDeviceModule::kDefaultDevice)
+                         ? "Default"
+                         : "DefaultCommunication");
   RTC_DCHECK_RUN_ON(&thread_checker_);
   return SetDevice((device == AudioDeviceModule::kDefaultDevice) ? 0 : 1);
 }
@@ -119,7 +127,7 @@ int CoreAudioInput::InitRecording() {
   // of samples (and not only multiple of 10ms) to match the optimal buffer
   // size per callback used by Core Audio.
   // TODO(henrika): can we share one FineAudioBuffer with the output side?
-  fine_audio_buffer_ = absl::make_unique<FineAudioBuffer>(audio_device_buffer_);
+  fine_audio_buffer_ = std::make_unique<FineAudioBuffer>(audio_device_buffer_);
 
   // Create an IAudioCaptureClient for an initialized IAudioClient.
   // The IAudioCaptureClient interface enables a client to read input data from
@@ -149,13 +157,17 @@ int CoreAudioInput::InitRecording() {
 int CoreAudioInput::StartRecording() {
   RTC_DLOG(INFO) << __FUNCTION__;
   RTC_DCHECK(!Recording());
+  RTC_DCHECK(fine_audio_buffer_);
+  RTC_DCHECK(audio_device_buffer_);
   if (!initialized_) {
     RTC_DLOG(LS_WARNING)
         << "Recording can not start since InitRecording must succeed first";
     return 0;
   }
-  if (fine_audio_buffer_) {
-    fine_audio_buffer_->ResetRecord();
+
+  fine_audio_buffer_->ResetRecord();
+  if (!IsRestarting()) {
+    audio_device_buffer_->StartRecording();
   }
 
   if (!Start()) {
@@ -184,6 +196,11 @@ int CoreAudioInput::StopRecording() {
   if (!Stop()) {
     RTC_LOG(LS_ERROR) << "StopRecording failed";
     return -1;
+  }
+
+  if (!IsRestarting()) {
+    RTC_DCHECK(audio_device_buffer_);
+    audio_device_buffer_->StopRecording();
   }
 
   // Release all allocated resources to allow for a restart without
@@ -227,7 +244,6 @@ int CoreAudioInput::RestartRecording() {
 }
 
 bool CoreAudioInput::Restarting() const {
-  RTC_DLOG(INFO) << __FUNCTION__;
   RTC_DCHECK_RUN_ON(&thread_checker_);
   return IsRestarting();
 }
@@ -249,6 +265,13 @@ void CoreAudioInput::ReleaseCOMObjects() {
 
 bool CoreAudioInput::OnDataCallback(uint64_t device_frequency) {
   RTC_DCHECK_RUN_ON(&thread_checker_audio_);
+
+  if (!initialized_ || !is_active_) {
+    // This is concurrent examination of state across multiple threads so will
+    // be somewhat error prone, but we should still be defensive and not use
+    // audio_capture_client_ if we know it's not there.
+    return false;
+  }
   if (num_data_callbacks_ == 0) {
     RTC_LOG(INFO) << "--- Input audio stream is alive ---";
   }
@@ -387,8 +410,8 @@ absl::optional<int> CoreAudioInput::EstimateLatencyMillis(
   }
   uint64_t qpc_now_raw = perf_counter_now.QuadPart;
   uint64_t now_time_100ns = qpc_now_raw * (*qpc_to_100ns_);
-  webrtc::TimeDelta delay_us =
-      webrtc::TimeDelta::us(0.1 * (now_time_100ns - capture_time_100ns) + 0.5);
+  webrtc::TimeDelta delay_us = webrtc::TimeDelta::Micros(
+      0.1 * (now_time_100ns - capture_time_100ns) + 0.5);
   return delay_us.ms();
 }
 
@@ -405,6 +428,7 @@ absl::optional<int> CoreAudioInput::EstimateLatencyMillis(
 bool CoreAudioInput::HandleStreamDisconnected() {
   RTC_DLOG(INFO) << "<<<--- " << __FUNCTION__;
   RTC_DCHECK_RUN_ON(&thread_checker_audio_);
+  RTC_DCHECK(automatic_restart());
 
   if (StopRecording() != 0) {
     return false;

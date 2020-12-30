@@ -8,9 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "modules/audio_processing/test/test_utils.h"
+
 #include <utility>
 
-#include "modules/audio_processing/test/test_utils.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/system/arch.h"
 
@@ -67,6 +68,24 @@ void ChannelBufferWavWriter::Write(const ChannelBuffer<float>& buffer) {
   file_->WriteSamples(&interleaved_[0], interleaved_.size());
 }
 
+ChannelBufferVectorWriter::ChannelBufferVectorWriter(std::vector<float>* output)
+    : output_(output) {
+  RTC_DCHECK(output_);
+}
+
+ChannelBufferVectorWriter::~ChannelBufferVectorWriter() = default;
+
+void ChannelBufferVectorWriter::Write(const ChannelBuffer<float>& buffer) {
+  // Account for sample rate changes throughout a simulation.
+  interleaved_buffer_.resize(buffer.size());
+  Interleave(buffer.channels(), buffer.num_frames(), buffer.num_channels(),
+             interleaved_buffer_.data());
+  size_t old_size = output_->size();
+  output_->resize(old_size + interleaved_buffer_.size());
+  FloatToFloatS16(interleaved_buffer_.data(), interleaved_buffer_.size(),
+                  output_->data() + old_size);
+}
+
 void WriteIntData(const int16_t* data,
                   size_t length,
                   WavWriter* wav_file,
@@ -114,9 +133,9 @@ size_t SamplesFromRate(int rate) {
   return static_cast<size_t>(AudioProcessing::kChunkSizeMs * rate / 1000);
 }
 
-void SetFrameSampleRate(AudioFrame* frame, int sample_rate_hz) {
-  frame->sample_rate_hz_ = sample_rate_hz;
-  frame->samples_per_channel_ =
+void SetFrameSampleRate(Int16FrameData* frame, int sample_rate_hz) {
+  frame->sample_rate_hz = sample_rate_hz;
+  frame->samples_per_channel =
       AudioProcessing::kChunkSizeMs * sample_rate_hz / 1000;
 }
 

@@ -7,12 +7,11 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
-#include "modules/rtp_rtcp/source/rtp_packet_received.h"
-#include "modules/rtp_rtcp/source/rtp_packet_to_send.h"
-
 #include "common_video/test/utilities.h"
 #include "modules/rtp_rtcp/include/rtp_header_extension_map.h"
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
+#include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "modules/rtp_rtcp/source/rtp_packet_to_send.h"
 #include "rtc_base/random.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -24,7 +23,6 @@ using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::IsEmpty;
-using ::testing::make_tuple;
 
 constexpr int8_t kPayloadType = 100;
 constexpr uint32_t kSsrc = 0x12345678;
@@ -203,7 +201,6 @@ void TestCreateAndParseColorSpaceExtension(bool with_hdr_metadata) {
   EXPECT_TRUE(parsed.GetExtension<ColorSpaceExtension>(&parsed_color_space));
   EXPECT_EQ(kColorSpace, parsed_color_space);
 }
-}  // namespace
 
 TEST(RtpPacketTest, CreateMinimum) {
   RtpPacketToSend packet(nullptr);
@@ -216,8 +213,7 @@ TEST(RtpPacketTest, CreateMinimum) {
 
 TEST(RtpPacketTest, CreateWithExtension) {
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionTransmissionTimeOffset,
-                      kTransmissionOffsetExtensionId);
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
   RtpPacketToSend packet(&extensions);
   packet.SetPayloadType(kPayloadType);
   packet.SetSequenceNumber(kSeqNum);
@@ -229,9 +225,8 @@ TEST(RtpPacketTest, CreateWithExtension) {
 
 TEST(RtpPacketTest, CreateWith2Extensions) {
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionTransmissionTimeOffset,
-                      kTransmissionOffsetExtensionId);
-  extensions.Register(kRtpExtensionAudioLevel, kAudioLevelExtensionId);
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
+  extensions.Register<AudioLevel>(kAudioLevelExtensionId);
   RtpPacketToSend packet(&extensions);
   packet.SetPayloadType(kPayloadType);
   packet.SetSequenceNumber(kSeqNum);
@@ -245,10 +240,9 @@ TEST(RtpPacketTest, CreateWith2Extensions) {
 
 TEST(RtpPacketTest, CreateWithTwoByteHeaderExtensionFirst) {
   RtpPacketToSend::ExtensionManager extensions(true);
-  extensions.Register(kRtpExtensionTransmissionTimeOffset,
-                      kTransmissionOffsetExtensionId);
-  extensions.Register(kRtpExtensionAudioLevel, kAudioLevelExtensionId);
-  extensions.Register(kRtpExtensionPlayoutDelay, kTwoByteExtensionId);
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
+  extensions.Register<AudioLevel>(kAudioLevelExtensionId);
+  extensions.Register<PlayoutDelayLimits>(kTwoByteExtensionId);
   RtpPacketToSend packet(&extensions);
   packet.SetPayloadType(kPayloadType);
   packet.SetSequenceNumber(kSeqNum);
@@ -266,10 +260,9 @@ TEST(RtpPacketTest, CreateWithTwoByteHeaderExtensionFirst) {
 TEST(RtpPacketTest, CreateWithTwoByteHeaderExtensionLast) {
   // This test will trigger RtpPacket::PromoteToTwoByteHeaderExtension().
   RtpPacketToSend::ExtensionManager extensions(true);
-  extensions.Register(kRtpExtensionTransmissionTimeOffset,
-                      kTransmissionOffsetExtensionId);
-  extensions.Register(kRtpExtensionAudioLevel, kAudioLevelExtensionId);
-  extensions.Register(kRtpExtensionPlayoutDelay, kTwoByteExtensionId);
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
+  extensions.Register<AudioLevel>(kAudioLevelExtensionId);
+  extensions.Register<PlayoutDelayLimits>(kTwoByteExtensionId);
   RtpPacketToSend packet(&extensions);
   packet.SetPayloadType(kPayloadType);
   packet.SetSequenceNumber(kSeqNum);
@@ -332,7 +325,7 @@ TEST(RtpPacketTest, TryToCreateWithLongMid) {
 
 TEST(RtpPacketTest, TryToCreateTwoByteHeaderNotSupported) {
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionAudioLevel, kTwoByteExtensionId);
+  extensions.Register<AudioLevel>(kTwoByteExtensionId);
   RtpPacketToSend packet(&extensions);
   // Set extension that requires two-byte header.
   EXPECT_FALSE(packet.SetExtension<AudioLevel>(kVoiceActive, kAudioLevel));
@@ -364,9 +357,8 @@ TEST(RtpPacketTest, CreateWithMaxSizeHeaderExtension) {
 TEST(RtpPacketTest, SetReservedExtensionsAfterPayload) {
   const size_t kPayloadSize = 4;
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionTransmissionTimeOffset,
-                      kTransmissionOffsetExtensionId);
-  extensions.Register(kRtpExtensionAudioLevel, kAudioLevelExtensionId);
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
+  extensions.Register<AudioLevel>(kAudioLevelExtensionId);
   RtpPacketToSend packet(&extensions);
 
   EXPECT_TRUE(packet.ReserveExtension<TransmissionOffset>());
@@ -468,8 +460,7 @@ TEST(RtpPacketTest, ParseBuffer) {
 
 TEST(RtpPacketTest, ParseWithExtension) {
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionTransmissionTimeOffset,
-                      kTransmissionOffsetExtensionId);
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
 
   RtpPacketReceived packet(&extensions);
   EXPECT_TRUE(packet.Parse(kPacketWithTO, sizeof(kPacketWithTO)));
@@ -535,8 +526,7 @@ TEST(RtpPacketTest, GetRawExtensionWhenAbsent) {
 
 TEST(RtpPacketTest, ParseWithInvalidSizedExtension) {
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionTransmissionTimeOffset,
-                      kTransmissionOffsetExtensionId);
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
 
   RtpPacketReceived packet(&extensions);
   EXPECT_TRUE(packet.Parse(kPacketWithInvalidExtension,
@@ -563,7 +553,7 @@ TEST(RtpPacketTest, ParseWithOverSizedExtension) {
   };
   // clang-format on
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(TransmissionOffset::kId, 1);
+  extensions.Register<TransmissionOffset>(1);
   RtpPacketReceived packet(&extensions);
 
   // Parse should ignore bad extension and proceed.
@@ -575,9 +565,8 @@ TEST(RtpPacketTest, ParseWithOverSizedExtension) {
 
 TEST(RtpPacketTest, ParseWith2Extensions) {
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionTransmissionTimeOffset,
-                      kTransmissionOffsetExtensionId);
-  extensions.Register(kRtpExtensionAudioLevel, kAudioLevelExtensionId);
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
+  extensions.Register<AudioLevel>(kAudioLevelExtensionId);
   RtpPacketReceived packet(&extensions);
   EXPECT_TRUE(packet.Parse(kPacketWithTOAndAL, sizeof(kPacketWithTOAndAL)));
   int32_t time_offset;
@@ -592,9 +581,8 @@ TEST(RtpPacketTest, ParseWith2Extensions) {
 
 TEST(RtpPacketTest, ParseSecondPacketWithFewerExtensions) {
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionTransmissionTimeOffset,
-                      kTransmissionOffsetExtensionId);
-  extensions.Register(kRtpExtensionAudioLevel, kAudioLevelExtensionId);
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
+  extensions.Register<AudioLevel>(kAudioLevelExtensionId);
   RtpPacketReceived packet(&extensions);
   EXPECT_TRUE(packet.Parse(kPacketWithTOAndAL, sizeof(kPacketWithTOAndAL)));
   EXPECT_TRUE(packet.HasExtension<TransmissionOffset>());
@@ -608,9 +596,8 @@ TEST(RtpPacketTest, ParseSecondPacketWithFewerExtensions) {
 
 TEST(RtpPacketTest, ParseWith2ExtensionsInvalidPadding) {
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionTransmissionTimeOffset,
-                      kTransmissionOffsetExtensionId);
-  extensions.Register(kRtpExtensionAudioLevel, kAudioLevelExtensionId);
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
+  extensions.Register<AudioLevel>(kAudioLevelExtensionId);
   RtpPacketReceived packet(&extensions);
   EXPECT_TRUE(packet.Parse(kPacketWithTOAndALInvalidPadding,
                            sizeof(kPacketWithTOAndALInvalidPadding)));
@@ -624,9 +611,8 @@ TEST(RtpPacketTest, ParseWith2ExtensionsInvalidPadding) {
 
 TEST(RtpPacketTest, ParseWith2ExtensionsReservedExtensionId) {
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionTransmissionTimeOffset,
-                      kTransmissionOffsetExtensionId);
-  extensions.Register(kRtpExtensionAudioLevel, kAudioLevelExtensionId);
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
+  extensions.Register<AudioLevel>(kAudioLevelExtensionId);
   RtpPacketReceived packet(&extensions);
   EXPECT_TRUE(packet.Parse(kPacketWithTOAndALReservedExtensionId,
                            sizeof(kPacketWithTOAndALReservedExtensionId)));
@@ -640,8 +626,7 @@ TEST(RtpPacketTest, ParseWith2ExtensionsReservedExtensionId) {
 
 TEST(RtpPacketTest, ParseWithAllFeatures) {
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionTransmissionTimeOffset,
-                      kTransmissionOffsetExtensionId);
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
   RtpPacketReceived packet(&extensions);
   EXPECT_TRUE(packet.Parse(kPacket, sizeof(kPacket)));
   EXPECT_EQ(kPayloadType, packet.PayloadType());
@@ -657,7 +642,7 @@ TEST(RtpPacketTest, ParseWithAllFeatures) {
 
 TEST(RtpPacketTest, ParseTwoByteHeaderExtension) {
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionTransmissionTimeOffset, kTwoByteExtensionId);
+  extensions.Register<TransmissionOffset>(kTwoByteExtensionId);
   RtpPacketReceived packet(&extensions);
   EXPECT_TRUE(packet.Parse(kPacketWithTwoByteHeaderExtension,
                            sizeof(kPacketWithTwoByteHeaderExtension)));
@@ -668,7 +653,7 @@ TEST(RtpPacketTest, ParseTwoByteHeaderExtension) {
 
 TEST(RtpPacketTest, ParseLongTwoByteHeaderExtension) {
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionMid, kTwoByteExtensionId);
+  extensions.Register<RtpMid>(kTwoByteExtensionId);
   RtpPacketReceived packet(&extensions);
   EXPECT_TRUE(packet.Parse(kPacketWithLongTwoByteHeaderExtension,
                            sizeof(kPacketWithLongTwoByteHeaderExtension)));
@@ -679,8 +664,8 @@ TEST(RtpPacketTest, ParseLongTwoByteHeaderExtension) {
 
 TEST(RtpPacketTest, ParseTwoByteHeaderExtensionWithPadding) {
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionTransmissionTimeOffset, kTwoByteExtensionId);
-  extensions.Register(kRtpExtensionAudioLevel, kAudioLevelExtensionId);
+  extensions.Register<TransmissionOffset>(kTwoByteExtensionId);
+  extensions.Register<AudioLevel>(kAudioLevelExtensionId);
   RtpPacketReceived packet(&extensions);
   EXPECT_TRUE(
       packet.Parse(kPacketWithTwoByteHeaderExtensionWithPadding,
@@ -704,8 +689,7 @@ TEST(RtpPacketTest, ParseWithExtensionDelayed) {
   EXPECT_EQ(kSsrc, packet.Ssrc());
 
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionTransmissionTimeOffset,
-                      kTransmissionOffsetExtensionId);
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
 
   int32_t time_offset;
   EXPECT_FALSE(packet.GetExtension<TransmissionOffset>(&time_offset));
@@ -766,10 +750,52 @@ TEST(RtpPacketTest, ParseWithMid) {
   EXPECT_EQ(mid, kMid);
 }
 
+struct UncopyableValue {
+  UncopyableValue() = default;
+  UncopyableValue(const UncopyableValue&) = delete;
+  UncopyableValue& operator=(const UncopyableValue&) = delete;
+};
+struct UncopyableExtension {
+  static constexpr RTPExtensionType kId = kRtpExtensionGenericFrameDescriptor02;
+  static constexpr char kUri[] = "uri";
+
+  static size_t ValueSize(const UncopyableValue& value) { return 1; }
+  static bool Write(rtc::ArrayView<uint8_t> data,
+                    const UncopyableValue& value) {
+    return true;
+  }
+  static bool Parse(rtc::ArrayView<const uint8_t> data,
+                    UncopyableValue* value) {
+    return true;
+  }
+};
+constexpr RTPExtensionType UncopyableExtension::kId;
+constexpr char UncopyableExtension::kUri[];
+
+TEST(RtpPacketTest, SetUncopyableExtension) {
+  RtpPacket::ExtensionManager extensions;
+  extensions.Register<UncopyableExtension>(1);
+  RtpPacket rtp_packet(&extensions);
+
+  UncopyableValue value;
+  EXPECT_TRUE(rtp_packet.SetExtension<UncopyableExtension>(value));
+}
+
+TEST(RtpPacketTest, GetUncopyableExtension) {
+  RtpPacket::ExtensionManager extensions;
+  extensions.Register<UncopyableExtension>(1);
+  RtpPacket rtp_packet(&extensions);
+  UncopyableValue value;
+  rtp_packet.SetExtension<UncopyableExtension>(value);
+
+  UncopyableValue value2;
+  EXPECT_TRUE(rtp_packet.GetExtension<UncopyableExtension>(&value2));
+}
+
 TEST(RtpPacketTest, CreateAndParseTimingFrameExtension) {
   // Create a packet with video frame timing extension populated.
   RtpPacketToSend::ExtensionManager send_extensions;
-  send_extensions.Register(kRtpExtensionVideoTiming, kVideoTimingExtensionId);
+  send_extensions.Register<VideoTimingExtension>(kVideoTimingExtensionId);
   RtpPacketToSend send_packet(&send_extensions);
   send_packet.SetPayloadType(kPayloadType);
   send_packet.SetSequenceNumber(kSeqNum);
@@ -1011,12 +1037,11 @@ TEST(RtpPacketTest,
             kFeedbackRequest->sequence_count);
 }
 
-TEST(RtpPacketTest, IsExtensionReserved) {
+TEST(RtpPacketTest, ReservedExtensionsCountedAsSetExtension) {
   // Register two extensions.
   RtpPacketToSend::ExtensionManager extensions;
-  extensions.Register(kRtpExtensionTransmissionTimeOffset,
-                      kTransmissionOffsetExtensionId);
-  extensions.Register(kRtpExtensionAudioLevel, kAudioLevelExtensionId);
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
+  extensions.Register<AudioLevel>(kAudioLevelExtensionId);
 
   RtpPacketReceived packet(&extensions);
 
@@ -1027,9 +1052,94 @@ TEST(RtpPacketTest, IsExtensionReserved) {
 
   // Only the extension that is both registered and reserved matches
   // IsExtensionReserved().
-  EXPECT_FALSE(packet.IsExtensionReserved<VideoContentTypeExtension>());
-  EXPECT_FALSE(packet.IsExtensionReserved<AudioLevel>());
-  EXPECT_TRUE(packet.IsExtensionReserved<TransmissionOffset>());
+  EXPECT_FALSE(packet.HasExtension<VideoContentTypeExtension>());
+  EXPECT_FALSE(packet.HasExtension<AudioLevel>());
+  EXPECT_TRUE(packet.HasExtension<TransmissionOffset>());
 }
 
+// Tests that RtpPacket::RemoveExtension can successfully remove extensions.
+TEST(RtpPacketTest, RemoveMultipleExtensions) {
+  RtpPacketToSend::ExtensionManager extensions;
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
+  extensions.Register<AudioLevel>(kAudioLevelExtensionId);
+  RtpPacketToSend packet(&extensions);
+  packet.SetPayloadType(kPayloadType);
+  packet.SetSequenceNumber(kSeqNum);
+  packet.SetTimestamp(kTimestamp);
+  packet.SetSsrc(kSsrc);
+  packet.SetExtension<TransmissionOffset>(kTimeOffset);
+  packet.SetExtension<AudioLevel>(kVoiceActive, kAudioLevel);
+
+  EXPECT_THAT(kPacketWithTOAndAL,
+              ElementsAreArray(packet.data(), packet.size()));
+
+  // Remove one of two extensions.
+  EXPECT_TRUE(packet.RemoveExtension(kRtpExtensionAudioLevel));
+
+  EXPECT_THAT(kPacketWithTO, ElementsAreArray(packet.data(), packet.size()));
+
+  // Remove remaining extension.
+  EXPECT_TRUE(packet.RemoveExtension(kRtpExtensionTransmissionTimeOffset));
+
+  EXPECT_THAT(kMinimumPacket, ElementsAreArray(packet.data(), packet.size()));
+}
+
+// Tests that RtpPacket::RemoveExtension can successfully remove extension when
+// other extensions are present but not registered.
+TEST(RtpPacketTest, RemoveExtensionPreservesOtherUnregisteredExtensions) {
+  RtpPacketToSend::ExtensionManager extensions;
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
+  extensions.Register<AudioLevel>(kAudioLevelExtensionId);
+  RtpPacketToSend packet(&extensions);
+  packet.SetPayloadType(kPayloadType);
+  packet.SetSequenceNumber(kSeqNum);
+  packet.SetTimestamp(kTimestamp);
+  packet.SetSsrc(kSsrc);
+  packet.SetExtension<TransmissionOffset>(kTimeOffset);
+  packet.SetExtension<AudioLevel>(kVoiceActive, kAudioLevel);
+
+  EXPECT_THAT(kPacketWithTOAndAL,
+              ElementsAreArray(packet.data(), packet.size()));
+
+  // "Unregister" kRtpExtensionTransmissionTimeOffset.
+  RtpPacketToSend::ExtensionManager extensions1;
+  extensions1.Register<AudioLevel>(kAudioLevelExtensionId);
+  packet.IdentifyExtensions(extensions1);
+
+  // Make sure we can not delete extension which is set but not registered.
+  EXPECT_FALSE(packet.RemoveExtension(kRtpExtensionTransmissionTimeOffset));
+
+  // Remove registered extension.
+  EXPECT_TRUE(packet.RemoveExtension(kRtpExtensionAudioLevel));
+
+  EXPECT_THAT(kPacketWithTO, ElementsAreArray(packet.data(), packet.size()));
+}
+
+// Tests that RtpPacket::RemoveExtension fails if extension is not present or
+// not registered and does not modify packet.
+TEST(RtpPacketTest, RemoveExtensionFailure) {
+  RtpPacketToSend::ExtensionManager extensions;
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
+  extensions.Register<AudioLevel>(kAudioLevelExtensionId);
+  RtpPacketToSend packet(&extensions);
+  packet.SetPayloadType(kPayloadType);
+  packet.SetSequenceNumber(kSeqNum);
+  packet.SetTimestamp(kTimestamp);
+  packet.SetSsrc(kSsrc);
+  packet.SetExtension<TransmissionOffset>(kTimeOffset);
+
+  EXPECT_THAT(kPacketWithTO, ElementsAreArray(packet.data(), packet.size()));
+
+  // Try to remove extension, which was registered, but not set.
+  EXPECT_FALSE(packet.RemoveExtension(kRtpExtensionAudioLevel));
+
+  EXPECT_THAT(kPacketWithTO, ElementsAreArray(packet.data(), packet.size()));
+
+  // Try to remove extension, which was not registered.
+  EXPECT_FALSE(packet.RemoveExtension(kRtpExtensionPlayoutDelay));
+
+  EXPECT_THAT(kPacketWithTO, ElementsAreArray(packet.data(), packet.size()));
+}
+
+}  // namespace
 }  // namespace webrtc

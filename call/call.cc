@@ -8,7 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "call/call.h"
+
 #include <string.h>
+
 #include <algorithm>
 #include <map>
 #include <memory>
@@ -16,14 +19,13 @@
 #include <utility>
 #include <vector>
 
-#include "absl/memory/memory.h"
 #include "absl/types/optional.h"
+#include "api/rtc_event_log/rtc_event_log.h"
 #include "api/transport/network_control.h"
 #include "audio/audio_receive_stream.h"
 #include "audio/audio_send_stream.h"
 #include "audio/audio_state.h"
 #include "call/bitrate_allocator.h"
-#include "call/call.h"
 #include "call/flexfec_receive_stream_impl.h"
 #include "call/receive_time_calculator.h"
 #include "call/rtp_stream_receiver_controller.h"
@@ -33,21 +35,19 @@
 #include "logging/rtc_event_log/events/rtc_event_rtp_packet_incoming.h"
 #include "logging/rtc_event_log/events/rtc_event_video_receive_stream_config.h"
 #include "logging/rtc_event_log/events/rtc_event_video_send_stream_config.h"
-#include "logging/rtc_event_log/rtc_event_log.h"
 #include "logging/rtc_event_log/rtc_stream_config.h"
 #include "modules/congestion_controller/include/receive_side_congestion_controller.h"
 #include "modules/rtp_rtcp/include/flexfec_receiver.h"
 #include "modules/rtp_rtcp/include/rtp_header_extension_map.h"
-#include "modules/rtp_rtcp/include/rtp_header_parser.h"
 #include "modules/rtp_rtcp/source/byte_io.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
+#include "modules/rtp_rtcp/source/rtp_utility.h"
 #include "modules/utility/include/process_thread.h"
 #include "modules/video_coding/fec_controller_default.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/constructor_magic.h"
 #include "rtc_base/location.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/numerics/safe_minmax.h"
 #include "rtc_base/strings/string_builder.h"
 #include "rtc_base/synchronization/rw_lock_wrapper.h"
 #include "rtc_base/synchronization/sequence_checker.h"
@@ -58,10 +58,10 @@
 #include "system_wrappers/include/cpu_info.h"
 #include "system_wrappers/include/field_trial.h"
 #include "system_wrappers/include/metrics.h"
-#include "video/call_stats.h"
+#include "video/call_stats2.h"
 #include "video/send_delay_stats.h"
 #include "video/stats_counter.h"
-#include "video/video_receive_stream.h"
+#include "video/video_receive_stream2.h"
 #include "video/video_send_stream.h"
 
 namespace webrtc {
@@ -110,12 +110,11 @@ const int* FindKeyByValue(const std::map<int, int>& m, int v) {
 
 std::unique_ptr<rtclog::StreamConfig> CreateRtcLogStreamConfig(
     const VideoReceiveStream::Config& config) {
-  auto rtclog_config = absl::make_unique<rtclog::StreamConfig>();
+  auto rtclog_config = std::make_unique<rtclog::StreamConfig>();
   rtclog_config->remote_ssrc = config.rtp.remote_ssrc;
   rtclog_config->local_ssrc = config.rtp.local_ssrc;
   rtclog_config->rtx_ssrc = config.rtp.rtx_ssrc;
   rtclog_config->rtcp_mode = config.rtp.rtcp_mode;
-  rtclog_config->remb = config.rtp.remb;
   rtclog_config->rtp_extensions = config.rtp.extensions;
 
   for (const auto& d : config.decoders) {
@@ -130,7 +129,7 @@ std::unique_ptr<rtclog::StreamConfig> CreateRtcLogStreamConfig(
 std::unique_ptr<rtclog::StreamConfig> CreateRtcLogStreamConfig(
     const VideoSendStream::Config& config,
     size_t ssrc_index) {
-  auto rtclog_config = absl::make_unique<rtclog::StreamConfig>();
+  auto rtclog_config = std::make_unique<rtclog::StreamConfig>();
   rtclog_config->local_ssrc = config.rtp.ssrcs[ssrc_index];
   if (ssrc_index < config.rtp.rtx.ssrcs.size()) {
     rtclog_config->rtx_ssrc = config.rtp.rtx.ssrcs[ssrc_index];
@@ -146,11 +145,23 @@ std::unique_ptr<rtclog::StreamConfig> CreateRtcLogStreamConfig(
 
 std::unique_ptr<rtclog::StreamConfig> CreateRtcLogStreamConfig(
     const AudioReceiveStream::Config& config) {
-  auto rtclog_config = absl::make_unique<rtclog::StreamConfig>();
+  auto rtclog_config = std::make_unique<rtclog::StreamConfig>();
   rtclog_config->remote_ssrc = config.rtp.remote_ssrc;
   rtclog_config->local_ssrc = config.rtp.local_ssrc;
   rtclog_config->rtp_extensions = config.rtp.extensions;
   return rtclog_config;
+}
+
+bool IsRtcp(const uint8_t* packet, size_t length) {
+  RtpUtility::RtpHeaderParser rtp_parser(packet, length);
+  return rtp_parser.RTCP();
+}
+
+TaskQueueBase* GetCurrentTaskQueueOrThread() {
+  TaskQueueBase* current = TaskQueueBase::Current();
+  if (!current)
+    current = rtc::ThreadManager::Instance()->CurrentThread();
+  return current;
 }
 
 }  // namespace
@@ -213,10 +224,6 @@ class Call final : public webrtc::Call,
   // Implements RecoveredPacketReceiver.
   void OnRecoveredPacket(const uint8_t* packet, size_t length) override;
 
-  void SetBitrateAllocationStrategy(
-      std::unique_ptr<rtc::BitrateAllocationStrategy>
-          bitrate_allocation_strategy) override;
-
   void SignalChannelNetworkState(MediaType media, NetworkState state) override;
 
   void OnAudioTransportOverheadChanged(
@@ -229,18 +236,7 @@ class Call final : public webrtc::Call,
   void OnStartRateUpdate(DataRate start_rate) override;
 
   // Implements BitrateAllocator::LimitObserver.
-  void OnAllocationLimitsChanged(uint32_t min_send_bitrate_bps,
-                                 uint32_t max_padding_bitrate_bps,
-                                 uint32_t total_bitrate_bps) override;
-
-  // This method is invoked when the media transport is created and when the
-  // media transport is being destructed.
-  // We only allow one media transport per connection.
-  //
-  // It should be called with non-null argument at most once, and if it was
-  // called with non-null argument, it has to be called with a null argument
-  // at least once after that.
-  void MediaTransportChange(MediaTransportInterface* media_transport) override;
+  void OnAllocationLimitsChanged(BitrateAllocationLimits limits) override;
 
   void SetClientBitratePreferences(const BitrateSettings& preferences) override;
 
@@ -258,44 +254,39 @@ class Call final : public webrtc::Call,
                                  MediaType media_type)
       RTC_SHARED_LOCKS_REQUIRED(receive_crit_);
 
-  void UpdateSendHistograms(int64_t first_sent_packet_ms)
+  void UpdateSendHistograms(Timestamp first_sent_packet)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(&bitrate_crit_);
   void UpdateReceiveHistograms();
   void UpdateHistograms();
   void UpdateAggregateNetworkState();
 
-  //  If |media_transport| is not null, it registers the rate observer for the
-  //  media transport.
-  void RegisterRateObserver() RTC_LOCKS_EXCLUDED(target_observer_crit_);
+  void RegisterRateObserver();
 
-  // Intended for DCHECKs, to avoid locking in production builds.
-  MediaTransportInterface* media_transport()
-      RTC_LOCKS_EXCLUDED(target_observer_crit_);
+  rtc::TaskQueue* network_queue() const {
+    return transport_send_ptr_->GetWorkerQueue();
+  }
 
   Clock* const clock_;
   TaskQueueFactory* const task_queue_factory_;
 
-  // Caching the last SetBitrate for media transport.
-  absl::optional<MediaTransportTargetRateConstraints> last_set_bitrate_
-      RTC_GUARDED_BY(&target_observer_crit_);
   const int num_cpu_cores_;
   const std::unique_ptr<ProcessThread> module_process_thread_;
   const std::unique_ptr<CallStats> call_stats_;
   const std::unique_ptr<BitrateAllocator> bitrate_allocator_;
   Call::Config config_;
   SequenceChecker configuration_sequence_checker_;
+  SequenceChecker worker_sequence_checker_;
 
   NetworkState audio_network_state_;
   NetworkState video_network_state_;
-  rtc::CriticalSection aggregate_network_up_crit_;
-  bool aggregate_network_up_ RTC_GUARDED_BY(aggregate_network_up_crit_);
+  bool aggregate_network_up_ RTC_GUARDED_BY(configuration_sequence_checker_);
 
   std::unique_ptr<RWLockWrapper> receive_crit_;
   // Audio, Video, and FlexFEC receive streams are owned by the client that
   // creates them.
   std::set<AudioReceiveStream*> audio_receive_streams_
       RTC_GUARDED_BY(receive_crit_);
-  std::set<VideoReceiveStream*> video_receive_streams_
+  std::set<VideoReceiveStream2*> video_receive_streams_
       RTC_GUARDED_BY(receive_crit_);
 
   std::map<std::string, AudioReceiveStream*> sync_stream_mapping_
@@ -372,7 +363,8 @@ class Call final : public webrtc::Call,
   // TODO(holmer): Remove this lock once BitrateController no longer calls
   // OnNetworkChanged from multiple threads.
   rtc::CriticalSection bitrate_crit_;
-  uint32_t min_allocated_send_bitrate_bps_ RTC_GUARDED_BY(&bitrate_crit_);
+  uint32_t min_allocated_send_bitrate_bps_
+      RTC_GUARDED_BY(&worker_sequence_checker_);
   uint32_t configured_max_padding_bitrate_bps_ RTC_GUARDED_BY(&bitrate_crit_);
   AvgCounter estimated_send_bitrate_kbps_counter_
       RTC_GUARDED_BY(&bitrate_crit_);
@@ -389,18 +381,13 @@ class Call final : public webrtc::Call,
   // Note that this is declared before transport_send_ to ensure that it is not
   // invalidated until no more tasks can be running on the transport_send_ task
   // queue.
-  RtpTransportControllerSendInterface* transport_send_ptr_;
+  RtpTransportControllerSendInterface* const transport_send_ptr_;
   // Declared last since it will issue callbacks from a task queue. Declaring it
   // last ensures that it is destroyed first and any running tasks are finished.
   std::unique_ptr<RtpTransportControllerSendInterface> transport_send_;
 
-  // This is a precaution, since |MediaTransportChange| is not guaranteed to be
-  // invoked on a particular thread.
-  rtc::CriticalSection target_observer_crit_;
   bool is_target_rate_observer_registered_
-      RTC_GUARDED_BY(&target_observer_crit_) = false;
-  MediaTransportInterface* media_transport_
-      RTC_GUARDED_BY(&target_observer_crit_) = nullptr;
+      RTC_GUARDED_BY(&configuration_sequence_checker_) = false;
 
   RTC_DISALLOW_COPY_AND_ASSIGN(Call);
 };
@@ -421,8 +408,8 @@ std::string Call::Stats::ToString(int64_t time_ms) const {
 
 Call* Call::Create(const Call::Config& config) {
   return Create(config, Clock::GetRealTimeClock(),
-                ProcessThread::Create("PacerThread"),
-                ProcessThread::Create("ModuleProcessThread"));
+                ProcessThread::Create("ModuleProcessThread"),
+                ProcessThread::Create("PacerThread"));
 }
 
 Call* Call::Create(const Call::Config& config,
@@ -432,10 +419,10 @@ Call* Call::Create(const Call::Config& config,
   RTC_DCHECK(config.task_queue_factory);
   return new internal::Call(
       clock, config,
-      absl::make_unique<RtpTransportControllerSend>(
+      std::make_unique<RtpTransportControllerSend>(
           clock, config.event_log, config.network_state_predictor_factory,
           config.network_controller_factory, config.bitrate_config,
-          std::move(pacer_thread), config.task_queue_factory),
+          std::move(pacer_thread), config.task_queue_factory, config.trials),
       std::move(call_thread), config.task_queue_factory);
 }
 
@@ -460,8 +447,8 @@ Call::Call(Clock* clock,
       task_queue_factory_(task_queue_factory),
       num_cpu_cores_(CpuInfo::DetectNumberOfCores()),
       module_process_thread_(std::move(module_process_thread)),
-      call_stats_(new CallStats(clock_, module_process_thread_.get())),
-      bitrate_allocator_(new BitrateAllocator(clock_, this)),
+      call_stats_(new CallStats(clock_, GetCurrentTaskQueueOrThread())),
+      bitrate_allocator_(new BitrateAllocator(this)),
       config_(config),
       audio_network_state_(kNetworkDown),
       video_network_state_(kNetworkDown),
@@ -481,10 +468,18 @@ Call::Call(Clock* clock,
       receive_side_cc_(clock_, transport_send->packet_router()),
       receive_time_calculator_(ReceiveTimeCalculator::CreateFromFieldTrial()),
       video_send_delay_stats_(new SendDelayStats(clock_)),
-      start_ms_(clock_->TimeInMilliseconds()) {
+      start_ms_(clock_->TimeInMilliseconds()),
+      transport_send_ptr_(transport_send.get()),
+      transport_send_(std::move(transport_send)) {
   RTC_DCHECK(config.event_log != nullptr);
-  transport_send_ = std::move(transport_send);
-  transport_send_ptr_ = transport_send_.get();
+  RTC_DCHECK(config.trials != nullptr);
+  worker_sequence_checker_.Detach();
+
+  call_stats_->RegisterStatsObserver(&receive_side_cc_);
+
+  module_process_thread_->RegisterModule(
+      receive_side_cc_.GetRemoteBitrateEstimator(true), RTC_FROM_HERE);
+  module_process_thread_->RegisterModule(&receive_side_cc_, RTC_FROM_HERE);
 }
 
 Call::~Call() {
@@ -496,122 +491,44 @@ Call::~Call() {
   RTC_CHECK(audio_receive_streams_.empty());
   RTC_CHECK(video_receive_streams_.empty());
 
-  if (!media_transport_) {
-    module_process_thread_->DeRegisterModule(
-        receive_side_cc_.GetRemoteBitrateEstimator(true));
-    module_process_thread_->DeRegisterModule(&receive_side_cc_);
-    module_process_thread_->DeRegisterModule(call_stats_.get());
-    module_process_thread_->Stop();
-    call_stats_->DeregisterStatsObserver(&receive_side_cc_);
-  }
+  module_process_thread_->Stop();
+  module_process_thread_->DeRegisterModule(
+      receive_side_cc_.GetRemoteBitrateEstimator(true));
+  module_process_thread_->DeRegisterModule(&receive_side_cc_);
+  call_stats_->DeregisterStatsObserver(&receive_side_cc_);
 
-  int64_t first_sent_packet_ms = transport_send_->GetFirstPacketTimeMs();
+  absl::optional<Timestamp> first_sent_packet_ms =
+      transport_send_->GetFirstPacketTime();
+
   // Only update histograms after process threads have been shut down, so that
   // they won't try to concurrently update stats.
-  {
+  if (first_sent_packet_ms) {
     rtc::CritScope lock(&bitrate_crit_);
-    UpdateSendHistograms(first_sent_packet_ms);
+    UpdateSendHistograms(*first_sent_packet_ms);
   }
+
   UpdateReceiveHistograms();
   UpdateHistograms();
 }
 
 void Call::RegisterRateObserver() {
-  rtc::CritScope lock(&target_observer_crit_);
+  RTC_DCHECK_RUN_ON(&configuration_sequence_checker_);
 
-  if (is_target_rate_observer_registered_) {
+  if (is_target_rate_observer_registered_)
     return;
-  }
 
   is_target_rate_observer_registered_ = true;
 
-  if (media_transport_) {
-    // TODO(bugs.webrtc.org/9719): We should report call_stats_ from
-    // media transport (at least Rtt). We should extend media transport
-    // interface to include "receive_side bwe" if needed.
-    media_transport_->AddTargetTransferRateObserver(this);
-  } else {
-    transport_send_ptr_->RegisterTargetTransferRateObserver(this);
+  // This call seems to kick off a number of things, so probably better left
+  // off being kicked off on request rather than in the ctor.
+  transport_send_ptr_->RegisterTargetTransferRateObserver(this);
 
-    call_stats_->RegisterStatsObserver(&receive_side_cc_);
-
-    module_process_thread_->RegisterModule(
-        receive_side_cc_.GetRemoteBitrateEstimator(true), RTC_FROM_HERE);
-    module_process_thread_->RegisterModule(call_stats_.get(), RTC_FROM_HERE);
-    module_process_thread_->RegisterModule(&receive_side_cc_, RTC_FROM_HERE);
-    module_process_thread_->Start();
-  }
-}
-
-MediaTransportInterface* Call::media_transport() {
-  rtc::CritScope lock(&target_observer_crit_);
-  return media_transport_;
-}
-
-void Call::MediaTransportChange(MediaTransportInterface* media_transport) {
-  rtc::CritScope lock(&target_observer_crit_);
-
-  if (is_target_rate_observer_registered_) {
-    // Only used to unregister rate observer from media transport. Registration
-    // happens when the stream is created.
-    if (!media_transport && media_transport_) {
-      media_transport_->RemoveTargetTransferRateObserver(this);
-      media_transport_ = nullptr;
-      is_target_rate_observer_registered_ = false;
-    }
-  } else if (media_transport) {
-    RTC_DCHECK(media_transport_ == nullptr ||
-               media_transport_ == media_transport)
-        << "media_transport_=" << (media_transport_ != nullptr)
-        << ", (media_transport_==media_transport)="
-        << (media_transport_ == media_transport);
-    media_transport_ = media_transport;
-    MediaTransportTargetRateConstraints constraints;
-    if (config_.bitrate_config.start_bitrate_bps > 0) {
-      constraints.starting_bitrate =
-          DataRate::bps(config_.bitrate_config.start_bitrate_bps);
-    }
-    if (config_.bitrate_config.max_bitrate_bps > 0) {
-      constraints.max_bitrate =
-          DataRate::bps(config_.bitrate_config.max_bitrate_bps);
-    }
-    if (config_.bitrate_config.min_bitrate_bps > 0) {
-      constraints.min_bitrate =
-          DataRate::bps(config_.bitrate_config.min_bitrate_bps);
-    }
-
-    // User called ::SetBitrate on peer connection before
-    // media transport was created.
-    if (last_set_bitrate_) {
-      media_transport_->SetTargetBitrateLimits(*last_set_bitrate_);
-    } else {
-      media_transport_->SetTargetBitrateLimits(constraints);
-    }
-  }
+  module_process_thread_->Start();
 }
 
 void Call::SetClientBitratePreferences(const BitrateSettings& preferences) {
+  RTC_DCHECK_RUN_ON(&configuration_sequence_checker_);
   GetTransportControllerSend()->SetClientBitratePreferences(preferences);
-  // Can the client code invoke 'SetBitrate' before media transport is created?
-  // It's probably possible :/
-  MediaTransportTargetRateConstraints constraints;
-  if (preferences.start_bitrate_bps.has_value()) {
-    constraints.starting_bitrate =
-        webrtc::DataRate::bps(*preferences.start_bitrate_bps);
-  }
-  if (preferences.max_bitrate_bps.has_value()) {
-    constraints.max_bitrate =
-        webrtc::DataRate::bps(*preferences.max_bitrate_bps);
-  }
-  if (preferences.min_bitrate_bps.has_value()) {
-    constraints.min_bitrate =
-        webrtc::DataRate::bps(*preferences.min_bitrate_bps);
-  }
-  rtc::CritScope lock(&target_observer_crit_);
-  last_set_bitrate_ = constraints;
-  if (media_transport_) {
-    media_transport_->SetTargetBitrateLimits(constraints);
-  }
 }
 
 void Call::UpdateHistograms() {
@@ -620,11 +537,10 @@ void Call::UpdateHistograms() {
       (clock_->TimeInMilliseconds() - start_ms_) / 1000);
 }
 
-void Call::UpdateSendHistograms(int64_t first_sent_packet_ms) {
-  if (first_sent_packet_ms == -1)
-    return;
+// Called from the dtor.
+void Call::UpdateSendHistograms(Timestamp first_sent_packet) {
   int64_t elapsed_sec =
-      (clock_->TimeInMilliseconds() - first_sent_packet_ms) / 1000;
+      (clock_->TimeInMilliseconds() - first_sent_packet.ms()) / 1000;
   if (elapsed_sec < metrics::kMinRunTimeInSeconds)
     return;
   const int kMinRequiredPeriodicSamples = 5;
@@ -702,9 +618,6 @@ webrtc::AudioSendStream* Call::CreateAudioSendStream(
   TRACE_EVENT0("webrtc", "Call::CreateAudioSendStream");
   RTC_DCHECK_RUN_ON(&configuration_sequence_checker_);
 
-  RTC_DCHECK_EQ(media_transport(),
-                config.media_transport_config.media_transport);
-
   RegisterRateObserver();
 
   // Stream config is logged in AudioSendStream::ConfigureStream, as it may
@@ -717,11 +630,11 @@ webrtc::AudioSendStream* Call::CreateAudioSendStream(
     }
   }
 
-  AudioSendStream* send_stream =
-      new AudioSendStream(clock_, config, config_.audio_state,
-                          task_queue_factory_, module_process_thread_.get(),
-                          transport_send_ptr_, bitrate_allocator_.get(),
-                          event_log_, call_stats_.get(), suspended_rtp_state);
+  AudioSendStream* send_stream = new AudioSendStream(
+      clock_, config, config_.audio_state, task_queue_factory_,
+      module_process_thread_.get(), transport_send_ptr_,
+      bitrate_allocator_.get(), event_log_, call_stats_->AsRtcpRttStats(),
+      suspended_rtp_state);
   {
     WriteLockScoped write_lock(*send_crit_);
     RTC_DCHECK(audio_send_ssrcs_.find(config.rtp.ssrc) ==
@@ -736,7 +649,6 @@ webrtc::AudioSendStream* Call::CreateAudioSendStream(
       }
     }
   }
-  send_stream->SignalNetworkState(audio_network_state_);
   UpdateAggregateNetworkState();
   return send_stream;
 }
@@ -774,11 +686,12 @@ webrtc::AudioReceiveStream* Call::CreateAudioReceiveStream(
   TRACE_EVENT0("webrtc", "Call::CreateAudioReceiveStream");
   RTC_DCHECK_RUN_ON(&configuration_sequence_checker_);
   RegisterRateObserver();
-  event_log_->Log(absl::make_unique<RtcEventAudioReceiveStreamConfig>(
+  event_log_->Log(std::make_unique<RtcEventAudioReceiveStreamConfig>(
       CreateRtcLogStreamConfig(config)));
   AudioReceiveStream* receive_stream = new AudioReceiveStream(
       clock_, &audio_receiver_controller_, transport_send_ptr_->packet_router(),
-      module_process_thread_.get(), config, config_.audio_state, event_log_);
+      module_process_thread_.get(), config_.neteq_factory, config,
+      config_.audio_state, event_log_);
   {
     WriteLockScoped write_lock(*receive_crit_);
     receive_rtp_config_.emplace(config.rtp.remote_ssrc,
@@ -794,7 +707,6 @@ webrtc::AudioReceiveStream* Call::CreateAudioReceiveStream(
       receive_stream->AssociateSendStream(it->second);
     }
   }
-  receive_stream->SignalNetworkState(audio_network_state_);
   UpdateAggregateNetworkState();
   return receive_stream;
 }
@@ -834,14 +746,12 @@ webrtc::VideoSendStream* Call::CreateVideoSendStream(
   TRACE_EVENT0("webrtc", "Call::CreateVideoSendStream");
   RTC_DCHECK_RUN_ON(&configuration_sequence_checker_);
 
-  RTC_DCHECK(media_transport() == config.media_transport);
-
   RegisterRateObserver();
 
   video_send_delay_stats_->AddSsrcs(config);
   for (size_t ssrc_index = 0; ssrc_index < config.rtp.ssrcs.size();
        ++ssrc_index) {
-    event_log_->Log(absl::make_unique<RtcEventVideoSendStreamConfig>(
+    event_log_->Log(std::make_unique<RtcEventVideoSendStreamConfig>(
         CreateRtcLogStreamConfig(config, ssrc_index)));
   }
 
@@ -852,9 +762,9 @@ webrtc::VideoSendStream* Call::CreateVideoSendStream(
 
   VideoSendStream* send_stream = new VideoSendStream(
       clock_, num_cpu_cores_, module_process_thread_.get(), task_queue_factory_,
-      call_stats_.get(), transport_send_ptr_, bitrate_allocator_.get(),
-      video_send_delay_stats_.get(), event_log_, std::move(config),
-      std::move(encoder_config), suspended_video_send_ssrcs_,
+      call_stats_->AsRtcpRttStats(), transport_send_ptr_,
+      bitrate_allocator_.get(), video_send_delay_stats_.get(), event_log_,
+      std::move(config), std::move(encoder_config), suspended_video_send_ssrcs_,
       suspended_video_payload_states_, std::move(fec_controller));
 
   {
@@ -879,7 +789,7 @@ webrtc::VideoSendStream* Call::CreateVideoSendStream(
   std::unique_ptr<FecController> fec_controller =
       config_.fec_controller_factory
           ? config_.fec_controller_factory->CreateFecController()
-          : absl::make_unique<FecControllerDefault>(clock_);
+          : std::make_unique<FecControllerDefault>(clock_);
   return CreateVideoSendStream(std::move(config), std::move(encoder_config),
                                std::move(fec_controller));
 }
@@ -932,10 +842,13 @@ webrtc::VideoReceiveStream* Call::CreateVideoReceiveStream(
 
   RegisterRateObserver();
 
-  VideoReceiveStream* receive_stream = new VideoReceiveStream(
-      task_queue_factory_, &video_receiver_controller_, num_cpu_cores_,
+  TaskQueueBase* current = GetCurrentTaskQueueOrThread();
+  RTC_CHECK(current);
+  VideoReceiveStream2* receive_stream = new VideoReceiveStream2(
+      task_queue_factory_, current, &video_receiver_controller_, num_cpu_cores_,
       transport_send_ptr_->packet_router(), std::move(configuration),
-      module_process_thread_.get(), call_stats_.get(), clock_);
+      module_process_thread_.get(), call_stats_.get(), clock_,
+      new VCMTiming(clock_));
 
   const webrtc::VideoReceiveStream::Config& config = receive_stream->config();
   {
@@ -955,7 +868,7 @@ webrtc::VideoReceiveStream* Call::CreateVideoReceiveStream(
   }
   receive_stream->SignalNetworkState(video_network_state_);
   UpdateAggregateNetworkState();
-  event_log_->Log(absl::make_unique<RtcEventVideoReceiveStreamConfig>(
+  event_log_->Log(std::make_unique<RtcEventVideoReceiveStreamConfig>(
       CreateRtcLogStreamConfig(config)));
   return receive_stream;
 }
@@ -965,8 +878,8 @@ void Call::DestroyVideoReceiveStream(
   TRACE_EVENT0("webrtc", "Call::DestroyVideoReceiveStream");
   RTC_DCHECK_RUN_ON(&configuration_sequence_checker_);
   RTC_DCHECK(receive_stream != nullptr);
-  VideoReceiveStream* receive_stream_impl =
-      static_cast<VideoReceiveStream*>(receive_stream);
+  VideoReceiveStream2* receive_stream_impl =
+      static_cast<VideoReceiveStream2*>(receive_stream);
   const VideoReceiveStream::Config& config = receive_stream_impl->config();
   {
     WriteLockScoped write_lock(*receive_crit_);
@@ -1008,7 +921,7 @@ FlexfecReceiveStream* Call::CreateFlexfecReceiveStream(
     // this locked scope.
     receive_stream = new FlexfecReceiveStreamImpl(
         clock_, &video_receiver_controller_, config, recovered_packet_receiver,
-        call_stats_.get(), module_process_thread_.get());
+        call_stats_->AsRtcpRttStats(), module_process_thread_.get());
 
     RTC_DCHECK(receive_rtp_config_.find(config.remote_ssrc) ==
                receive_rtp_config_.end());
@@ -1046,54 +959,42 @@ RtpTransportControllerSendInterface* Call::GetTransportControllerSend() {
 }
 
 Call::Stats Call::GetStats() const {
-  // TODO(solenberg): Some test cases in EndToEndTest use this from a different
-  // thread. Re-enable once that is fixed.
-  // RTC_DCHECK_RUN_ON(&configuration_sequence_checker_);
+  RTC_DCHECK_RUN_ON(&configuration_sequence_checker_);
+
+  // TODO(tommi): The following stats are managed on the process thread:
+  // - pacer_delay_ms (PacedSender::Process)
+  // - rtt_ms
+  // - recv_bandwidth_bps
+  // These are delivered on the network TQ:
+  // - send_bandwidth_bps (see OnTargetTransferRate)
+  // - max_padding_bitrate_bps (see OnAllocationLimitsChanged)
+
   Stats stats;
+  // TODO(srte): It is unclear if we only want to report queues if network is
+  // available.
+  stats.pacer_delay_ms =
+      aggregate_network_up_ ? transport_send_ptr_->GetPacerQueuingDelayMs() : 0;
+
+  stats.rtt_ms = call_stats_->LastProcessedRtt();
+
   // Fetch available send/receive bitrates.
   std::vector<unsigned int> ssrcs;
   uint32_t recv_bandwidth = 0;
   receive_side_cc_.GetRemoteBitrateEstimator(false)->LatestEstimate(
       &ssrcs, &recv_bandwidth);
+  stats.recv_bandwidth_bps = recv_bandwidth;
 
   {
     rtc::CritScope cs(&last_bandwidth_bps_crit_);
     stats.send_bandwidth_bps = last_bandwidth_bps_;
   }
-  stats.recv_bandwidth_bps = recv_bandwidth;
-  // TODO(srte): It is unclear if we only want to report queues if network is
-  // available.
-  {
-    rtc::CritScope cs(&aggregate_network_up_crit_);
-    stats.pacer_delay_ms = aggregate_network_up_
-                               ? transport_send_ptr_->GetPacerQueuingDelayMs()
-                               : 0;
-  }
 
-  stats.rtt_ms = call_stats_->LastProcessedRtt();
   {
     rtc::CritScope cs(&bitrate_crit_);
     stats.max_padding_bitrate_bps = configured_max_padding_bitrate_bps_;
   }
-  return stats;
-}
 
-void Call::SetBitrateAllocationStrategy(
-    std::unique_ptr<rtc::BitrateAllocationStrategy>
-        bitrate_allocation_strategy) {
-  // TODO(srte): This function should be moved to RtpTransportControllerSend
-  // when BitrateAllocator is moved there.
-  struct Functor {
-    void operator()() {
-      bitrate_allocator_->SetBitrateAllocationStrategy(
-          std::move(bitrate_allocation_strategy_));
-    }
-    BitrateAllocator* bitrate_allocator_;
-    std::unique_ptr<rtc::BitrateAllocationStrategy>
-        bitrate_allocation_strategy_;
-  };
-  transport_send_ptr_->GetWorkerQueue()->PostTask(Functor{
-      bitrate_allocator_.get(), std::move(bitrate_allocation_strategy)});
+  return stats;
 }
 
 void Call::SignalChannelNetworkState(MediaType media, NetworkState state) {
@@ -1113,17 +1014,8 @@ void Call::SignalChannelNetworkState(MediaType media, NetworkState state) {
 
   UpdateAggregateNetworkState();
   {
-    ReadLockScoped read_lock(*send_crit_);
-    for (auto& kv : audio_send_ssrcs_) {
-      kv.second->SignalNetworkState(audio_network_state_);
-    }
-  }
-  {
     ReadLockScoped read_lock(*receive_crit_);
-    for (AudioReceiveStream* audio_receive_stream : audio_receive_streams_) {
-      audio_receive_stream->SignalNetworkState(audio_network_state_);
-    }
-    for (VideoReceiveStream* video_receive_stream : video_receive_streams_) {
+    for (VideoReceiveStream2* video_receive_stream : video_receive_streams_) {
       video_receive_stream->SignalNetworkState(video_network_state_);
     }
   }
@@ -1160,12 +1052,17 @@ void Call::UpdateAggregateNetworkState() {
       ((have_video && video_network_state_ == kNetworkUp) ||
        (have_audio && audio_network_state_ == kNetworkUp));
 
-  RTC_LOG(LS_INFO) << "UpdateAggregateNetworkState: aggregate_state="
-                   << (aggregate_network_up ? "up" : "down");
-  {
-    rtc::CritScope cs(&aggregate_network_up_crit_);
-    aggregate_network_up_ = aggregate_network_up;
+  if (aggregate_network_up != aggregate_network_up_) {
+    RTC_LOG(LS_INFO)
+        << "UpdateAggregateNetworkState: aggregate_state change to "
+        << (aggregate_network_up ? "up" : "down");
+  } else {
+    RTC_LOG(LS_VERBOSE)
+        << "UpdateAggregateNetworkState: aggregate_state remains at "
+        << (aggregate_network_up ? "up" : "down");
   }
+  aggregate_network_up_ = aggregate_network_up;
+
   transport_send_ptr_->OnNetworkAvailability(aggregate_network_up);
 }
 
@@ -1176,43 +1073,22 @@ void Call::OnSentPacket(const rtc::SentPacket& sent_packet) {
 }
 
 void Call::OnStartRateUpdate(DataRate start_rate) {
-  if (!transport_send_ptr_->GetWorkerQueue()->IsCurrent()) {
-    transport_send_ptr_->GetWorkerQueue()->PostTask(
-        [this, start_rate] { this->OnStartRateUpdate(start_rate); });
-    return;
-  }
+  RTC_DCHECK(network_queue()->IsCurrent());
   bitrate_allocator_->UpdateStartRate(start_rate.bps<uint32_t>());
 }
 
 void Call::OnTargetTransferRate(TargetTransferRate msg) {
-  // TODO(bugs.webrtc.org/9719)
-  // Call::OnTargetTransferRate requires that on target transfer rate is invoked
-  // from the worker queue (because bitrate_allocator_ requires it). Media
-  // transport does not guarantee the callback on the worker queue.
-  // When the threading model for MediaTransportInterface is update, reconsider
-  // changing this implementation.
-  if (!transport_send_ptr_->GetWorkerQueue()->IsCurrent()) {
-    transport_send_ptr_->GetWorkerQueue()->PostTask(
-        [this, msg] { this->OnTargetTransferRate(msg); });
-    return;
+  RTC_DCHECK(network_queue()->IsCurrent());
+  RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
+  {
+    rtc::CritScope cs(&last_bandwidth_bps_crit_);
+    last_bandwidth_bps_ = msg.target_rate.bps();
   }
 
   uint32_t target_bitrate_bps = msg.target_rate.bps();
-  int loss_ratio_255 = msg.network_estimate.loss_rate_ratio * 255;
-  uint8_t fraction_loss =
-      rtc::dchecked_cast<uint8_t>(rtc::SafeClamp(loss_ratio_255, 0, 255));
-  int64_t rtt_ms = msg.network_estimate.round_trip_time.ms();
-  int64_t probing_interval_ms = msg.network_estimate.bwe_period.ms();
-  uint32_t bandwidth_bps = msg.network_estimate.bandwidth.bps();
-  {
-    rtc::CritScope cs(&last_bandwidth_bps_crit_);
-    last_bandwidth_bps_ = bandwidth_bps;
-  }
   // For controlling the rate of feedback messages.
   receive_side_cc_.OnBitrateChanged(target_bitrate_bps);
-  bitrate_allocator_->OnNetworkChanged(target_bitrate_bps, bandwidth_bps,
-                                       fraction_loss, rtt_ms,
-                                       probing_interval_ms);
+  bitrate_allocator_->OnNetworkEstimateChanged(msg);
 
   // Ignore updates if bitrate is zero (the aggregate network state is down).
   if (target_bitrate_bps == 0) {
@@ -1242,26 +1118,16 @@ void Call::OnTargetTransferRate(TargetTransferRate msg) {
   pacer_bitrate_kbps_counter_.Add(pacer_bitrate_bps / 1000);
 }
 
-void Call::OnAllocationLimitsChanged(uint32_t min_send_bitrate_bps,
-                                     uint32_t max_padding_bitrate_bps,
-                                     uint32_t total_bitrate_bps) {
-  transport_send_ptr_->SetAllocatedSendBitrateLimits(
-      min_send_bitrate_bps, max_padding_bitrate_bps, total_bitrate_bps);
+void Call::OnAllocationLimitsChanged(BitrateAllocationLimits limits) {
+  RTC_DCHECK(network_queue()->IsCurrent());
+  RTC_DCHECK_RUN_ON(&worker_sequence_checker_);
 
-  {
-    rtc::CritScope lock(&target_observer_crit_);
-    if (media_transport_) {
-      MediaTransportAllocatedBitrateLimits limits;
-      limits.min_pacing_rate = DataRate::bps(min_send_bitrate_bps);
-      limits.max_padding_bitrate = DataRate::bps(max_padding_bitrate_bps);
-      limits.max_total_allocated_bitrate = DataRate::bps(total_bitrate_bps);
-      media_transport_->SetAllocatedBitrateLimits(limits);
-    }
-  }
+  transport_send_ptr_->SetAllocatedSendBitrateLimits(limits);
+
+  min_allocated_send_bitrate_bps_ = limits.min_allocatable_rate.bps();
 
   rtc::CritScope lock(&bitrate_crit_);
-  min_allocated_send_bitrate_bps_ = min_send_bitrate_bps;
-  configured_max_padding_bitrate_bps_ = max_padding_bitrate_bps;
+  configured_max_padding_bitrate_bps_ = limits.max_padding_rate.bps();
 }
 
 void Call::ConfigureSync(const std::string& sync_group) {
@@ -1292,7 +1158,7 @@ void Call::ConfigureSync(const std::string& sync_group) {
   if (sync_audio_stream)
     sync_stream_mapping_[sync_group] = sync_audio_stream;
   size_t num_synced_streams = 0;
-  for (VideoReceiveStream* video_stream : video_receive_streams_) {
+  for (VideoReceiveStream2* video_stream : video_receive_streams_) {
     if (video_stream->config().sync_group != sync_group)
       continue;
     ++num_synced_streams;
@@ -1329,7 +1195,7 @@ PacketReceiver::DeliveryStatus Call::DeliverRtcp(MediaType media_type,
   bool rtcp_delivered = false;
   if (media_type == MediaType::ANY || media_type == MediaType::VIDEO) {
     ReadLockScoped read_lock(*receive_crit_);
-    for (VideoReceiveStream* stream : video_receive_streams_) {
+    for (VideoReceiveStream2* stream : video_receive_streams_) {
       if (stream->DeliverRtcp(packet, length))
         rtcp_delivered = true;
     }
@@ -1357,7 +1223,7 @@ PacketReceiver::DeliveryStatus Call::DeliverRtcp(MediaType media_type,
   }
 
   if (rtcp_delivered) {
-    event_log_->Log(absl::make_unique<RtcEventRtcpPacketIncoming>(
+    event_log_->Log(std::make_unique<RtcEventRtcpPacketIncoming>(
         rtc::MakeArrayView(packet, length)));
   }
 
@@ -1419,7 +1285,7 @@ PacketReceiver::DeliveryStatus Call::DeliverRtp(MediaType media_type,
       received_bytes_per_second_counter_.Add(length);
       received_audio_bytes_per_second_counter_.Add(length);
       event_log_->Log(
-          absl::make_unique<RtcEventRtpPacketIncoming>(parsed_packet));
+          std::make_unique<RtcEventRtpPacketIncoming>(parsed_packet));
       const int64_t arrival_time_ms = parsed_packet.arrival_time_ms();
       if (!first_received_rtp_audio_ms_) {
         first_received_rtp_audio_ms_.emplace(arrival_time_ms);
@@ -1433,7 +1299,7 @@ PacketReceiver::DeliveryStatus Call::DeliverRtp(MediaType media_type,
       received_bytes_per_second_counter_.Add(length);
       received_video_bytes_per_second_counter_.Add(length);
       event_log_->Log(
-          absl::make_unique<RtcEventRtpPacketIncoming>(parsed_packet));
+          std::make_unique<RtcEventRtpPacketIncoming>(parsed_packet));
       const int64_t arrival_time_ms = parsed_packet.arrival_time_ms();
       if (!first_received_rtp_video_ms_) {
         first_received_rtp_video_ms_.emplace(arrival_time_ms);
@@ -1450,7 +1316,7 @@ PacketReceiver::DeliveryStatus Call::DeliverPacket(
     rtc::CopyOnWriteBuffer packet,
     int64_t packet_time_us) {
   RTC_DCHECK_RUN_ON(&configuration_sequence_checker_);
-  if (RtpHeaderParser::IsRtcp(packet.cdata(), packet.size()))
+  if (IsRtcp(packet.cdata(), packet.size()))
     return DeliverRtcp(media_type, packet.cdata(), packet.size());
 
   return DeliverRtp(media_type, std::move(packet), packet_time_us);
@@ -1493,8 +1359,8 @@ void Call::NotifyBweOfReceivedPacket(const RtpPacketReceived& packet,
   packet.GetHeader(&header);
 
   ReceivedPacket packet_msg;
-  packet_msg.size = DataSize::bytes(packet.payload_size());
-  packet_msg.receive_time = Timestamp::ms(packet.arrival_time_ms());
+  packet_msg.size = DataSize::Bytes(packet.payload_size());
+  packet_msg.receive_time = Timestamp::Millis(packet.arrival_time_ms());
   if (header.extension.hasAbsoluteSendTime) {
     packet_msg.send_time = header.extension.GetAbsoluteSendTimestamp();
   }

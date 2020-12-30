@@ -12,6 +12,7 @@
 #define RTC_BASE_ASYNC_TCP_SOCKET_H_
 
 #include <stddef.h>
+
 #include <memory>
 
 #include "rtc_base/async_packet_socket.h"
@@ -60,7 +61,6 @@ class AsyncTCPSocketBase : public AsyncPacketSocket {
   static AsyncSocket* ConnectSocket(AsyncSocket* socket,
                                     const SocketAddress& bind_address,
                                     const SocketAddress& remote_address);
-  virtual int SendRaw(const void* pv, size_t cb);
   int FlushOutBuffer();
   // Add data to |outbuf_|.
   void AppendToOutBuffer(const void* pv, size_t cb);

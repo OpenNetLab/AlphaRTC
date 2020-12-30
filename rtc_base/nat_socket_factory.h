@@ -12,19 +12,20 @@
 #define RTC_BASE_NAT_SOCKET_FACTORY_H_
 
 #include <stddef.h>
+
 #include <map>
 #include <memory>
 #include <set>
 
 #include "rtc_base/async_socket.h"
 #include "rtc_base/constructor_magic.h"
-#include "rtc_base/message_queue.h"
 #include "rtc_base/nat_server.h"
 #include "rtc_base/nat_types.h"
 #include "rtc_base/socket.h"
 #include "rtc_base/socket_address.h"
 #include "rtc_base/socket_factory.h"
 #include "rtc_base/socket_server.h"
+#include "rtc_base/thread.h"
 
 namespace rtc {
 
@@ -137,7 +138,7 @@ class NATSocketServer : public SocketServer, public NATInternalSocketFactory {
   explicit NATSocketServer(SocketServer* ss);
 
   SocketServer* socketserver() { return server_; }
-  MessageQueue* queue() { return msg_queue_; }
+  Thread* queue() { return msg_queue_; }
 
   Translator* GetTranslator(const SocketAddress& ext_ip);
   Translator* AddTranslator(const SocketAddress& ext_ip,
@@ -149,7 +150,7 @@ class NATSocketServer : public SocketServer, public NATInternalSocketFactory {
   Socket* CreateSocket(int family, int type) override;
   AsyncSocket* CreateAsyncSocket(int family, int type) override;
 
-  void SetMessageQueue(MessageQueue* queue) override;
+  void SetMessageQueue(Thread* queue) override;
   bool Wait(int cms, bool process_io) override;
   void WakeUp() override;
 
@@ -161,7 +162,7 @@ class NATSocketServer : public SocketServer, public NATInternalSocketFactory {
 
  private:
   SocketServer* server_;
-  MessageQueue* msg_queue_;
+  Thread* msg_queue_;
   TranslatorMap nats_;
   RTC_DISALLOW_COPY_AND_ASSIGN(NATSocketServer);
 };

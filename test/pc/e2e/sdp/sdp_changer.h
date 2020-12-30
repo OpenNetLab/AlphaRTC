@@ -20,6 +20,7 @@
 #include "api/array_view.h"
 #include "api/jsep.h"
 #include "api/rtp_parameters.h"
+#include "api/test/peerconnection_quality_test_fixture.h"
 #include "media/base/rid_description.h"
 #include "pc/session_description.h"
 #include "pc/simulcast_description.h"
@@ -28,24 +29,23 @@ namespace webrtc {
 namespace webrtc_pc_e2e {
 
 // Creates list of capabilities, which can be set on RtpTransceiverInterface via
-// RtpTransceiverInterface::SetCodecPreferences(...) to negotiate use of codec
-// from list of |supported_codecs| with specified |codec_name| and parameters,
-// which contains all of |codec_required_params|. If flags |ulpfec| or |flexfec|
-// set to true corresponding FEC codec will be added. FEC and RTX codecs will be
-// added after required codecs.
+// RtpTransceiverInterface::SetCodecPreferences(...) to negotiate use of codecs
+// from list of |supported_codecs| which will match |video_codecs|. If flags
+// |ulpfec| or |flexfec| set to true corresponding FEC codec will be added.
+// FEC and RTX codecs will be added after required codecs.
 //
 // All codecs will be added only if they exists in the list of
-// |supported_codecs|. If multiple codecs from this list will have |codec_name|
-// and |codec_required_params|, then all of them will be added to the output
+// |supported_codecs|. If multiple codecs from this list will match
+// |video_codecs|, then all of them will be added to the output
 // vector and they will be added in the same order, as they were in
 // |supported_codecs|.
 std::vector<RtpCodecCapability> FilterVideoCodecCapabilities(
-    absl::string_view codec_name,
-    const std::map<std::string, std::string>& codec_required_params,
+    rtc::ArrayView<const PeerConnectionE2EQualityTestFixture::VideoCodecConfig>
+        video_codecs,
     bool use_rtx,
     bool use_ulpfec,
     bool use_flexfec,
-    std::vector<RtpCodecCapability> supported_codecs);
+    rtc::ArrayView<const RtpCodecCapability> supported_codecs);
 
 struct LocalAndRemoteSdp {
   LocalAndRemoteSdp(std::unique_ptr<SessionDescriptionInterface> local_sdp,
@@ -59,8 +59,27 @@ struct LocalAndRemoteSdp {
   std::unique_ptr<SessionDescriptionInterface> remote_sdp;
 };
 
+struct PatchingParams {
+  PatchingParams(
+      std::vector<PeerConnectionE2EQualityTestFixture::VideoCodecConfig>
+          video_codecs,
+      bool use_conference_mode,
+      std::map<std::string, int> stream_label_to_simulcast_streams_count)
+      : video_codecs(std::move(video_codecs)),
+        use_conference_mode(use_conference_mode),
+        stream_label_to_simulcast_streams_count(
+            stream_label_to_simulcast_streams_count) {}
+
+  std::vector<PeerConnectionE2EQualityTestFixture::VideoCodecConfig>
+      video_codecs;
+  bool use_conference_mode;
+  std::map<std::string, int> stream_label_to_simulcast_streams_count;
+};
+
 class SignalingInterceptor {
  public:
+  explicit SignalingInterceptor(PatchingParams params) : params_(params) {}
+
   LocalAndRemoteSdp PatchOffer(
       std::unique_ptr<SessionDescriptionInterface> offer);
   LocalAndRemoteSdp PatchAnswer(
@@ -108,10 +127,20 @@ class SignalingInterceptor {
     std::vector<std::string> mids_order;
   };
 
-  void FillContext(SessionDescriptionInterface* offer);
+  LocalAndRemoteSdp PatchVp8Offer(
+      std::unique_ptr<SessionDescriptionInterface> offer);
+  LocalAndRemoteSdp PatchVp9Offer(
+      std::unique_ptr<SessionDescriptionInterface> offer);
+  LocalAndRemoteSdp PatchVp8Answer(
+      std::unique_ptr<SessionDescriptionInterface> offer);
+  LocalAndRemoteSdp PatchVp9Answer(
+      std::unique_ptr<SessionDescriptionInterface> offer);
+
+  void FillSimulcastContext(SessionDescriptionInterface* offer);
   std::unique_ptr<cricket::SessionDescription> RestoreMediaSectionsOrder(
       std::unique_ptr<cricket::SessionDescription> source);
 
+  PatchingParams params_;
   SignalingContext context_;
 };
 

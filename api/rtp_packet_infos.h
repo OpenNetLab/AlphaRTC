@@ -12,11 +12,13 @@
 #define API_RTP_PACKET_INFOS_H_
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "api/ref_counted_base.h"
 #include "api/rtp_packet_info.h"
 #include "api/scoped_refptr.h"
+#include "rtc_base/system/rtc_export.h"
 
 namespace webrtc {
 
@@ -28,7 +30,7 @@ namespace webrtc {
 // |std::move()|-ed as the per-packet information is transferred from one object
 // to another. But moving the info, instead of copying it, is not easily done
 // for the current video code.
-class RtpPacketInfos {
+class RTC_EXPORT RtpPacketInfos {
  public:
   using vector_type = std::vector<RtpPacketInfo>;
 
@@ -46,7 +48,11 @@ class RtpPacketInfos {
   using reverse_iterator = const_reverse_iterator;
 
   RtpPacketInfos() {}
-  explicit RtpPacketInfos(vector_type entries) : data_(Data::Create(entries)) {}
+  explicit RtpPacketInfos(const vector_type& entries)
+      : data_(Data::Create(entries)) {}
+
+  explicit RtpPacketInfos(vector_type&& entries)
+      : data_(Data::Create(std::move(entries))) {}
 
   RtpPacketInfos(const RtpPacketInfos& other) = default;
   RtpPacketInfos(RtpPacketInfos&& other) = default;
@@ -75,14 +81,29 @@ class RtpPacketInfos {
  private:
   class Data : public rtc::RefCountedBase {
    public:
-    static rtc::scoped_refptr<Data> Create(vector_type entries) {
+    static rtc::scoped_refptr<Data> Create(const vector_type& entries) {
+      // Performance optimization for the empty case.
+      if (entries.empty()) {
+        return nullptr;
+      }
+
       return new Data(entries);
+    }
+
+    static rtc::scoped_refptr<Data> Create(vector_type&& entries) {
+      // Performance optimization for the empty case.
+      if (entries.empty()) {
+        return nullptr;
+      }
+
+      return new Data(std::move(entries));
     }
 
     const vector_type& entries() const { return entries_; }
 
    private:
-    explicit Data(vector_type entries) : entries_(entries) {}
+    explicit Data(const vector_type& entries) : entries_(entries) {}
+    explicit Data(vector_type&& entries) : entries_(std::move(entries)) {}
     ~Data() override {}
 
     const vector_type entries_;

@@ -12,6 +12,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include <memory>
 #include <thread>
 #include <utility>
@@ -46,6 +47,7 @@
 #include "rtc_base/rtc_certificate_generator.h"
 #include "rtc_base/strings/json.h"
 #include "test/frame_generator_capturer.h"
+#include "api/test/create_frame_generator.h"
 #include "test/vcm_capturer.h"
 
 namespace {
@@ -77,8 +79,8 @@ class FrameGeneratorTrackSource : public webrtc::VideoTrackSource {
       std::shared_ptr<rtc::Event> audio_started_) {
     auto alphaCCConfig = webrtc::GetAlphaCCConfig();
     // Creat an FrameGenerator, responsible for reading yuv files
-    std::unique_ptr<webrtc::test::FrameGenerator> yuv_frame_generator(
-        webrtc::test::FrameGenerator::CreateFromYuvFile(
+    std::unique_ptr<webrtc::test::FrameGeneratorInterface> yuv_frame_generator(
+        webrtc::test::CreateFromYuvFileFrameGenerator(
             std::vector<std::string>{
                 alphaCCConfig->video_file_path}, /* file_path */
             alphaCCConfig->video_width,          /*video_width */
@@ -91,8 +93,7 @@ class FrameGeneratorTrackSource : public webrtc::VideoTrackSource {
             webrtc::Clock::GetRealTimeClock(),        /* clock */
             std::move(yuv_frame_generator),           /* frame_generator */
             alphaCCConfig->video_fps,                 /* target_fps*/
-            *webrtc::CreateDefaultTaskQueueFactory(), /* task_queue_factory */
-            false /* sending */));
+            *webrtc::CreateDefaultTaskQueueFactory())); /* task_queue_factory */
 
     return new rtc::RefCountedObject<FrameGeneratorTrackSource>(
         std::move(capturer), audio_started_);
@@ -437,7 +438,8 @@ void Conductor::OnMessageFromPeer(int peer_id, const std::string& message) {
         webrtc::CreateSessionDescription(type, sdp, &error);
     if (!session_description) {
       RTC_LOG(WARNING) << "Can't parse received session description message. "
-                       << "SdpParseError was: " << error.description;
+                          "SdpParseError was: "
+                       << error.description;
       return;
     }
     RTC_LOG(INFO) << " Received session description :" << message;
@@ -465,7 +467,8 @@ void Conductor::OnMessageFromPeer(int peer_id, const std::string& message) {
         webrtc::CreateIceCandidate(sdp_mid, sdp_mlineindex, sdp, &error));
     if (!candidate.get()) {
       RTC_LOG(WARNING) << "Can't parse received candidate message. "
-                       << "SdpParseError was: " << error.description;
+                          "SdpParseError was: "
+                       << error.description;
       return;
     }
     if (!peer_connection_->AddIceCandidate(candidate.get())) {

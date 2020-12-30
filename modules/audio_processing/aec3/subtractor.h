@@ -13,6 +13,7 @@
 
 #include <math.h>
 #include <stddef.h>
+
 #include <array>
 #include <vector>
 
@@ -22,15 +23,14 @@
 #include "modules/audio_processing/aec3/aec3_common.h"
 #include "modules/audio_processing/aec3/aec3_fft.h"
 #include "modules/audio_processing/aec3/aec_state.h"
+#include "modules/audio_processing/aec3/coarse_filter_update_gain.h"
 #include "modules/audio_processing/aec3/echo_path_variability.h"
-#include "modules/audio_processing/aec3/main_filter_update_gain.h"
+#include "modules/audio_processing/aec3/refined_filter_update_gain.h"
 #include "modules/audio_processing/aec3/render_buffer.h"
 #include "modules/audio_processing/aec3/render_signal_analyzer.h"
-#include "modules/audio_processing/aec3/shadow_filter_update_gain.h"
 #include "modules/audio_processing/aec3/subtractor_output.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/constructor_magic.h"
 
 namespace webrtc {
 
@@ -38,37 +38,49 @@ namespace webrtc {
 class Subtractor {
  public:
   Subtractor(const EchoCanceller3Config& config,
+             size_t num_render_channels,
+             size_t num_capture_channels,
              ApmDataDumper* data_dumper,
              Aec3Optimization optimization);
   ~Subtractor();
+  Subtractor(const Subtractor&) = delete;
+  Subtractor& operator=(const Subtractor&) = delete;
 
   // Performs the echo subtraction.
   void Process(const RenderBuffer& render_buffer,
-               const rtc::ArrayView<const float> capture,
+               const std::vector<std::vector<float>>& capture,
                const RenderSignalAnalyzer& render_signal_analyzer,
                const AecState& aec_state,
-               SubtractorOutput* output);
+               rtc::ArrayView<SubtractorOutput> outputs);
 
   void HandleEchoPathChange(const EchoPathVariability& echo_path_variability);
 
   // Exits the initial state.
   void ExitInitialState();
 
-  // Returns the block-wise frequency response for the main adaptive filter.
-  const std::vector<std::array<float, kFftLengthBy2Plus1>>&
-  FilterFrequencyResponse() const {
-    return main_filter_.FilterFrequencyResponse();
+  // Returns the block-wise frequency responses for the refined adaptive
+  // filters.
+  const std::vector<std::vector<std::array<float, kFftLengthBy2Plus1>>>&
+  FilterFrequencyResponses() const {
+    return refined_frequency_responses_;
   }
 
-  // Returns the estimate of the impulse response for the main adaptive filter.
-  const std::vector<float>& FilterImpulseResponse() const {
-    return main_filter_.FilterImpulseResponse();
+  // Returns the estimates of the impulse responses for the refined adaptive
+  // filters.
+  const std::vector<std::vector<float>>& FilterImpulseResponses() const {
+    return refined_impulse_responses_;
   }
 
   void DumpFilters() {
-    main_filter_.DumpFilter("aec3_subtractor_H_main", "aec3_subtractor_h_main");
-    shadow_filter_.DumpFilter("aec3_subtractor_H_shadow",
-                              "aec3_subtractor_h_shadow");
+    data_dumper_->DumpRaw(
+        "aec3_subtractor_h_refined",
+        rtc::ArrayView<const float>(
+            refined_impulse_responses_[0].data(),
+            GetTimeDomainLength(
+                refined_filters_[0]->max_filter_size_partitions())));
+
+    refined_filters_[0]->DumpFilter("aec3_subtractor_H_refined");
+    coarse_filter_[0]->DumpFilter("aec3_subtractor_H_coarse");
   }
 
  private:
@@ -107,14 +119,17 @@ class Subtractor {
   ApmDataDumper* data_dumper_;
   const Aec3Optimization optimization_;
   const EchoCanceller3Config config_;
+  const size_t num_capture_channels_;
 
-  AdaptiveFirFilter main_filter_;
-  AdaptiveFirFilter shadow_filter_;
-  MainFilterUpdateGain G_main_;
-  ShadowFilterUpdateGain G_shadow_;
-  FilterMisadjustmentEstimator filter_misadjustment_estimator_;
-  size_t poor_shadow_filter_counter_ = 0;
-  RTC_DISALLOW_IMPLICIT_CONSTRUCTORS(Subtractor);
+  std::vector<std::unique_ptr<AdaptiveFirFilter>> refined_filters_;
+  std::vector<std::unique_ptr<AdaptiveFirFilter>> coarse_filter_;
+  std::vector<std::unique_ptr<RefinedFilterUpdateGain>> refined_gains_;
+  std::vector<std::unique_ptr<CoarseFilterUpdateGain>> coarse_gains_;
+  std::vector<FilterMisadjustmentEstimator> filter_misadjustment_estimators_;
+  std::vector<size_t> poor_coarse_filter_counters_;
+  std::vector<std::vector<std::array<float, kFftLengthBy2Plus1>>>
+      refined_frequency_responses_;
+  std::vector<std::vector<float>> refined_impulse_responses_;
 };
 
 }  // namespace webrtc

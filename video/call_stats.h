@@ -15,6 +15,7 @@
 #include <memory>
 
 #include "modules/include/module.h"
+#include "modules/include/module_common_types.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 #include "rtc_base/constructor_magic.h"
 #include "rtc_base/critical_section.h"
@@ -23,9 +24,9 @@
 
 namespace webrtc {
 
-class CallStatsObserver;
-
 // CallStats keeps track of statistics for a call.
+// TODO(webrtc:11489): Make call_stats_ not depend on ProcessThread and
+// make callbacks on the worker thread (TQ).
 class CallStats : public Module, public RtcpRttStats {
  public:
   // Time interval for updating the observers.

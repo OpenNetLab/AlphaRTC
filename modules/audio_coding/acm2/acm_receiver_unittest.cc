@@ -107,7 +107,8 @@ class AcmReceiverTestOldApi : public AudioPacketizationCallback,
                uint8_t payload_type,
                uint32_t timestamp,
                const uint8_t* payload_data,
-               size_t payload_len_bytes) override {
+               size_t payload_len_bytes,
+               int64_t absolute_capture_timestamp_ms) override {
     if (frame_type == AudioFrameType::kEmptyFrame)
       return 0;
 
@@ -289,7 +290,8 @@ TEST_F(AcmReceiverTestPostDecodeVadPassiveOldApi, MAYBE_PostdecodingVad) {
   constexpr int payload_type = 34;
   const SdpAudioFormat codec = {"L16", 16000, 1};
   const AudioCodecInfo info = SetEncoder(payload_type, codec);
-  encoder_factory_->QueryAudioEncoder(codec).value();
+  auto const value = encoder_factory_->QueryAudioEncoder(codec);
+  ASSERT_TRUE(value.has_value());
   receiver_->SetCodecs({{payload_type, codec}});
   const int kNumPackets = 5;
   AudioFrame frame;
@@ -314,14 +316,13 @@ TEST_F(AcmReceiverTestOldApi, MAYBE_LastAudioCodec) {
                                                 {1, {"PCMA", 8000, 1}},
                                                 {2, {"ISAC", 32000, 1}},
                                                 {3, {"L16", 32000, 1}}};
-  const std::map<int, int> cng_payload_types = {{8000, 100},
-                                                {16000, 101},
-                                                {32000, 102}};
+  const std::map<int, int> cng_payload_types = {
+      {8000, 100}, {16000, 101}, {32000, 102}};
   {
     std::map<int, SdpAudioFormat> receive_codecs = codecs;
     for (const auto& cng_type : cng_payload_types) {
-      receive_codecs.emplace(
-          std::make_pair(cng_type.second, SdpAudioFormat("CN", cng_type.first, 1)));
+      receive_codecs.emplace(std::make_pair(
+          cng_type.second, SdpAudioFormat("CN", cng_type.first, 1)));
     }
     receiver_->SetCodecs(receive_codecs);
   }
@@ -333,7 +334,7 @@ TEST_F(AcmReceiverTestOldApi, MAYBE_LastAudioCodec) {
   packet_sent_ = false;
   InsertOnePacketOfSilence(
       SetEncoder(0, codecs.at(0), cng_payload_types));  // Enough to test
-                                                     // with one codec.
+                                                        // with one codec.
   ASSERT_TRUE(packet_sent_);
   EXPECT_EQ(AudioFrameType::kAudioFrameCN, last_frame_type_);
 
@@ -371,6 +372,92 @@ TEST_F(AcmReceiverTestOldApi, MAYBE_LastAudioCodec) {
   }
 }
 #endif
+
+// Check if the statistics are initialized correctly. Before any call to ACM
+// all fields have to be zero.
+#if defined(WEBRTC_ANDROID)
+#define MAYBE_InitializedToZero DISABLED_InitializedToZero
+#else
+#define MAYBE_InitializedToZero InitializedToZero
+#endif
+TEST_F(AcmReceiverTestOldApi, MAYBE_InitializedToZero) {
+  AudioDecodingCallStats stats;
+  receiver_->GetDecodingCallStatistics(&stats);
+  EXPECT_EQ(0, stats.calls_to_neteq);
+  EXPECT_EQ(0, stats.calls_to_silence_generator);
+  EXPECT_EQ(0, stats.decoded_normal);
+  EXPECT_EQ(0, stats.decoded_cng);
+  EXPECT_EQ(0, stats.decoded_neteq_plc);
+  EXPECT_EQ(0, stats.decoded_plc_cng);
+  EXPECT_EQ(0, stats.decoded_muted_output);
+}
+
+// Insert some packets and pull audio. Check statistics are valid. Then,
+// simulate packet loss and check if PLC and PLC-to-CNG statistics are
+// correctly updated.
+#if defined(WEBRTC_ANDROID)
+#define MAYBE_NetEqCalls DISABLED_NetEqCalls
+#else
+#define MAYBE_NetEqCalls NetEqCalls
+#endif
+TEST_F(AcmReceiverTestOldApi, MAYBE_NetEqCalls) {
+  AudioDecodingCallStats stats;
+  const int kNumNormalCalls = 10;
+  const int kSampleRateHz = 16000;
+  const int kNumSamples10ms = kSampleRateHz / 100;
+  const int kFrameSizeMs = 10;  // Multiple of 10.
+  const int kFrameSizeSamples = kFrameSizeMs / 10 * kNumSamples10ms;
+  const int kPayloadSizeBytes = kFrameSizeSamples * sizeof(int16_t);
+  const uint8_t kPayloadType = 111;
+  RTPHeader rtp_header;
+  AudioFrame audio_frame;
+  bool muted;
+
+  receiver_->SetCodecs(
+      {{kPayloadType, SdpAudioFormat("L16", kSampleRateHz, 1)}});
+  rtp_header.sequenceNumber = 0xABCD;
+  rtp_header.timestamp = 0xABCDEF01;
+  rtp_header.payloadType = kPayloadType;
+  rtp_header.markerBit = false;
+  rtp_header.ssrc = 0x1234;
+  rtp_header.numCSRCs = 0;
+  rtp_header.payload_type_frequency = kSampleRateHz;
+
+  for (int num_calls = 0; num_calls < kNumNormalCalls; ++num_calls) {
+    const uint8_t kPayload[kPayloadSizeBytes] = {0};
+    ASSERT_EQ(0, receiver_->InsertPacket(rtp_header, kPayload));
+    ++rtp_header.sequenceNumber;
+    rtp_header.timestamp += kFrameSizeSamples;
+    ASSERT_EQ(0, receiver_->GetAudio(-1, &audio_frame, &muted));
+    EXPECT_FALSE(muted);
+  }
+  receiver_->GetDecodingCallStatistics(&stats);
+  EXPECT_EQ(kNumNormalCalls, stats.calls_to_neteq);
+  EXPECT_EQ(0, stats.calls_to_silence_generator);
+  EXPECT_EQ(kNumNormalCalls, stats.decoded_normal);
+  EXPECT_EQ(0, stats.decoded_cng);
+  EXPECT_EQ(0, stats.decoded_neteq_plc);
+  EXPECT_EQ(0, stats.decoded_plc_cng);
+  EXPECT_EQ(0, stats.decoded_muted_output);
+
+  const int kNumPlc = 3;
+  const int kNumPlcCng = 5;
+
+  // Simulate packet-loss. NetEq first performs PLC then PLC fades to CNG.
+  for (int n = 0; n < kNumPlc + kNumPlcCng; ++n) {
+    ASSERT_EQ(0, receiver_->GetAudio(-1, &audio_frame, &muted));
+    EXPECT_FALSE(muted);
+  }
+  receiver_->GetDecodingCallStatistics(&stats);
+  EXPECT_EQ(kNumNormalCalls + kNumPlc + kNumPlcCng, stats.calls_to_neteq);
+  EXPECT_EQ(0, stats.calls_to_silence_generator);
+  EXPECT_EQ(kNumNormalCalls, stats.decoded_normal);
+  EXPECT_EQ(0, stats.decoded_cng);
+  EXPECT_EQ(kNumPlc, stats.decoded_neteq_plc);
+  EXPECT_EQ(kNumPlcCng, stats.decoded_plc_cng);
+  EXPECT_EQ(0, stats.decoded_muted_output);
+  // TODO(henrik.lundin) Add a test with muted state enabled.
+}
 
 }  // namespace acm2
 

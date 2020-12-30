@@ -99,10 +99,11 @@ void FuzzOneInput(const uint8_t* data, size_t size) {
                                                        &feedback_request);
         break;
       }
-      case kRtpExtensionPlayoutDelay:
-        PlayoutDelay playout;
+      case kRtpExtensionPlayoutDelay: {
+        PlayoutDelay playout = PlayoutDelay::Noop();
         packet.GetExtension<PlayoutDelayLimits>(&playout);
         break;
+      }
       case kRtpExtensionVideoContentType:
         VideoContentType content_type;
         packet.GetExtension<VideoContentTypeExtension>(&content_type);
@@ -135,14 +136,14 @@ void FuzzOneInput(const uint8_t* data, size_t size) {
         packet.GetExtension<RtpGenericFrameDescriptorExtension00>(&descriptor);
         break;
       }
-      case kRtpExtensionGenericFrameDescriptor01: {
-        RtpGenericFrameDescriptor descriptor;
-        packet.GetExtension<RtpGenericFrameDescriptorExtension01>(&descriptor);
-        break;
-      }
       case kRtpExtensionColorSpace: {
         ColorSpace color_space;
         packet.GetExtension<ColorSpaceExtension>(&color_space);
+        break;
+      }
+      case kRtpExtensionInbandComfortNoise: {
+        absl::optional<uint8_t> noise_level;
+        packet.GetExtension<InbandComfortNoiseExtension>(&noise_level);
         break;
       }
       case kRtpExtensionGenericFrameDescriptor02:
@@ -151,5 +152,8 @@ void FuzzOneInput(const uint8_t* data, size_t size) {
         break;
     }
   }
+
+  // Check that zero-ing mutable extensions wouldn't cause any problems.
+  packet.ZeroMutableExtensions();
 }
 }  // namespace webrtc

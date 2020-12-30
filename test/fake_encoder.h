@@ -13,6 +13,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include <memory>
 #include <vector>
 
@@ -40,6 +41,7 @@ class FakeEncoder : public VideoEncoder {
 
   // Sets max bitrate. Not thread-safe, call before registering the encoder.
   void SetMaxBitrate(int max_kbps);
+  void SetQp(int qp);
 
   void SetFecControllerOverride(
       FecControllerOverride* fec_controller_override) override;
@@ -97,6 +99,7 @@ class FakeEncoder : public VideoEncoder {
   uint32_t counter_ RTC_GUARDED_BY(crit_sect_);
   rtc::CriticalSection crit_sect_;
   bool used_layers_[kMaxSimulcastStreams];
+  absl::optional<int> qp_ RTC_GUARDED_BY(crit_sect_);
 
   // Current byte debt to be payed over a number of frames.
   // The debt is acquired by keyframes overshooting the bitrate target.

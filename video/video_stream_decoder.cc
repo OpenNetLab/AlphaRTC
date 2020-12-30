@@ -10,15 +10,14 @@
 
 #include "video/video_stream_decoder.h"
 
-#include "modules/video_coding/include/video_coding.h"
-#include "modules/video_coding/video_coding_impl.h"
+#include "modules/video_coding/video_receiver2.h"
 #include "rtc_base/checks.h"
 #include "video/receive_statistics_proxy.h"
 
 namespace webrtc {
 
 VideoStreamDecoder::VideoStreamDecoder(
-    vcm::VideoReceiver* video_receiver,
+    VideoReceiver2* video_receiver,
     ReceiveStatisticsProxy* receive_statistics_proxy,
     rtc::VideoSinkInterface<VideoFrame>* incoming_video_stream)
     : video_receiver_(video_receiver),
@@ -50,6 +49,10 @@ int32_t VideoStreamDecoder::FrameToRender(VideoFrame& video_frame,
                                           content_type);
   incoming_video_stream_->OnFrame(video_frame);
   return 0;
+}
+
+void VideoStreamDecoder::OnDroppedFrames(uint32_t frames_dropped) {
+  receive_stats_callback_->OnDroppedFrames(frames_dropped);
 }
 
 void VideoStreamDecoder::OnIncomingPayloadType(int payload_type) {

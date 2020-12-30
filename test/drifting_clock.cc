@@ -9,13 +9,12 @@
  */
 
 #include "test/drifting_clock.h"
+
 #include "rtc_base/checks.h"
 
 namespace webrtc {
 namespace test {
-const float DriftingClock::kDoubleSpeed = 2.0f;
-const float DriftingClock::kNoDrift = 1.0f;
-const float DriftingClock::kHalfSpeed = 0.5f;
+constexpr float DriftingClock::kNoDrift;
 
 DriftingClock::DriftingClock(Clock* clock, float speed)
     : clock_(clock), drift_(speed - 1.0f), start_time_(clock_->CurrentTime()) {

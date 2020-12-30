@@ -46,6 +46,7 @@
 #include "rtc_base/rtc_certificate_generator.h"
 #include "rtc_base/strings/json.h"
 #include "test/frame_generator_capturer.h"
+#include "api/test/create_frame_generator.h"
 #include "test/vcm_capturer.h"
 
 namespace {
@@ -77,8 +78,8 @@ class FrameGeneratorTrackSource : public webrtc::VideoTrackSource {
       std::shared_ptr<rtc::Event> audio_started_) {
     auto alphaCCConfig = webrtc::GetAlphaCCConfig();
     // Creat an FrameGenerator, responsible for reading yuv files
-    std::unique_ptr<webrtc::test::FrameGenerator> yuv_frame_generator(
-        webrtc::test::FrameGenerator::CreateFromYuvFile(
+    std::unique_ptr<webrtc::test::FrameGeneratorInterface> yuv_frame_generator(
+        webrtc::test::CreateFromYuvFileFrameGenerator(
             std::vector<std::string>{
                 alphaCCConfig->video_file_path}, /* file_path */
             alphaCCConfig->video_width,          /*video_width */
@@ -91,8 +92,7 @@ class FrameGeneratorTrackSource : public webrtc::VideoTrackSource {
             webrtc::Clock::GetRealTimeClock(),        /* clock */
             std::move(yuv_frame_generator),           /* frame_generator */
             alphaCCConfig->video_fps,                 /* target_fps*/
-            *webrtc::CreateDefaultTaskQueueFactory(), /* task_queue_factory */
-            false /* sending */));
+            *webrtc::CreateDefaultTaskQueueFactory())); /* task_queue_factory */
 
     return new rtc::RefCountedObject<FrameGeneratorTrackSource>(
         std::move(capturer), audio_started_);
@@ -175,7 +175,7 @@ Conductor::Conductor(PeerConnectionClient* client, MainWindow* main_wnd)
       alphacc_config_(webrtc::GetAlphaCCConfig()),
       audio_started_(std::make_shared<rtc::Event>()) {
   if (alphacc_config_->save_to_file) {
-    frame_writer_ = absl::make_unique<webrtc::test::VideoFrameWriter>(
+    frame_writer_ = absl::make_unique<webrtc::test::Y4mVideoFrameWriterImpl>(
         alphacc_config_->video_output_path, alphacc_config_->video_output_width,
         alphacc_config_->video_output_height,
         alphacc_config_->video_output_fps);

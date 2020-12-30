@@ -8,14 +8,16 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "p2p/base/transport_description_factory.h"
+
 #include <stddef.h>
+
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "p2p/base/p2p_constants.h"
 #include "p2p/base/transport_description.h"
-#include "p2p/base/transport_description_factory.h"
 #include "rtc_base/copy_on_write_buffer.h"
 #include "rtc_base/fake_ssl_identity.h"
 #include "rtc_base/ssl_certificate.h"
@@ -252,30 +254,6 @@ TEST_F(TransportDescriptionFactoryTest, TestAnswerNoOpaqueTransportParameters) {
       f1_.CreateOffer(options, NULL, &ice_credentials_);
   std::unique_ptr<TransportDescription> answer = f2_.CreateAnswer(
       offer.get(), TransportOptions(), true, NULL, &ice_credentials_);
-
-  CheckDesc(answer.get(), "", "", "", "");
-  EXPECT_EQ(answer->opaque_parameters, absl::nullopt);
-}
-
-TEST_F(TransportDescriptionFactoryTest,
-       TestAnswerDifferentOpaqueTransportParameters) {
-  OpaqueTransportParameters offer_params;
-  offer_params.protocol = "fake";
-  offer_params.parameters = "foobar";
-
-  TransportOptions options;
-  options.opaque_parameters = offer_params;
-
-  std::unique_ptr<TransportDescription> offer =
-      f1_.CreateOffer(options, NULL, &ice_credentials_);
-
-  OpaqueTransportParameters answer_params;
-  answer_params.protocol = "fake";
-  answer_params.parameters = "baz";
-
-  options.opaque_parameters = answer_params;
-  std::unique_ptr<TransportDescription> answer =
-      f2_.CreateAnswer(offer.get(), options, true, NULL, &ice_credentials_);
 
   CheckDesc(answer.get(), "", "", "", "");
   EXPECT_EQ(answer->opaque_parameters, absl::nullopt);

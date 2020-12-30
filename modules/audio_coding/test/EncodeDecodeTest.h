@@ -26,17 +26,21 @@ namespace webrtc {
 // TestPacketization callback which writes the encoded payloads to file
 class TestPacketization : public AudioPacketizationCallback {
  public:
-  TestPacketization(RTPStream *rtpStream, uint16_t frequency);
+  TestPacketization(RTPStream* rtpStream, uint16_t frequency);
   ~TestPacketization();
   int32_t SendData(const AudioFrameType frameType,
                    const uint8_t payloadType,
                    const uint32_t timeStamp,
                    const uint8_t* payloadData,
-                   const size_t payloadSize) override;
+                   const size_t payloadSize,
+                   int64_t absolute_capture_timestamp_ms) override;
 
  private:
-  static void MakeRTPheader(uint8_t* rtpHeader, uint8_t payloadType,
-                            int16_t seqNo, uint32_t timeStamp, uint32_t ssrc);
+  static void MakeRTPheader(uint8_t* rtpHeader,
+                            uint8_t payloadType,
+                            int16_t seqNo,
+                            uint32_t timeStamp,
+                            uint32_t ssrc);
   RTPStream* _rtpStream;
   int32_t _frequency;
   int16_t _seqNo;
@@ -45,9 +49,12 @@ class TestPacketization : public AudioPacketizationCallback {
 class Sender {
  public:
   Sender();
-  void Setup(AudioCodingModule *acm, RTPStream *rtpStream,
-             std::string in_file_name, int in_sample_rate,
-             int payload_type, SdpAudioFormat format);
+  void Setup(AudioCodingModule* acm,
+             RTPStream* rtpStream,
+             std::string in_file_name,
+             int in_sample_rate,
+             int payload_type,
+             SdpAudioFormat format);
   void Teardown();
   void Run();
   bool Add10MsData();
@@ -65,8 +72,11 @@ class Receiver {
  public:
   Receiver();
   virtual ~Receiver() {}
-  void Setup(AudioCodingModule *acm, RTPStream *rtpStream,
-             std::string out_file_name, size_t channels, int file_num);
+  void Setup(AudioCodingModule* acm,
+             RTPStream* rtpStream,
+             std::string out_file_name,
+             size_t channels,
+             int file_num);
   void Teardown();
   void Run();
   virtual bool IncomingPacket();

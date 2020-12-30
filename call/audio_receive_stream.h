@@ -20,15 +20,15 @@
 #include "api/audio_codecs/audio_decoder_factory.h"
 #include "api/call/transport.h"
 #include "api/crypto/crypto_options.h"
-#include "api/media_transport_config.h"
+#include "api/crypto/frame_decryptor_interface.h"
+#include "api/frame_transformer_interface.h"
 #include "api/rtp_parameters.h"
-#include "api/rtp_receiver_interface.h"
 #include "api/scoped_refptr.h"
+#include "api/transport/rtp/rtp_source.h"
 #include "call/rtp_config.h"
 
 namespace webrtc {
 class AudioSinkInterface;
-class FrameDecryptorInterface;
 
 class AudioReceiveStream {
  public:
@@ -36,14 +36,14 @@ class AudioReceiveStream {
     Stats();
     ~Stats();
     uint32_t remote_ssrc = 0;
-    int64_t bytes_rcvd = 0;
+    int64_t payload_bytes_rcvd = 0;
+    int64_t header_and_padding_bytes_rcvd = 0;
     uint32_t packets_rcvd = 0;
     uint64_t fec_packets_received = 0;
     uint64_t fec_packets_discarded = 0;
     uint32_t packets_lost = 0;
     std::string codec_name;
     absl::optional<int> codec_payload_type;
-    uint32_t ext_seqnum = 0;
     uint32_t jitter_ms = 0;
     uint32_t jitter_buffer_ms = 0;
     uint32_t jitter_buffer_preferred_ms = 0;
@@ -59,6 +59,7 @@ class AudioReceiveStream {
     uint64_t concealment_events = 0;
     double jitter_buffer_delay_seconds = 0.0;
     uint64_t jitter_buffer_emitted_count = 0;
+    double jitter_buffer_target_delay_seconds = 0.0;
     uint64_t inserted_samples_for_deceleration = 0;
     uint64_t removed_samples_for_acceleration = 0;
     // Stats below DO NOT correspond directly to anything in the WebRTC stats
@@ -72,7 +73,9 @@ class AudioReceiveStream {
     int32_t decoding_calls_to_silence_generator = 0;
     int32_t decoding_calls_to_neteq = 0;
     int32_t decoding_normal = 0;
+    // TODO(alexnarest): Consider decoding_neteq_plc for consistency
     int32_t decoding_plc = 0;
+    int32_t decoding_codec_plc = 0;
     int32_t decoding_cng = 0;
     int32_t decoding_plc_cng = 0;
     int32_t decoding_muted_output = 0;
@@ -85,6 +88,8 @@ class AudioReceiveStream {
     double relative_packet_arrival_delay_seconds = 0.0;
     int32_t interruption_count = 0;
     int32_t total_interruption_duration_ms = 0;
+    // https://w3c.github.io/webrtc-stats/#dom-rtcinboundrtpstreamstats-estimatedplayouttimestamp
+    absl::optional<int64_t> estimated_playout_ntp_timestamp_ms;
   };
 
   struct Config {
@@ -121,8 +126,6 @@ class AudioReceiveStream {
 
     Transport* rtcp_send_transport = nullptr;
 
-    MediaTransportConfig media_transport_config;
-
     // NetEq settings.
     size_t jitter_buffer_max_packets = 200;
     bool jitter_buffer_fast_accelerate = false;
@@ -148,6 +151,10 @@ class AudioReceiveStream {
     // decrypted in whatever way the caller choses. This is not required by
     // default.
     rtc::scoped_refptr<webrtc::FrameDecryptorInterface> frame_decryptor;
+
+    // An optional frame transformer used by insertable streams to transform
+    // encoded frames.
+    rtc::scoped_refptr<webrtc::FrameTransformerInterface> frame_transformer;
   };
 
   // Reconfigure the stream according to the Configuration.

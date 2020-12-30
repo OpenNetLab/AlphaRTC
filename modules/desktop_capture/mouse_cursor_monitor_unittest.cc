@@ -8,15 +8,17 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "modules/desktop_capture/mouse_cursor_monitor.h"
+
 #include <assert.h>
 #include <stddef.h>
+
 #include <memory>
 
 #include "modules/desktop_capture/desktop_capture_options.h"
 #include "modules/desktop_capture/desktop_capturer.h"
 #include "modules/desktop_capture/desktop_frame.h"
 #include "modules/desktop_capture/mouse_cursor.h"
-#include "modules/desktop_capture/mouse_cursor_monitor.h"
 #include "rtc_base/checks.h"
 #include "test/gtest.h"
 
@@ -30,11 +32,6 @@ class MouseCursorMonitorTest : public ::testing::Test,
   // MouseCursorMonitor::Callback interface
   void OnMouseCursor(MouseCursor* cursor_image) override {
     cursor_image_.reset(cursor_image);
-  }
-
-  void OnMouseCursorPosition(MouseCursorMonitor::CursorState state,
-                             const DesktopVector& position) override {
-    RTC_NOTREACHED();
   }
 
   void OnMouseCursorPosition(const DesktopVector& position) override {
