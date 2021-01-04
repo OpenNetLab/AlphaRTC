@@ -331,8 +331,9 @@ void AimdRateControl::ChangeBitrate(const RateControlInput& input,
         }
       }
       if (estimate_bounded_backoff_ && network_estimate_) {
-        decreased_bitrate = std::max(
-            decreased_bitrate, network_estimate_->link_capacity_lower * beta_);
+        // decreased_bitrate = std::max(
+        //     decreased_bitrate, network_estimate_->link_capacity_lower * beta_);
+        decreased_bitrate = network_estimate_->link_capacity_lower;
       }
 
       // Avoid increasing the rate when over-using.
@@ -371,9 +372,10 @@ void AimdRateControl::ChangeBitrate(const RateControlInput& input,
 DataRate AimdRateControl::ClampBitrate(DataRate new_bitrate) const {
   if (estimate_bounded_increase_ && network_estimate_) {
     DataRate upper_bound = network_estimate_->link_capacity_upper;
-    new_bitrate = std::min(new_bitrate, upper_bound);
+    // new_bitrate = std::min(new_bitrate, upper_bound);
+    new_bitrate = upper_bound;
   }
-  new_bitrate = std::max(new_bitrate, min_configured_bitrate_);
+  // new_bitrate = std::max(new_bitrate, min_configured_bitrate_);
   return new_bitrate;
 }
 

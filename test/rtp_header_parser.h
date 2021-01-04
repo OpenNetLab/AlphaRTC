@@ -11,7 +11,6 @@
 #define TEST_RTP_HEADER_PARSER_H_
 
 #include <memory>
-
 #include "api/rtp_parameters.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
 

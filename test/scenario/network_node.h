@@ -26,7 +26,7 @@
 #include "test/network/network_emulation.h"
 #include "test/scenario/column_printer.h"
 #include "test/scenario/scenario_config.h"
-
+#include "test/scenario/transport_base.h"
 namespace webrtc {
 namespace test {
 
@@ -49,11 +49,11 @@ class SimulationNode {
   EmulatedNetworkNode* const network_node_;
 };
 
-class NetworkNodeTransport : public Transport {
+class NetworkNodeTransport : public TransportBase {
  public:
-  NetworkNodeTransport(Clock* sender_clock, Call* sender_call);
+  NetworkNodeTransport(){}
   ~NetworkNodeTransport() override;
-
+  void Construct(Clock* sender_clock, Call* sender_call) override;
   bool SendRtp(const uint8_t* packet,
                size_t length,
                const PacketOptions& options) override;
@@ -71,8 +71,8 @@ class NetworkNodeTransport : public Transport {
 
  private:
   rtc::CriticalSection crit_sect_;
-  Clock* const sender_clock_;
-  Call* const sender_call_;
+  Clock*  sender_clock_{nullptr};
+  Call* sender_call_{nullptr};
   EmulatedEndpoint* endpoint_ RTC_GUARDED_BY(crit_sect_) = nullptr;
   rtc::SocketAddress local_address_ RTC_GUARDED_BY(crit_sect_);
   rtc::SocketAddress remote_address_ RTC_GUARDED_BY(crit_sect_);

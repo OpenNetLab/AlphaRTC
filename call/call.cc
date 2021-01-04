@@ -240,6 +240,8 @@ class Call final : public webrtc::Call,
 
   void SetClientBitratePreferences(const BitrateSettings& preferences) override;
 
+  uint32_t last_bandwidth_bps() override;
+
  private:
   DeliveryStatus DeliverRtcp(MediaType media_type,
                              const uint8_t* packet,
@@ -529,6 +531,10 @@ void Call::RegisterRateObserver() {
 void Call::SetClientBitratePreferences(const BitrateSettings& preferences) {
   RTC_DCHECK_RUN_ON(&configuration_sequence_checker_);
   GetTransportControllerSend()->SetClientBitratePreferences(preferences);
+}
+
+uint32_t Call::last_bandwidth_bps() {
+  return last_bandwidth_bps_;
 }
 
 void Call::UpdateHistograms() {

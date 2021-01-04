@@ -117,6 +117,8 @@ class Call {
       const BitrateSettings& preferences) = 0;
 
   virtual ~Call() {}
+
+  virtual uint32_t last_bandwidth_bps() { return 0; };
 };
 
 }  // namespace webrtc
