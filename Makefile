@@ -8,9 +8,12 @@ target_bin_dir := $(target_dir)/bin
 
 compile_docker := alphartc-compile
 release_docker := alphartc
-docker_workdir := /app/AlphaRTC/
 
-docker_flags := --rm -v `pwd`:$(docker_workdir) 
+host_workdir := `pwd`
+docker_homedir := /app/AlphaRTC/
+docker_workdir := $(docker_homedir)
+
+docker_flags := --rm -v $(host_workdir):$(docker_homedir) -w $(docker_workdir)
 gn_flags := --args='is_debug=false'
 
 all: init sync app release
