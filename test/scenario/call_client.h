@@ -29,6 +29,7 @@
 #include "test/scenario/column_printer.h"
 #include "test/scenario/network_node.h"
 #include "test/scenario/scenario_config.h"
+#include "test/scenario/transport_base.h"
 
 namespace webrtc {
 
@@ -118,9 +119,15 @@ class CallClient : public EmulatedNetworkReceiverInterface {
   // CallClient does internally for GetStats()).
   void SendTask(std::function<void()> task);
 
+  void SetCustomTransport(TransportBase *transport,bool own);
+  Call *GetCall(){return call_.get();}
+
  private:
   friend class Scenario;
   friend class CallClientPair;
+  friend class SendVideoStream;
+  friend class VideoStreamPair;
+  friend class ReceiveVideoStream;
   friend class SendVideoStream;
   friend class VideoStreamPair;
   friend class ReceiveVideoStream;
@@ -144,7 +151,8 @@ class CallClient : public EmulatedNetworkReceiverInterface {
   LoggingNetworkControllerFactory network_controller_factory_;
   CallClientFakeAudio fake_audio_setup_;
   std::unique_ptr<Call> call_;
-  std::unique_ptr<NetworkNodeTransport> transport_;
+  bool own_transport_{true};
+  std::unique_ptr<TransportBase> transport_;
   std::unique_ptr<RtpHeaderParser> const header_parser_;
   std::vector<std::pair<EmulatedEndpoint*, uint16_t>> endpoints_;
 

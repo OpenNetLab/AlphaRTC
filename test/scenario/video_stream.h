@@ -110,9 +110,15 @@ class VideoStreamPair {
 
  private:
   friend class Scenario;
+
+public:
+  // Gym need to create this instance
+  // so to convert the qualifier of constructor from private to public
   VideoStreamPair(CallClient* sender,
                   CallClient* receiver,
                   VideoStreamConfig config);
+
+private:
 
   const VideoStreamConfig config_;
 

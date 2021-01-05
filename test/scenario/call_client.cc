@@ -216,7 +216,8 @@ CallClient::CallClient(
     call_.reset(CreateCall(time_controller_, event_log_.get(), config,
                            &network_controller_factory_,
                            fake_audio_setup_.audio_state));
-    transport_ = std::make_unique<NetworkNodeTransport>(clock_, call_.get());
+    transport_ = std::make_unique<NetworkNodeTransport>();
+    transport_->Construct(clock_, call_.get());
   });
 }
 
@@ -228,6 +229,9 @@ CallClient::~CallClient() {
     event_log_->StopLogging([&done] { done.Set(); });
     done.Wait(rtc::Event::kForever);
     event_log_.reset();
+    if (!own_transport_ && transport_) {
+      transport_.release();
+    }
   });
 }
 
@@ -317,7 +321,15 @@ void CallClient::AddExtensions(std::vector<RtpExtension> extensions) {
 void CallClient::SendTask(std::function<void()> task) {
   task_queue_.SendTask(std::move(task), RTC_FROM_HERE);
 }
-
+void CallClient::SetCustomTransport(TransportBase *transport,bool own){
+  SendTask([&, transport,own] {
+  if(!own_transport_&&transport_){
+    transport_.release();
+  }
+  transport_.reset(transport);
+  own_transport_ = own;
+  });
+}
 int16_t CallClient::Bind(EmulatedEndpoint* endpoint) {
   uint16_t port = endpoint->BindReceiver(0, this).value();
   endpoints_.push_back({endpoint, port});

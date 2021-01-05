@@ -23,7 +23,11 @@ EmulatedIpPacket::EmulatedIpPacket(const rtc::SocketAddress& from,
       headers_size(to.ipaddr().overhead() + application_overhead +
                    cricket::kUdpHeaderSize),
       arrival_time(arrival_time) {
+  // GYM would not send real traffic
+  // so the payload may not belong a valid family
+#if !defined(GYM)
   RTC_DCHECK(to.family() == AF_INET || to.family() == AF_INET6);
+#endif
 }
 
 }  // namespace webrtc
