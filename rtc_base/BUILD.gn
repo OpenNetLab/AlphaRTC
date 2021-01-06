@@ -782,6 +782,10 @@ rtc_library("rtc_base") {
   public_configs = []
 
   sources = [
+    "memory_stream.cc",
+    "memory_stream.h",
+    "memory_usage.cc",
+    "memory_usage.h",
     "async_invoker.cc",
     "async_invoker.h",
     "async_invoker_inl.h",

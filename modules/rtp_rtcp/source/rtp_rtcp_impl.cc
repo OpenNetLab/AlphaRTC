@@ -364,9 +364,11 @@ bool ModuleRtpRtcpImpl::TrySendPacket(RtpPacketToSend* packet,
                                       const PacedPacketInfo& pacing_info) {
   RTC_DCHECK(rtp_sender_);
   // TODO(sprang): Consider if we can remove this check.
-  if (!rtp_sender_->packet_generator.SendingMedia()) {
-    return false;
-  }
+  // Disable this checking
+  // Because GYM wouldn't really send media packet
+  // if (!rtp_sender_->packet_generator.SendingMedia()) {
+  //   return false;
+  // }
   rtp_sender_->packet_sender.SendPacket(packet, pacing_info);
   return true;
 }

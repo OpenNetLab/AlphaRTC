@@ -29,6 +29,27 @@
 
 namespace webrtc {
 namespace test {
+
+#if defined(GYM)
+
+constexpr size_t CallTest::kNumSsrcs;
+const int CallTest::kDefaultWidth;
+const int CallTest::kDefaultHeight;
+const int CallTest::kDefaultFramerate;
+const int CallTest::kDefaultTimeoutMs = 30 * 1000;
+const int CallTest::kLongTimeoutMs = 120 * 1000;
+const uint32_t CallTest::kSendRtxSsrcs[kNumSsrcs] = {
+    0xBADCAFD, 0xBADCAFE, 0xBADCAFF, 0xBADCB00, 0xBADCB01, 0xBADCB02};
+const uint32_t CallTest::kVideoSendSsrcs[kNumSsrcs] = {
+    0xC0FFED, 0xC0FFEE, 0xC0FFEF, 0xC0FFF0, 0xC0FFF1, 0xC0FFF2};
+const uint32_t CallTest::kAudioSendSsrc = 0xDEADBEEF;
+const uint32_t CallTest::kFlexfecSendSsrc = 0xBADBEEF;
+const uint32_t CallTest::kReceiverLocalVideoSsrc = 0x123456;
+const uint32_t CallTest::kReceiverLocalAudioSsrc = 0x1234567;
+const int CallTest::kNackRtpHistoryMs = 1000;
+
+#endif
+
 namespace {
 enum : int {  // The first valid value is 1.
   kTransportSequenceNumberExtensionId = 1,
