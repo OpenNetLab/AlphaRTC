@@ -1,7 +1,7 @@
-build/*
-.cipd/*
-buildtools/*
-tools/*
+build/**/*
+.cipd/**/*
+buildtools/**/*
+tools/**/*
 third_party/harfbuzz-ng/src/README
 third_party/libxslt/linux/COPYING
 third_party/catapult/third_party/gsutil/third_party/funcsigs/docs/index.rst
