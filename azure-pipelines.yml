@@ -26,3 +26,8 @@ steps:
 
 - script: make lib
   displayName: 'build library'
+
+- publish: $(System.DefaultWorkingDirectory)
+  artifact: AlphaRTC
+  displayName: "archive alphartc workspace"
+
