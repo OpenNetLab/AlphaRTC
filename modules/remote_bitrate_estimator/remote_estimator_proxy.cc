@@ -14,6 +14,8 @@
 #include <limits>
 #include <memory>
 #include <utility>
+#include <iostream>
+
 
 #include "modules/rtp_rtcp/source/rtcp_packet/transport_feedback.h"
 #include "rtc_base/checks.h"
@@ -46,7 +48,10 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       send_interval_ms_(send_config_.default_interval->ms()),
       send_periodic_feedback_(true),
       previous_abs_send_time_(0),
-      abs_send_timestamp_(clock->CurrentTime()) {
+      abs_send_timestamp_(clock->CurrentTime()),
+      stats_collect_(StatCollect::SC_TYPE_STRUCT),
+      cycles_(-1),
+      max_abs_send_time_(0) {
   RTC_LOG(LS_INFO)
       << "Maximum interval between transport feedback RTCP messages (ms): "
       << send_config_.max_interval->ms();
@@ -286,6 +291,36 @@ int64_t RemoteEstimatorProxy::BuildFeedbackPacket(
     next_sequence_number = it->first + 1;
   }
   return next_sequence_number;
+}
+
+uint32_t RemoteEstimatorProxy::GetTtimeFromAbsSendtime(
+    uint32_t absoluteSendTime) {
+  if (cycles_ == -1) {
+    // Initalize
+    max_abs_send_time_ = absoluteSendTime;
+    cycles_ = 0;
+  }
+  // Abs sender time is 24 bit 6.18 fixed point. Shift by 8 to normalize to
+  // 32 bits (unsigned). Calculate the difference between this packet's
+  // send time and the maximum observed. Cast to signed 32-bit to get the
+  // desired wrap-around behavior.
+  if (static_cast<int32_t>((absoluteSendTime << 8) -
+                           (max_abs_send_time_ << 8)) >= 0) {
+    // The difference is non-negative, meaning that this packet is newer
+    // than the previously observed maximum absolute send time.
+    if (absoluteSendTime < max_abs_send_time_) {
+      // Wrap detected.
+      cycles_++;
+    }
+    max_abs_send_time_ = absoluteSendTime;
+  }
+  // Abs sender time is 24 bit 6.18 fixed point. Divide by 2^18 to convert
+  // to floating point representation.
+  double send_time_seconds =
+      static_cast<double>(absoluteSendTime) / 262144 + 64.0 * cycles_;
+  uint32_t send_time_ms =
+      static_cast<uint32_t>(std::round(send_time_seconds * 1000));
+  return send_time_ms;
 }
 
 }  // namespace webrtc

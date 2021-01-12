@@ -20,6 +20,7 @@
 #include "rtc_base/critical_section.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/numerics/sequence_number_util.h"
+#include "modules/third_party/statcollect/StatCollect.h"
 
 namespace webrtc {
 
@@ -87,6 +88,9 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
           end_iterator,  // |end_iterator| is exclusive.
       rtcp::TransportFeedback* feedback_packet);
 
+  uint32_t GetTtimeFromAbsSendtime(uint32_t absoluteSendTime)
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
+
   Clock* const clock_;
   TransportFeedbackSenderInterface* const feedback_sender_;
   const TransportWideFeedbackConfig send_config_;
@@ -108,6 +112,11 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   // Unwraps absolute send times.
   uint32_t previous_abs_send_time_ RTC_GUARDED_BY(&lock_);
   Timestamp abs_send_timestamp_ RTC_GUARDED_BY(&lock_);
+
+  StatCollect::StatsCollectModule stats_collect_;
+  int cycles_ RTC_GUARDED_BY(&lock_);
+  uint32_t max_abs_send_time_ RTC_GUARDED_BY(&lock_);
+  void* onnx_infer_;
 };
 
 }  // namespace webrtc
