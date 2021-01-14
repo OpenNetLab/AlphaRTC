@@ -2,7 +2,7 @@
 
 class FileLogSink : public rtc::LogSink {
  public:
-  FileLogSink(std::string log_filepath);
+  FileLogSink(const std::string& log_filepath);
   ~FileLogSink();
   void OnLogMessage(const std::string& message);
   void OnLogMessage(const std::string& msg,

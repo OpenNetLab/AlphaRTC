@@ -1,7 +1,7 @@
 #include "logger.h"
 #include <iostream>
 
-FileLogSink::FileLogSink(std::string log_filepath)
+FileLogSink::FileLogSink(const std::string& log_filepath)
     : log_filepath_(log_filepath) {
   log_file_ = fopen(log_filepath_.c_str(), "a");
   if (NULL == log_file_) {
