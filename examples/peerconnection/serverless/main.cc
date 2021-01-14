@@ -11,11 +11,13 @@
 #include "conductor.h"
 #include "peer_connection_client.h"
 #include "defaults.h"
+#include "logger.h"
 
 #ifdef WIN32
 #include "rtc_base/win32_socket_init.h"
 #include "rtc_base/win32_socket_server.h"
 #endif
+
 #include "rtc_base/ssl_adapter.h"
 #include "rtc_base/string_utils.h"  // For ToUtf8
 #include "system_wrappers/include/field_trial.h"
@@ -128,6 +130,10 @@ int main(int argc, char* argv[]) {
     std::cerr << "bad config file" << std::endl;
     exit(EINVAL);
   }
+
+  FileLogSink fileSink;
+  rtc::LogSink* sink = &fileSink;
+  rtc::LogMessage::AddLogToStream(sink, rtc::LoggingSeverity::LS_VERBOSE);
 
   auto config = webrtc::GetAlphaCCConfig();
 
