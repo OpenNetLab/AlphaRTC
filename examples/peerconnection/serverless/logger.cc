@@ -4,11 +4,9 @@
 FileLogSink::FileLogSink(const std::string& log_filepath)
     : log_filepath_(log_filepath) {
   log_file_ = fopen(log_filepath_.c_str(), "a");
-  if (NULL == log_file_) {
-    return;
+  if (log_file_ != NULL) {
+    rtc::LogMessage::AddLogToStream(this, rtc::LoggingSeverity::INFO);
   }
-
-  rtc::LogMessage::AddLogToStream(this, rtc::LoggingSeverity::INFO);
 }
 
 FileLogSink::~FileLogSink() {
