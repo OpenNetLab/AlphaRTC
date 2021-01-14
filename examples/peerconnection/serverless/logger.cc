@@ -12,7 +12,9 @@ FileLogSink::FileLogSink(const std::string& log_filepath)
 }
 
 FileLogSink::~FileLogSink() {
-  fclose(log_file_);
+  if (log_file_ != NULL) {
+    fclose(log_file_);
+  }
   rtc::LogMessage::RemoveLogToStream(this);
 }
 
