@@ -724,6 +724,8 @@ if (is_linux || is_win) {
     testonly = true
     sources = [
       "peerconnection/serverless/main.cc",
+      "peerconnection/serverless/logger.cc",
+      "peerconnection/serverless/logger.h",
       "peerconnection/serverless/conductor.cc",
       "peerconnection/serverless/conductor.h",
       "peerconnection/serverless/defaults.cc",

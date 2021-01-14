@@ -9,17 +9,19 @@
  */
 
 #include "conductor.h"
-#include "peer_connection_client.h"
 #include "defaults.h"
+#include "logger.h"
+#include "peer_connection_client.h"
 
 #ifdef WIN32
 #include "rtc_base/win32_socket_init.h"
 #include "rtc_base/win32_socket_server.h"
 #endif
+
+#include "api/alphacc_config.h"
 #include "rtc_base/ssl_adapter.h"
 #include "rtc_base/string_utils.h"  // For ToUtf8
 #include "system_wrappers/include/field_trial.h"
-#include "api/alphacc_config.h"
 
 #include <chrono>
 #include <functional>
@@ -58,12 +60,11 @@ class MainWindowMock : public MainWindow {
   int close_time_;
 
  public:
-  MainWindowMock(std::shared_ptr<rtc::AutoSocketServerThread> socket_thread) :
-    callback_(NULL),
-    socket_thread_(socket_thread),
-    config_(webrtc::GetAlphaCCConfig()),
-    close_time_(rtc::Thread::kForever)
-    {}
+  MainWindowMock(std::shared_ptr<rtc::AutoSocketServerThread> socket_thread)
+      : callback_(NULL),
+        socket_thread_(socket_thread),
+        config_(webrtc::GetAlphaCCConfig()),
+        close_time_(rtc::Thread::kForever) {}
   void RegisterObserver(MainWndCallback* callback) override {
     callback_ = callback;
   }
@@ -89,9 +90,7 @@ class MainWindowMock : public MainWindow {
     remote_renderer_.reset(new VideoRenderer(remote_video, callback_));
   }
 
-  void StopRemoteRenderer() override {
-    remote_renderer_.reset();
-  }
+  void StopRemoteRenderer() override { remote_renderer_.reset(); }
 
   void QueueUIThreadCallback(int msg_id, void* data) override {
     callback_->UIThreadCallback(msg_id, data);
@@ -129,15 +128,14 @@ int main(int argc, char* argv[]) {
     exit(EINVAL);
   }
 
+  rtc::LogMessage::LogToDebug(rtc::LS_INFO);
+
   auto config = webrtc::GetAlphaCCConfig();
+  std::unique_ptr<FileLogSink> sink;
 
   if (config->save_log_to_file) {
-    // Temporary Fix
-    // TODO(zhongyang xia): Try to leverage rtc::LogMessage::AddLogToStream
-    // rtc::LogMessage::SetIfLogToFile(true);
-    // rtc::LogMessage::SetLogFileName(config->log_output_path);
+    sink = std::make_unique<FileLogSink>(config->log_output_path);
   }
-  rtc::LogMessage::LogToDebug(rtc::LS_INFO);
 
   webrtc::field_trial::InitFieldTrialsFromString(
       "WebRTC-KeepAbsSendTimeExtension/Enabled/");  //  Config for
@@ -163,8 +161,7 @@ int main(int argc, char* argv[]) {
 
   if (config->is_receiver) {
     client.StartListen(config->listening_ip, config->listening_port);
-  }
-  else if (config->is_sender) {
+  } else if (config->is_sender) {
     client.StartConnect(config->dest_ip, config->dest_port);
   }
 
