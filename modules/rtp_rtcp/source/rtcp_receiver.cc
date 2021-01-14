@@ -96,6 +96,7 @@ struct RTCPReceiver::PacketInformation {
   absl::optional<VideoBitrateAllocation> target_bitrate_allocation;
   absl::optional<NetworkStateEstimate> network_state_estimate;
   std::unique_ptr<rtcp::LossNotification> loss_notification;
+  std::unique_ptr<rtcp::App> application;
 };
 
 // Structure for handing TMMBR and TMMBN rtcp messages (RFC5104, section 3.5.4).
@@ -696,18 +697,14 @@ void RTCPReceiver::HandleNack(const CommonHeader& rtcp_block,
 
 void RTCPReceiver::HandleApp(const rtcp::CommonHeader& rtcp_block,
                              PacketInformation* packet_information) {
-  rtcp::App app;
-  if (app.Parse(rtcp_block)) {
-    if (app.name() == rtcp::RemoteEstimate::kName &&
-        app.sub_type() == rtcp::RemoteEstimate::kSubType) {
-      rtcp::RemoteEstimate estimate(std::move(app));
-      if (estimate.ParseData()) {
-        packet_information->network_state_estimate = estimate.estimate();
-        return;
-      }
-    }
+  std::unique_ptr<rtcp::App> app_packet(new rtcp::App());
+  if (!app_packet->Parse(rtcp_block)) {
+    ++num_skipped_packets_;
+    return;
   }
-  ++num_skipped_packets_;
+
+  packet_information->packet_type_flags |= kRtcpApp;
+  packet_information->application = std::move(app_packet);
 }
 
 void RTCPReceiver::HandleBye(const CommonHeader& rtcp_block) {
@@ -1080,6 +1077,12 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
       transport_feedback_observer_->OnTransportFeedback(
           *packet_information.transport_feedback);
     }
+  }
+
+  if (transport_feedback_observer_ &&
+      (packet_information.packet_type_flags & kRtcpApp)) {
+      transport_feedback_observer_->OnApplicationPacket(
+          *packet_information.application);
   }
 
   if (network_state_estimate_observer_ &&
