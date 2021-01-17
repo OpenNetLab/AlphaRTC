@@ -18,6 +18,7 @@
 #include "api/rtc_event_log/rtc_event_log.h"
 #include "api/transport/network_types.h"
 #include "api/transport/webrtc_key_value_config.h"
+#include "api/rtp_headers.h"
 
 namespace webrtc {
 
@@ -125,6 +126,9 @@ class NetworkStateEstimator {
   // Called with per packet feedback regarding receive time.
   // Used when the NetworkStateEstimator runs in the receiving endpoint.
   virtual void OnReceivedPacket(const PacketResult&) {}
+  virtual void OnReceivedPacketDetail(int64_t arrival_time_ms,
+      size_t payload_size,
+      const RTPHeader& header) {}
   // Called when the receiving or sending endpoint changes address.
   virtual void OnRouteChange(const NetworkRouteChange&) = 0;
   virtual ~NetworkStateEstimator() = default;

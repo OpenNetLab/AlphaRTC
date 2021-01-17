@@ -126,6 +126,10 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
     packet_result.sent_packet.sequence_number = seq;
     network_state_estimator_->OnReceivedPacket(packet_result);
   }
+
+  if (network_state_estimator_) {
+    network_state_estimator_->OnReceivedPacketDetail(arrival_time_ms, payload_size, header);
+  }
 }
 
 bool RemoteEstimatorProxy::LatestEstimate(std::vector<unsigned int>* ssrcs,

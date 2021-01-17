@@ -370,6 +370,8 @@ class Call final : public webrtc::Call,
       RTC_GUARDED_BY(&bitrate_crit_);
   AvgCounter pacer_bitrate_kbps_counter_ RTC_GUARDED_BY(&bitrate_crit_);
 
+  std::unique_ptr<NetworkStateEstimator> network_estimate_;
+
   ReceiveSideCongestionController receive_side_cc_;
 
   const std::unique_ptr<ReceiveTimeCalculator> receive_time_calculator_;
@@ -465,7 +467,16 @@ Call::Call(Clock* clock,
       configured_max_padding_bitrate_bps_(0),
       estimated_send_bitrate_kbps_counter_(clock_, nullptr, true),
       pacer_bitrate_kbps_counter_(clock_, nullptr, true),
-      receive_side_cc_(clock_, transport_send->packet_router()),
+      network_estimate_(
+        config.network_estimator_factory == nullptr
+        ?
+        nullptr
+        :
+        config.network_estimator_factory->Create(config_.trials)),
+      receive_side_cc_(
+        clock_,
+        transport_send->packet_router(),
+        network_estimate_.get()),
       receive_time_calculator_(ReceiveTimeCalculator::CreateFromFieldTrial()),
       video_send_delay_stats_(new SendDelayStats(clock_)),
       start_ms_(clock_->TimeInMilliseconds()),
