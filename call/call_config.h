@@ -57,6 +57,8 @@ struct CallConfig {
   // Network controller factory to use for this call.
   NetworkControllerFactoryInterface* network_controller_factory = nullptr;
 
+  NetworkStateEstimatorFactory* network_estimator_factory = nullptr;
+
   // NetEq factory to use for this call.
   NetEqFactory* neteq_factory = nullptr;
 
