@@ -53,12 +53,13 @@ To compile AlphaRTC, please refer to the following steps
 
 1. Prerequisites
 
-   Make sure Docker is installed on your system.
+   Make sure Docker is installed on your system and add user to docker group.
 
    ``` shell
    # Install Docker
    curl -fsSL get.docker.com -o get-docker.sh
    sudo sh get-docker.sh
+   sudo usermod -aG docker ${USER}
    ```
 
 2. Clone the code
@@ -71,7 +72,7 @@ To compile AlphaRTC, please refer to the following steps
 
    ``` shell
    cd AlphaRTC
-   sudo make all
+   make all
    ```
 
    You should then be able to see two Docker images, `alphartc` and `alphartc-compile` using `sudo docker images`
