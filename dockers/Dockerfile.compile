@@ -9,7 +9,7 @@ ARG UID
 ARG GUID
 
 RUN groupadd -f -r -g ${GUID} g${USER}
-RUN useradd ${USER} -l -u ${UID} -g ${GUID} -m -s /bin/bash
+RUN useradd ${USER} -l -u ${UID} -g ${GUID} -m -s /bin/bash || true
 
 # Download depot_tools
 ARG DEPOT_TOOLS=/opt/depot_tools
