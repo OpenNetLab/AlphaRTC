@@ -243,7 +243,7 @@ This section describes required fields for the json configuration file.
 
 ## Who Are We
 
-The OpenNetLab is an open-networking research community. Our members are from Tsinghua Univeristy, Peking University, Nanjing University, KAIST, Seoul National University, National University of Singapore, SUSTech, Shanghai Jiaotong Univerisity. 
+The OpenNetLab is an open-networking research community. Our members are from Microsoft Research Asia, Tsinghua Univeristy, Peking University, Nanjing University, KAIST, Seoul National University, National University of Singapore, SUSTech, Shanghai Jiaotong Univerisity. 
 
 ## WebRTC
 
