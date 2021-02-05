@@ -13,6 +13,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include <queue>
 
 #include "api/transport/field_trial_based_config.h"
@@ -51,7 +52,7 @@ class BitrateProber {
   // Returns true if the prober is in a probing session, i.e., it currently
   // wants packets to be sent out according to the time returned by
   // TimeUntilNextProbe().
-  bool IsProbing() const;
+  bool is_probing() const { return probing_state_ == ProbingState::kActive; }
 
   // Initializes a new probing session if the prober is allowed to probe. Does
   // not initialize the prober unless the packet size is large enough to probe
@@ -60,11 +61,12 @@ class BitrateProber {
 
   // Create a cluster used to probe for |bitrate_bps| with |num_probes| number
   // of probes.
-  void CreateProbeCluster(int bitrate_bps, int64_t now_ms, int cluster_id);
+  void CreateProbeCluster(DataRate bitrate, Timestamp now, int cluster_id);
 
-  // Returns the number of milliseconds until the next probe should be sent to
-  // get accurate probing.
-  int TimeUntilNextProbe(int64_t now_ms);
+  // Returns the at which the next probe should be sent to get accurate probing.
+  // If probing is not desired at this time, Timestamp::PlusInfinity() will be
+  // returned.
+  Timestamp NextProbeTime(Timestamp now) const;
 
   // Information about the current probing cluster.
   PacedPacketInfo CurrentCluster() const;
@@ -77,7 +79,7 @@ class BitrateProber {
   // multiple packets per probe, this call would be made at the end of sending
   // the last packet in probe. |probe_size| is the total size of all packets
   // in probe.
-  void ProbeSent(int64_t now_ms, size_t probe_size);
+  void ProbeSent(Timestamp now, size_t probe_size);
 
  private:
   enum class ProbingState {
@@ -100,12 +102,12 @@ class BitrateProber {
 
     int sent_probes = 0;
     int sent_bytes = 0;
-    int64_t time_created_ms = -1;
-    int64_t time_started_ms = -1;
+    Timestamp created_at = Timestamp::MinusInfinity();
+    Timestamp started_at = Timestamp::MinusInfinity();
     int retries = 0;
   };
 
-  int64_t GetNextProbeTime(const ProbeCluster& cluster);
+  Timestamp CalculateNextProbeTime(const ProbeCluster& cluster) const;
 
   ProbingState probing_state_;
 
@@ -115,7 +117,7 @@ class BitrateProber {
   std::queue<ProbeCluster> clusters_;
 
   // Time the next probe should be sent when in kActive state.
-  int64_t next_probe_time_ms_;
+  Timestamp next_probe_time_;
 
   int total_probe_count_;
   int total_failed_probe_count_;

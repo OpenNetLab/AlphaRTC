@@ -16,8 +16,8 @@
 #include <utility>
 #include <vector>
 
-#include "api/rtp_receiver_interface.h"
 #include "api/rtp_sender_interface.h"
+#include "api/transport/rtp/rtp_source.h"
 #include "media/base/media_channel.h"
 #include "pc/audio_track.h"
 #include "pc/test/fake_video_track_source.h"
@@ -131,6 +131,7 @@ class TrackMediaInfoMapTest : public ::testing::Test {
         video_sender_info.local_stats[i++].ssrc = ssrc;
       }
       video_media_info_->senders.push_back(video_sender_info);
+      video_media_info_->aggregated_senders.push_back(video_sender_info);
     }
   }
 

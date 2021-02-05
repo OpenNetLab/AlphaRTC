@@ -17,9 +17,10 @@
 #include <vector>
 
 #include "absl/types/optional.h"
+#include "api/rtc_event_log/rtc_event_log.h"
 #include "api/transport/network_control.h"
 #include "api/transport/webrtc_key_value_config.h"
-#include "logging/rtc_event_log/rtc_event_log.h"
+#include "api/units/data_rate.h"
 #include "rtc_base/constructor_magic.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/system/unused.h"
@@ -50,6 +51,7 @@ struct ProbeControllerConfig {
   FieldTrialOptional<double> first_allocation_probe_scale;
   FieldTrialOptional<double> second_allocation_probe_scale;
   FieldTrialFlag allocation_allow_further_probing;
+  FieldTrialParameter<DataRate> allocation_probe_max;
 };
 
 // This class controls initiation of probing to estimate initial channel
@@ -132,7 +134,6 @@ class ProbeController {
 
   const bool in_rapid_recovery_experiment_;
   const bool limit_probes_with_allocateable_rate_;
-  const bool allocation_probing_only_in_alr_;
   // For WebRTC.BWE.MidCallProbing.* metric.
   bool mid_call_probing_waiting_for_result_;
   int64_t mid_call_probing_bitrate_bps_;

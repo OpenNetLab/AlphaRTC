@@ -8,12 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "modules/audio_coding/neteq/histogram.h"
+
 #include <algorithm>
 #include <cstdlib>
 #include <numeric>
 
 #include "absl/types/optional.h"
-#include "modules/audio_coding/neteq/histogram.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/numerics/safe_conversions.h"
 
@@ -115,14 +116,14 @@ int Histogram::Quantile(int probability) {
   int inverse_probability = (1 << 30) - probability;
   size_t index = 0;        // Start from the beginning of |buckets_|.
   int sum = 1 << 30;       // Assign to 1 in Q30.
-  sum -= buckets_[index];  // Ensure that target level is >= 1.
+  sum -= buckets_[index];
 
-  do {
+  while ((sum > inverse_probability) && (index < buckets_.size() - 1)) {
     // Subtract the probabilities one by one until the sum is no longer greater
     // than |inverse_probability|.
     ++index;
     sum -= buckets_[index];
-  } while ((sum > inverse_probability) && (index < buckets_.size() - 1));
+  }
   return static_cast<int>(index);
 }
 
@@ -143,60 +144,6 @@ void Histogram::Reset() {
 
 int Histogram::NumBuckets() const {
   return buckets_.size();
-}
-
-void Histogram::Scale(int old_bucket_width, int new_bucket_width) {
-  buckets_ = ScaleBuckets(buckets_, old_bucket_width, new_bucket_width);
-}
-
-std::vector<int> Histogram::ScaleBuckets(const std::vector<int>& buckets,
-                                         int old_bucket_width,
-                                         int new_bucket_width) {
-  RTC_DCHECK_GT(old_bucket_width, 0);
-  RTC_DCHECK_GT(new_bucket_width, 0);
-  RTC_DCHECK_EQ(old_bucket_width % 10, 0);
-  RTC_DCHECK_EQ(new_bucket_width % 10, 0);
-  std::vector<int> new_histogram(buckets.size(), 0);
-  int64_t acc = 0;
-  int time_counter = 0;
-  size_t new_histogram_idx = 0;
-  for (size_t i = 0; i < buckets.size(); i++) {
-    acc += buckets[i];
-    time_counter += old_bucket_width;
-    // The bins should be scaled, to ensure the histogram still sums to one.
-    const int64_t scaled_acc = acc * new_bucket_width / time_counter;
-    int64_t actually_used_acc = 0;
-    while (time_counter >= new_bucket_width) {
-      const int64_t old_histogram_val = new_histogram[new_histogram_idx];
-      new_histogram[new_histogram_idx] =
-          rtc::saturated_cast<int>(old_histogram_val + scaled_acc);
-      actually_used_acc += new_histogram[new_histogram_idx] - old_histogram_val;
-      new_histogram_idx =
-          std::min(new_histogram_idx + 1, new_histogram.size() - 1);
-      time_counter -= new_bucket_width;
-    }
-    // Only subtract the part that was succesfully written to the new histogram.
-    acc -= actually_used_acc;
-  }
-  // If there is anything left in acc (due to rounding errors), add it to the
-  // last bin. If we cannot add everything to the last bin we need to add as
-  // much as possible to the bins after the last bin (this is only possible
-  // when compressing a histogram).
-  while (acc > 0 && new_histogram_idx < new_histogram.size()) {
-    const int64_t old_histogram_val = new_histogram[new_histogram_idx];
-    new_histogram[new_histogram_idx] =
-        rtc::saturated_cast<int>(old_histogram_val + acc);
-    acc -= new_histogram[new_histogram_idx] - old_histogram_val;
-    new_histogram_idx++;
-  }
-  RTC_DCHECK_EQ(buckets.size(), new_histogram.size());
-  if (acc == 0) {
-    // If acc is non-zero, we were not able to add everything to the new
-    // histogram, so this check will not hold.
-    RTC_DCHECK_EQ(accumulate(buckets.begin(), buckets.end(), 0ll),
-                  accumulate(new_histogram.begin(), new_histogram.end(), 0ll));
-  }
-  return new_histogram;
 }
 
 }  // namespace webrtc

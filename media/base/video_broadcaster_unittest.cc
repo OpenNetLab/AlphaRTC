@@ -8,6 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "media/base/video_broadcaster.h"
+
 #include <limits>
 
 #include "absl/types/optional.h"
@@ -15,12 +17,11 @@
 #include "api/video/video_frame.h"
 #include "api/video/video_rotation.h"
 #include "media/base/fake_video_renderer.h"
-#include "media/base/video_broadcaster.h"
 #include "test/gtest.h"
 
+using cricket::FakeVideoRenderer;
 using rtc::VideoBroadcaster;
 using rtc::VideoSinkWants;
-using cricket::FakeVideoRenderer;
 
 TEST(VideoBroadcasterTest, frame_wanted) {
   VideoBroadcaster broadcaster;
@@ -155,6 +156,33 @@ TEST(VideoBroadcasterTest, AppliesMinOfSinkWantsMaxFramerate) {
 
   broadcaster.RemoveSink(&sink2);
   EXPECT_EQ(30, broadcaster.wants().max_framerate_fps);
+}
+
+TEST(VideoBroadcasterTest,
+     AppliesLeastCommonMultipleOfSinkWantsResolutionAlignment) {
+  VideoBroadcaster broadcaster;
+  EXPECT_EQ(broadcaster.wants().resolution_alignment, 1);
+
+  FakeVideoRenderer sink1;
+  VideoSinkWants wants1;
+  wants1.resolution_alignment = 2;
+  broadcaster.AddOrUpdateSink(&sink1, wants1);
+  EXPECT_EQ(broadcaster.wants().resolution_alignment, 2);
+
+  FakeVideoRenderer sink2;
+  VideoSinkWants wants2;
+  wants2.resolution_alignment = 3;
+  broadcaster.AddOrUpdateSink(&sink2, wants2);
+  EXPECT_EQ(broadcaster.wants().resolution_alignment, 6);
+
+  FakeVideoRenderer sink3;
+  VideoSinkWants wants3;
+  wants3.resolution_alignment = 4;
+  broadcaster.AddOrUpdateSink(&sink3, wants3);
+  EXPECT_EQ(broadcaster.wants().resolution_alignment, 12);
+
+  broadcaster.RemoveSink(&sink2);
+  EXPECT_EQ(broadcaster.wants().resolution_alignment, 4);
 }
 
 TEST(VideoBroadcasterTest, SinkWantsBlackFrames) {

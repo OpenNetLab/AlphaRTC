@@ -8,12 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/audio_processing/aecm/aecm_core.h"
-
 #include <arm_neon.h>
 
 #include "common_audio/signal_processing/include/real_fft.h"
+#include "modules/audio_processing/aecm/aecm_core.h"
 #include "rtc_base/checks.h"
+
+namespace webrtc {
+
+namespace {
 
 // TODO(kma): Re-write the corresponding assembly file, the offset
 // generating script and makefile, to replace these C functions.
@@ -28,6 +31,8 @@ static inline void AddLanes(uint32_t* ptr, uint32x4_t v) {
   *(ptr) = vget_lane_u32(tmp_v, 0);
 #endif
 }
+
+}  // namespace
 
 void WebRtcAecm_CalcLinearEnergiesNeon(AecmCore* aecm,
                                        const uint16_t* far_spectrum,
@@ -197,3 +202,5 @@ void WebRtcAecm_ResetAdaptiveChannelNeon(AecmCore* aecm) {
   aecm->channelAdapt16[PART_LEN] = aecm->channelStored[PART_LEN];
   aecm->channelAdapt32[PART_LEN] = (int32_t)aecm->channelStored[PART_LEN] << 16;
 }
+
+}  // namespace webrtc

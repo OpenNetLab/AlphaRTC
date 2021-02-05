@@ -19,7 +19,7 @@
 
 #include "api/audio_options.h"
 #include "api/crypto/crypto_options.h"
-#include "api/media_transport_config.h"
+#include "api/transport/media/media_transport_config.h"
 #include "call/call.h"
 #include "media/base/codec.h"
 #include "media/base/media_channel.h"
@@ -75,10 +75,15 @@ class ChannelManager final {
   // Can be called before starting the media engine.
   void GetSupportedAudioSendCodecs(std::vector<AudioCodec>* codecs) const;
   void GetSupportedAudioReceiveCodecs(std::vector<AudioCodec>* codecs) const;
-  void GetSupportedAudioRtpHeaderExtensions(RtpHeaderExtensions* ext) const;
-  void GetSupportedVideoCodecs(std::vector<VideoCodec>* codecs) const;
-  void GetSupportedVideoRtpHeaderExtensions(RtpHeaderExtensions* ext) const;
+  void GetSupportedVideoSendCodecs(std::vector<VideoCodec>* codecs) const;
+  void GetSupportedVideoReceiveCodecs(std::vector<VideoCodec>* codecs) const;
   void GetSupportedDataCodecs(std::vector<DataCodec>* codecs) const;
+  RtpHeaderExtensions GetDefaultEnabledAudioRtpHeaderExtensions() const;
+  std::vector<webrtc::RtpHeaderExtensionCapability>
+  GetSupportedAudioRtpHeaderExtensions() const;
+  RtpHeaderExtensions GetDefaultEnabledVideoRtpHeaderExtensions() const;
+  std::vector<webrtc::RtpHeaderExtensionCapability>
+  GetSupportedVideoRtpHeaderExtensions() const;
 
   // Indicates whether the media engine is started.
   bool initialized() const { return initialized_; }

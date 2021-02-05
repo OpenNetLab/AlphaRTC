@@ -1,0 +1,35 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+  branches:
+    include:
+    - "*"
+    exclude:
+    - upstream/*
+
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+
+steps:
+- checkout: self
+
+- script: make init
+  displayName: 'build compile environment'
+
+- script: make sync
+  displayName: 'sync dependencies'
+
+- script: make app
+  displayName: 'build application'
+
+- script: make release
+  displayName: 'build release image'
+
+- script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
+            && docker exec alphartc peerconnection_serverless sender.json
+  displayName: 'run example'

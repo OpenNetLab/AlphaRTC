@@ -11,6 +11,7 @@
 #include "modules/desktop_capture/blank_detector_desktop_capturer_wrapper.h"
 
 #include <stdint.h>
+
 #include <utility>
 
 #include "modules/desktop_capture/desktop_geometry.h"
@@ -60,6 +61,10 @@ bool BlankDetectorDesktopCapturerWrapper::SelectSource(SourceId id) {
 
 bool BlankDetectorDesktopCapturerWrapper::FocusOnSelectedSource() {
   return capturer_->FocusOnSelectedSource();
+}
+
+bool BlankDetectorDesktopCapturerWrapper::IsOccluded(const DesktopVector& pos) {
+  return capturer_->IsOccluded(pos);
 }
 
 void BlankDetectorDesktopCapturerWrapper::OnCaptureResult(

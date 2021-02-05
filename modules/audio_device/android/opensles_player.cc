@@ -12,7 +12,8 @@
 
 #include <android/log.h>
 
-#include "absl/memory/memory.h"
+#include <memory>
+
 #include "api/array_view.h"
 #include "modules/audio_device/android/audio_common.h"
 #include "modules/audio_device/android/audio_manager.h"
@@ -192,7 +193,7 @@ void OpenSLESPlayer::AttachAudioBuffer(AudioDeviceBuffer* audioBuffer) {
   ALOGD("SetPlayoutSampleRate(%d)", sample_rate_hz);
   audio_device_buffer_->SetPlayoutSampleRate(sample_rate_hz);
   const size_t channels = audio_parameters_.channels();
-  ALOGD("SetPlayoutChannels(%" PRIuS ")", channels);
+  ALOGD("SetPlayoutChannels(%" RTC_PRIuS ")", channels);
   audio_device_buffer_->SetPlayoutChannels(channels);
   RTC_CHECK(audio_device_buffer_);
   AllocateDataBuffers();
@@ -213,10 +214,10 @@ void OpenSLESPlayer::AllocateDataBuffers() {
   // which reduces jitter.
   const size_t buffer_size_in_samples =
       audio_parameters_.frames_per_buffer() * audio_parameters_.channels();
-  ALOGD("native buffer size: %" PRIuS, buffer_size_in_samples);
+  ALOGD("native buffer size: %" RTC_PRIuS, buffer_size_in_samples);
   ALOGD("native buffer size in ms: %.2f",
         audio_parameters_.GetBufferSizeInMilliseconds());
-  fine_audio_buffer_ = absl::make_unique<FineAudioBuffer>(audio_device_buffer_);
+  fine_audio_buffer_ = std::make_unique<FineAudioBuffer>(audio_device_buffer_);
   // Allocated memory for audio buffers.
   for (int i = 0; i < kNumOfOpenSLESBuffers; ++i) {
     audio_buffers_[i].reset(new SLint16[buffer_size_in_samples]);

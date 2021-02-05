@@ -11,6 +11,7 @@
 #include "call/flexfec_receive_stream_impl.h"
 
 #include <stddef.h>
+
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -86,7 +87,7 @@ std::unique_ptr<FlexfecReceiver> MaybeCreateFlexfecReceiver(
   if (config.payload_type < 0) {
     RTC_LOG(LS_WARNING)
         << "Invalid FlexFEC payload type given. "
-        << "This FlexfecReceiveStream will therefore be useless.";
+           "This FlexfecReceiveStream will therefore be useless.";
     return nullptr;
   }
   RTC_DCHECK_GE(config.payload_type, 0);
@@ -94,13 +95,13 @@ std::unique_ptr<FlexfecReceiver> MaybeCreateFlexfecReceiver(
   if (config.remote_ssrc == 0) {
     RTC_LOG(LS_WARNING)
         << "Invalid FlexFEC SSRC given. "
-        << "This FlexfecReceiveStream will therefore be useless.";
+           "This FlexfecReceiveStream will therefore be useless.";
     return nullptr;
   }
   if (config.protected_media_ssrcs.empty()) {
     RTC_LOG(LS_WARNING)
         << "No protected media SSRC supplied. "
-        << "This FlexfecReceiveStream will therefore be useless.";
+           "This FlexfecReceiveStream will therefore be useless.";
     return nullptr;
   }
 
@@ -121,15 +122,16 @@ std::unique_ptr<FlexfecReceiver> MaybeCreateFlexfecReceiver(
 std::unique_ptr<RtpRtcp> CreateRtpRtcpModule(
     Clock* clock,
     ReceiveStatistics* receive_statistics,
-    Transport* rtcp_send_transport,
+    const FlexfecReceiveStreamImpl::Config& config,
     RtcpRttStats* rtt_stats) {
   RtpRtcp::Configuration configuration;
   configuration.audio = false;
   configuration.receiver_only = true;
   configuration.clock = clock;
   configuration.receive_statistics = receive_statistics;
-  configuration.outgoing_transport = rtcp_send_transport;
+  configuration.outgoing_transport = config.rtcp_send_transport;
   configuration.rtt_stats = rtt_stats;
+  configuration.local_media_ssrc = config.local_ssrc;
   return RtpRtcp::Create(configuration);
 }
 
@@ -149,14 +151,13 @@ FlexfecReceiveStreamImpl::FlexfecReceiveStreamImpl(
       rtp_receive_statistics_(ReceiveStatistics::Create(clock)),
       rtp_rtcp_(CreateRtpRtcpModule(clock,
                                     rtp_receive_statistics_.get(),
-                                    config_.rtcp_send_transport,
+                                    config_,
                                     rtt_stats)),
       process_thread_(process_thread) {
   RTC_LOG(LS_INFO) << "FlexfecReceiveStreamImpl: " << config_.ToString();
 
   // RTCP reporting.
   rtp_rtcp_->SetRTCPStatus(config_.rtcp_mode);
-  rtp_rtcp_->SetSSRC(config_.local_ssrc);
   process_thread_->RegisterModule(rtp_rtcp_.get(), RTC_FROM_HERE);
 
   // Register with transport.

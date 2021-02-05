@@ -17,31 +17,19 @@
 #include <memory>
 
 #include "absl/types/optional.h"
+#include "api/neteq/tick_timer.h"
 #include "modules/audio_coding/neteq/histogram.h"
-#include "modules/audio_coding/neteq/statistics_calculator.h"
-#include "modules/audio_coding/neteq/tick_timer.h"
 #include "rtc_base/constructor_magic.h"
 
 namespace webrtc {
 
-// Forward declaration.
-class DelayPeakDetector;
-
 class DelayManager {
  public:
-  enum HistogramMode {
-    INTER_ARRIVAL_TIME,
-    RELATIVE_ARRIVAL_DELAY,
-  };
-
   DelayManager(size_t max_packets_in_buffer,
                int base_minimum_delay_ms,
                int histogram_quantile,
-               HistogramMode histogram_mode,
                bool enable_rtx_handling,
-               DelayPeakDetector* peak_detector,
                const TickTimer* tick_timer,
-               StatisticsCalculator* statistics,
                std::unique_ptr<Histogram> histogram);
 
   // Create a DelayManager object. Notify the delay manager that the packet
@@ -52,9 +40,7 @@ class DelayManager {
   static std::unique_ptr<DelayManager> Create(size_t max_packets_in_buffer,
                                               int base_minimum_delay_ms,
                                               bool enable_rtx_handling,
-                                              DelayPeakDetector* peak_detector,
-                                              const TickTimer* tick_timer,
-                                              StatisticsCalculator* statistics);
+                                              const TickTimer* tick_timer);
 
   virtual ~DelayManager();
 
@@ -62,16 +48,16 @@ class DelayManager {
   // |sequence_number| and |timestamp| from the RTP header. This updates the
   // inter-arrival time histogram and other statistics, as well as the
   // associated DelayPeakDetector. A new target buffer level is calculated.
-  // Returns 0 on success, -1 on failure (invalid sample rate).
-  virtual int Update(uint16_t sequence_number,
-                     uint32_t timestamp,
-                     int sample_rate_hz);
+  // Returns the relative delay if it can be calculated.
+  virtual absl::optional<int> Update(uint16_t sequence_number,
+                                     uint32_t timestamp,
+                                     int sample_rate_hz);
 
   // Calculates a new target buffer level. Called from the Update() method.
   // Sets target_level_ (in Q8) and returns the same value. Also calculates
   // and updates base_target_level_, which is the target buffer level before
   // taking delay peaks into account.
-  virtual int CalculateTargetLevel(int iat_packets, bool reordered);
+  virtual int CalculateTargetLevel();
 
   // Notifies the DelayManager of how much audio data is carried in each packet.
   // The method updates the DelayPeakDetector too, and resets the inter-arrival
@@ -80,19 +66,6 @@ class DelayManager {
 
   // Resets the DelayManager and the associated DelayPeakDetector.
   virtual void Reset();
-
-  // Calculates the average inter-arrival time deviation from the histogram.
-  // The result is returned as parts-per-million deviation from the nominal
-  // inter-arrival time. That is, if the average inter-arrival time is equal to
-  // the nominal frame time, the return value is zero. A positive value
-  // corresponds to packet spacing being too large, while a negative value means
-  // that the packets arrive with less spacing than expected.
-  virtual double EstimatedClockDriftPpm() const;
-
-  // Returns true if peak-mode is active. That is, delay peaks were observed
-  // recently. This method simply asks for the same information from the
-  // DelayPeakDetector object.
-  virtual bool PeakFound() const;
 
   // Reset the inter-arrival time counter to 0.
   virtual void ResetPacketIatCount();
@@ -132,13 +105,7 @@ class DelayManager {
     return effective_minimum_delay_ms_;
   }
 
-  // This accessor is only intended for testing purposes.
-  absl::optional<int> deceleration_target_level_offset_ms() const {
-    return deceleration_target_level_offset_ms_;
-  }
-
   // These accessors are only intended for testing purposes.
-  HistogramMode histogram_mode() const { return histogram_mode_; }
   int histogram_quantile() const { return histogram_quantile_; }
   Histogram* histogram() const { return histogram_.get(); }
 
@@ -151,7 +118,9 @@ class DelayManager {
   int MaxBufferTimeQ75() const;
 
   // Updates |delay_history_|.
-  void UpdateDelayHistory(int iat_delay);
+  void UpdateDelayHistory(int iat_delay_ms,
+                          uint32_t timestamp,
+                          int sample_rate_hz);
 
   // Calculate relative packet arrival delay from |delay_history_|.
   int CalculateRelativePacketArrivalDelay() const;
@@ -162,8 +131,7 @@ class DelayManager {
   void UpdateEffectiveMinimumDelay();
 
   // Makes sure that |target_level_| is not too large, taking
-  // |max_packets_in_buffer_| and |extra_delay_ms_| into account. This method is
-  // called by Update().
+  // |max_packets_in_buffer_| into account. This method is called by Update().
   void LimitTargetLevel();
 
   // Makes sure that |delay_ms| is less than maximum delay, if any maximum
@@ -177,9 +145,7 @@ class DelayManager {
   const size_t max_packets_in_buffer_;  // Capacity of the packet buffer.
   std::unique_ptr<Histogram> histogram_;
   const int histogram_quantile_;
-  const HistogramMode histogram_mode_;
   const TickTimer* tick_timer_;
-  StatisticsCalculator* statistics_;
   int base_minimum_delay_ms_;
   // Provides delay which is used by LimitTargetLevel as lower bound on target
   // delay.
@@ -191,24 +157,22 @@ class DelayManager {
                            // detection and streaming mode (Q0).
   // TODO(turajs) change the comment according to the implementation of
   // minimum-delay.
-  int target_level_;   // Currently preferred buffer level in (fractions)
-                       // of packets (Q8), before adding any extra delay.
-  int packet_len_ms_;  // Length of audio in each incoming packet [ms].
-  uint16_t last_seq_no_;         // Sequence number for last received packet.
-  uint32_t last_timestamp_;      // Timestamp for the last received packet.
-  int minimum_delay_ms_;         // Externally set minimum delay.
-  int maximum_delay_ms_;         // Externally set maximum allowed delay.
-  DelayPeakDetector& peak_detector_;
+  int target_level_;         // Currently preferred buffer level in (fractions)
+                             // of packets (Q8), before adding any extra delay.
+  int packet_len_ms_;        // Length of audio in each incoming packet [ms].
+  uint16_t last_seq_no_;     // Sequence number for last received packet.
+  uint32_t last_timestamp_;  // Timestamp for the last received packet.
+  int minimum_delay_ms_;     // Externally set minimum delay.
+  int maximum_delay_ms_;     // Externally set maximum allowed delay.
   int last_pack_cng_or_dtmf_;
-  const bool frame_length_change_experiment_;
   const bool enable_rtx_handling_;
   int num_reordered_packets_ = 0;  // Number of consecutive reordered packets.
-  std::deque<int> delay_history_;
-  // When current buffer level is more than
-  // |deceleration_target_level_offset_ms_| below the target level, NetEq will
-  // impose deceleration to increase the buffer level. The value is in Q8, and
-  // measured in milliseconds.
-  const absl::optional<int> deceleration_target_level_offset_ms_;
+
+  struct PacketDelay {
+    int iat_delay_ms;
+    uint32_t timestamp;
+  };
+  std::deque<PacketDelay> delay_history_;
 
   RTC_DISALLOW_COPY_AND_ASSIGN(DelayManager);
 };

@@ -25,12 +25,8 @@ config("audio_device_warnings_config") {
 
 rtc_source_set("audio_device_default") {
   visibility = [ "*" ]
-  sources = [
-    "include/audio_device_default.h",
-  ]
-  deps = [
-    ":audio_device_api",
-  ]
+  sources = [ "include/audio_device_default.h" ]
+  deps = [ ":audio_device_api" ]
 }
 
 rtc_source_set("audio_device") {
@@ -61,7 +57,7 @@ rtc_source_set("audio_device_api") {
   ]
 }
 
-rtc_source_set("audio_device_buffer") {
+rtc_library("audio_device_buffer") {
   sources = [
     "audio_device_buffer.cc",
     "audio_device_buffer.h",
@@ -82,7 +78,7 @@ rtc_source_set("audio_device_buffer") {
   ]
 }
 
-rtc_source_set("audio_device_generic") {
+rtc_library("audio_device_generic") {
   sources = [
     "audio_device_generic.cc",
     "audio_device_generic.h",
@@ -94,7 +90,7 @@ rtc_source_set("audio_device_generic") {
   ]
 }
 
-rtc_source_set("audio_device_name") {
+rtc_library("audio_device_name") {
   sources = [
     "audio_device_name.cc",
     "audio_device_name.h",
@@ -148,7 +144,6 @@ rtc_source_set("audio_device_module_from_input_and_output") {
       "../../api/task_queue",
       "../../rtc_base:checks",
       "../../rtc_base:rtc_base_approved",
-      "//third_party/abseil-cpp/absl/memory",
       "//third_party/abseil-cpp/absl/types:optional",
     ]
   }
@@ -156,7 +151,7 @@ rtc_source_set("audio_device_module_from_input_and_output") {
 
 # Contains default implementations of webrtc::AudioDeviceModule for Windows,
 # Linux, Mac, iOS and Android.
-rtc_source_set("audio_device_impl") {
+rtc_library("audio_device_impl") {
   visibility = [ "*" ]
   deps = [
     ":audio_device_api",
@@ -178,9 +173,9 @@ rtc_source_set("audio_device_impl") {
     "../../rtc_base/system:file_wrapper",
     "../../rtc_base/task_utils:repeating_task",
     "../../system_wrappers",
+    "../../system_wrappers:field_trial",
     "../../system_wrappers:metrics",
     "../utility",
-    "//third_party/abseil-cpp/absl/memory",
   ]
   if (rtc_include_internal_audio_device && is_ios) {
     deps += [ "../../sdk:audio_device" ]
@@ -275,23 +270,23 @@ rtc_source_set("audio_device_impl") {
           "linux/latebindingsymboltable_linux.cc",
           "linux/latebindingsymboltable_linux.h",
         ]
-        defines += [ "LINUX_ALSA" ]
+        defines += [ "WEBRTC_ENABLE_LINUX_ALSA" ]
         libs = [ "dl" ]
         if (rtc_use_x11) {
           libs += [ "X11" ]
           defines += [ "WEBRTC_USE_X11" ]
         }
         if (rtc_include_pulse_audio) {
-          sources += [
-            "linux/audio_device_pulse_linux.cc",
-            "linux/audio_device_pulse_linux.h",
-            "linux/audio_mixer_manager_pulse_linux.cc",
-            "linux/audio_mixer_manager_pulse_linux.h",
-            "linux/pulseaudiosymboltable_linux.cc",
-            "linux/pulseaudiosymboltable_linux.h",
-          ]
-          defines += [ "LINUX_PULSE" ]
+          defines += [ "WEBRTC_ENABLE_LINUX_PULSE" ]
         }
+        sources += [
+          "linux/audio_device_pulse_linux.cc",
+          "linux/audio_device_pulse_linux.h",
+          "linux/audio_mixer_manager_pulse_linux.cc",
+          "linux/audio_mixer_manager_pulse_linux.h",
+          "linux/pulseaudiosymboltable_linux.cc",
+          "linux/pulseaudiosymboltable_linux.h",
+        ]
       }
       if (is_mac) {
         sources += [
@@ -300,16 +295,9 @@ rtc_source_set("audio_device_impl") {
           "mac/audio_mixer_manager_mac.cc",
           "mac/audio_mixer_manager_mac.h",
         ]
-        deps += [ "../third_party/portaudio:mac_portaudio" ]
-        libs = [
-          # Needed for CoreGraphics:
-          "ApplicationServices.framework",
-
-          "AudioToolbox.framework",
-          "CoreAudio.framework",
-
-          # Needed for CGEventSourceKeyState in audio_device_mac.cc:
-          "CoreGraphics.framework",
+        deps += [
+          ":audio_device_impl_frameworks",
+          "../third_party/portaudio:mac_portaudio",
         ]
       }
       if (is_win) {
@@ -340,6 +328,22 @@ rtc_source_set("audio_device_impl") {
   }
 }
 
+if (is_mac) {
+  rtc_source_set("audio_device_impl_frameworks") {
+    visibility = [ ":*" ]
+    libs = [
+      # Needed for CoreGraphics:
+      "ApplicationServices.framework",
+
+      "AudioToolbox.framework",
+      "CoreAudio.framework",
+
+      # Needed for CGEventSourceKeyState in audio_device_mac.cc:
+      "CoreGraphics.framework",
+    ]
+  }
+}
+
 rtc_source_set("mock_audio_device") {
   testonly = true
   sources = [
@@ -351,12 +355,13 @@ rtc_source_set("mock_audio_device") {
     ":audio_device",
     ":audio_device_buffer",
     ":audio_device_impl",
+    "../../rtc_base:refcount",
     "../../test:test_support",
   ]
 }
 
 if (rtc_include_tests) {
-  rtc_source_set("audio_device_unittests") {
+  rtc_library("audio_device_unittests") {
     testonly = true
 
     sources = [
@@ -374,6 +379,7 @@ if (rtc_include_tests) {
       "../../api/task_queue:default_task_queue_factory",
       "../../common_audio",
       "../../rtc_base:checks",
+      "../../rtc_base:ignore_wundef",
       "../../rtc_base:rtc_base_approved",
       "../../system_wrappers",
       "../../test:fileutils",
@@ -383,7 +389,6 @@ if (rtc_include_tests) {
     ]
     if (is_linux || is_mac || is_win) {
       sources += [ "audio_device_unittest.cc" ]
-      deps += [ "//third_party/abseil-cpp/absl/memory" ]
     }
     if (is_win) {
       sources += [ "win/core_audio_utility_win_unittest.cc" ]
@@ -417,7 +422,7 @@ if (rtc_include_tests) {
 
 if (!build_with_chromium && is_android) {
   rtc_android_library("audio_device_java") {
-    java_files = [
+    sources = [
       "android/java/src/org/webrtc/voiceengine/BuildInfo.java",
       "android/java/src/org/webrtc/voiceengine/WebRtcAudioEffects.java",
       "android/java/src/org/webrtc/voiceengine/WebRtcAudioManager.java",

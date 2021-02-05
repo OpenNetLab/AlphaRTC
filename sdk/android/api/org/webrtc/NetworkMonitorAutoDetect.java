@@ -50,6 +50,7 @@ public class NetworkMonitorAutoDetect extends BroadcastReceiver {
     CONNECTION_UNKNOWN,
     CONNECTION_ETHERNET,
     CONNECTION_WIFI,
+    CONNECTION_5G,
     CONNECTION_4G,
     CONNECTION_3G,
     CONNECTION_2G,
@@ -540,6 +541,16 @@ public class NetworkMonitorAutoDetect extends BroadcastReceiver {
       intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
       intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
       context.registerReceiver(this, intentFilter);
+      if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+        // Starting with Android Q (10), WIFI_P2P_CONNECTION_CHANGED_ACTION is no longer sticky.
+        // This means we have to explicitly request WifiP2pGroup info during initialization in order
+        // to get this data if we are already connected to a Wi-Fi Direct network.
+        WifiP2pManager manager =
+            (WifiP2pManager) context.getSystemService(Context.WIFI_P2P_SERVICE);
+        WifiP2pManager.Channel channel =
+            manager.initialize(context, context.getMainLooper(), null /* listener */);
+        manager.requestGroupInfo(channel, wifiP2pGroup -> { onWifiP2pGroupChange(wifiP2pGroup); });
+      }
     }
 
     // BroadcastReceiver
@@ -788,6 +799,7 @@ public class NetworkMonitorAutoDetect extends BroadcastReceiver {
           case TelephonyManager.NETWORK_TYPE_CDMA:
           case TelephonyManager.NETWORK_TYPE_1xRTT:
           case TelephonyManager.NETWORK_TYPE_IDEN:
+          case TelephonyManager.NETWORK_TYPE_GSM:
             return ConnectionType.CONNECTION_2G;
           case TelephonyManager.NETWORK_TYPE_UMTS:
           case TelephonyManager.NETWORK_TYPE_EVDO_0:
@@ -798,9 +810,13 @@ public class NetworkMonitorAutoDetect extends BroadcastReceiver {
           case TelephonyManager.NETWORK_TYPE_EVDO_B:
           case TelephonyManager.NETWORK_TYPE_EHRPD:
           case TelephonyManager.NETWORK_TYPE_HSPAP:
+          case TelephonyManager.NETWORK_TYPE_TD_SCDMA:
             return ConnectionType.CONNECTION_3G;
           case TelephonyManager.NETWORK_TYPE_LTE:
+          case TelephonyManager.NETWORK_TYPE_IWLAN:
             return ConnectionType.CONNECTION_4G;
+          case TelephonyManager.NETWORK_TYPE_NR:
+            return ConnectionType.CONNECTION_5G;
           default:
             return ConnectionType.CONNECTION_UNKNOWN_CELLULAR;
         }

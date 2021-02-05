@@ -18,6 +18,7 @@
 #include "rtc_base/ssl_certificate.h"
 #include "rtc_base/ssl_identity.h"
 #include "rtc_base/ssl_stream_adapter.h"
+#include "rtc_base/system/rtc_export.h"
 
 namespace rtc {
 
@@ -68,7 +69,8 @@ class SSLAdapter : public AsyncSocketAdapter {
   virtual void SetCertVerifier(SSLCertificateVerifier* ssl_cert_verifier) = 0;
 
   // Set the certificate this socket will present to incoming clients.
-  virtual void SetIdentity(SSLIdentity* identity) = 0;
+  // Takes ownership of |identity|.
+  virtual void SetIdentity(std::unique_ptr<SSLIdentity> identity) = 0;
 
   // Choose whether the socket acts as a server socket or client socket.
   virtual void SetRole(SSLRole role) = 0;
@@ -76,8 +78,7 @@ class SSLAdapter : public AsyncSocketAdapter {
   // StartSSL returns 0 if successful.
   // If StartSSL is called while the socket is closed or connecting, the SSL
   // negotiation will begin as soon as the socket connects.
-  // TODO(juberti): Remove |restartable|.
-  virtual int StartSSL(const char* hostname, bool restartable = false) = 0;
+  virtual int StartSSL(const char* hostname) = 0;
 
   // When an SSLAdapterFactory is used, an SSLAdapter may be used to resume
   // a previous SSL session, which results in an abbreviated handshake.
@@ -96,10 +97,10 @@ class SSLAdapter : public AsyncSocketAdapter {
 
 // Call this on the main thread, before using SSL.
 // Call CleanupSSL when finished with SSL.
-bool InitializeSSL();
+RTC_EXPORT bool InitializeSSL();
 
 // Call to cleanup additional threads, and also the main thread.
-bool CleanupSSL();
+RTC_EXPORT bool CleanupSSL();
 
 }  // namespace rtc
 

@@ -8,11 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "pc/data_channel.h"
+
 #include <string.h>
+
 #include <memory>
 #include <vector>
 
-#include "pc/data_channel.h"
 #include "pc/sctp_utils.h"
 #include "pc/test/fake_data_channel_provider.h"
 #include "rtc_base/gunit.h"
@@ -150,6 +152,7 @@ TEST_F(SctpDataChannelTest, StateTransition) {
   webrtc_data_channel_->Close();
   EXPECT_EQ(webrtc::DataChannelInterface::kClosed,
             webrtc_data_channel_->state());
+  EXPECT_TRUE(webrtc_data_channel_->error().ok());
   EXPECT_EQ(state_signals_listener.opened_count(), 1);
   EXPECT_EQ(state_signals_listener.closed_count(), 1);
   // Verifies that it's disconnected from the transport.
@@ -232,8 +235,10 @@ TEST_F(SctpDataChannelTest, VerifyMessagesAndBytesSent) {
   AddObserver();
   SetChannelReady();
   std::vector<webrtc::DataBuffer> buffers({
-      webrtc::DataBuffer("message 1"), webrtc::DataBuffer("msg 2"),
-      webrtc::DataBuffer("message three"), webrtc::DataBuffer("quadra message"),
+      webrtc::DataBuffer("message 1"),
+      webrtc::DataBuffer("msg 2"),
+      webrtc::DataBuffer("message three"),
+      webrtc::DataBuffer("quadra message"),
       webrtc::DataBuffer("fifthmsg"),
       webrtc::DataBuffer("message of the beast"),
   });
@@ -391,6 +396,7 @@ TEST_F(SctpDataChannelTest, QueuedCloseFlushes) {
   provider_->set_send_blocked(false);
   EXPECT_EQ_WAIT(webrtc::DataChannelInterface::kClosed,
                  webrtc_data_channel_->state(), 1000);
+  EXPECT_TRUE(webrtc_data_channel_->error().ok());
   EXPECT_EQ(cricket::DMT_TEXT, provider_->last_send_data_params().type);
 }
 
@@ -454,8 +460,10 @@ TEST_F(SctpDataChannelTest, NoMsgSentIfNegotiatedAndNotFromOpenMsg) {
 TEST_F(SctpDataChannelTest, VerifyMessagesAndBytesReceived) {
   AddObserver();
   std::vector<webrtc::DataBuffer> buffers({
-      webrtc::DataBuffer("message 1"), webrtc::DataBuffer("msg 2"),
-      webrtc::DataBuffer("message three"), webrtc::DataBuffer("quadra message"),
+      webrtc::DataBuffer("message 1"),
+      webrtc::DataBuffer("msg 2"),
+      webrtc::DataBuffer("message three"),
+      webrtc::DataBuffer("quadra message"),
       webrtc::DataBuffer("fifthmsg"),
       webrtc::DataBuffer("message of the beast"),
   });
@@ -554,6 +562,11 @@ TEST_F(SctpDataChannelTest, ClosedOnTransportError) {
 
   EXPECT_EQ(webrtc::DataChannelInterface::kClosed,
             webrtc_data_channel_->state());
+  EXPECT_FALSE(webrtc_data_channel_->error().ok());
+  EXPECT_EQ(webrtc::RTCErrorType::NETWORK_ERROR,
+            webrtc_data_channel_->error().type());
+  EXPECT_EQ(webrtc::RTCErrorDetailType::NONE,
+            webrtc_data_channel_->error().error_detail());
 }
 
 // Tests that the DataChannel is closed if the received buffer is full.
@@ -571,6 +584,11 @@ TEST_F(SctpDataChannelTest, ClosedWhenReceivedBufferFull) {
   }
   EXPECT_EQ(webrtc::DataChannelInterface::kClosed,
             webrtc_data_channel_->state());
+  EXPECT_FALSE(webrtc_data_channel_->error().ok());
+  EXPECT_EQ(webrtc::RTCErrorType::RESOURCE_EXHAUSTED,
+            webrtc_data_channel_->error().type());
+  EXPECT_EQ(webrtc::RTCErrorDetailType::NONE,
+            webrtc_data_channel_->error().error_detail());
 }
 
 // Tests that sending empty data returns no error and keeps the channel open.
@@ -604,13 +622,18 @@ TEST_F(SctpDataChannelTest, TransportDestroyedWhileDataBuffered) {
   provider_->set_send_blocked(true);
   EXPECT_TRUE(webrtc_data_channel_->Send(packet));
 
-  // Tell the data channel that its tranpsort is being destroyed.
+  // Tell the data channel that its transport is being destroyed.
   // It should then stop using the transport (allowing us to delete it) and
   // transition to the "closed" state.
-  webrtc_data_channel_->OnTransportChannelDestroyed();
+  webrtc_data_channel_->OnTransportChannelClosed();
   provider_.reset(nullptr);
   EXPECT_EQ_WAIT(webrtc::DataChannelInterface::kClosed,
                  webrtc_data_channel_->state(), kDefaultTimeout);
+  EXPECT_FALSE(webrtc_data_channel_->error().ok());
+  EXPECT_EQ(webrtc::RTCErrorType::NETWORK_ERROR,
+            webrtc_data_channel_->error().type());
+  EXPECT_EQ(webrtc::RTCErrorDetailType::NONE,
+            webrtc_data_channel_->error().error_detail());
 }
 
 class SctpSidAllocatorTest : public ::testing::Test {

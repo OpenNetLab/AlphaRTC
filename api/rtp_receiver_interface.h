@@ -19,77 +19,18 @@
 
 #include "api/crypto/frame_decryptor_interface.h"
 #include "api/dtls_transport_interface.h"
+#include "api/frame_transformer_interface.h"
 #include "api/media_stream_interface.h"
 #include "api/media_types.h"
 #include "api/proxy.h"
 #include "api/rtp_parameters.h"
 #include "api/scoped_refptr.h"
+#include "api/transport/rtp/rtp_source.h"
 #include "rtc_base/deprecation.h"
 #include "rtc_base/ref_count.h"
+#include "rtc_base/system/rtc_export.h"
 
 namespace webrtc {
-
-enum class RtpSourceType {
-  SSRC,
-  CSRC,
-};
-
-class RtpSource {
- public:
-  RtpSource() = delete;
-
-  RtpSource(int64_t timestamp_ms,
-            uint32_t source_id,
-            RtpSourceType source_type,
-            absl::optional<uint8_t> audio_level,
-            uint32_t rtp_timestamp);
-
-  // DEPRECATED: Will be removed after 2019-07-31.
-  RTC_DEPRECATED RtpSource(int64_t timestamp_ms,
-                           uint32_t source_id,
-                           RtpSourceType source_type);
-  // DEPRECATED: Will be removed after 2019-07-31.
-  RTC_DEPRECATED RtpSource(int64_t timestamp_ms,
-                           uint32_t source_id,
-                           RtpSourceType source_type,
-                           uint8_t audio_level);
-
-  RtpSource(const RtpSource&);
-  RtpSource& operator=(const RtpSource&);
-  ~RtpSource();
-
-  int64_t timestamp_ms() const { return timestamp_ms_; }
-  void update_timestamp_ms(int64_t timestamp_ms) {
-    RTC_DCHECK_LE(timestamp_ms_, timestamp_ms);
-    timestamp_ms_ = timestamp_ms;
-  }
-
-  // The identifier of the source can be the CSRC or the SSRC.
-  uint32_t source_id() const { return source_id_; }
-
-  // The source can be either a contributing source or a synchronization source.
-  RtpSourceType source_type() const { return source_type_; }
-
-  absl::optional<uint8_t> audio_level() const { return audio_level_; }
-  void set_audio_level(const absl::optional<uint8_t>& level) {
-    audio_level_ = level;
-  }
-
-  uint32_t rtp_timestamp() const { return rtp_timestamp_; }
-
-  bool operator==(const RtpSource& o) const {
-    return timestamp_ms_ == o.timestamp_ms() && source_id_ == o.source_id() &&
-           source_type_ == o.source_type() && audio_level_ == o.audio_level_ &&
-           rtp_timestamp_ == o.rtp_timestamp();
-  }
-
- private:
-  int64_t timestamp_ms_;
-  uint32_t source_id_;
-  RtpSourceType source_type_;
-  absl::optional<uint8_t> audio_level_;
-  uint32_t rtp_timestamp_;
-};
 
 class RtpReceiverObserverInterface {
  public:
@@ -105,7 +46,7 @@ class RtpReceiverObserverInterface {
   virtual ~RtpReceiverObserverInterface() {}
 };
 
-class RtpReceiverInterface : public rtc::RefCountInterface {
+class RTC_EXPORT RtpReceiverInterface : public rtc::RefCountInterface {
  public:
   virtual rtc::scoped_refptr<MediaStreamTrackInterface> track() const = 0;
 
@@ -136,8 +77,9 @@ class RtpReceiverInterface : public rtc::RefCountInterface {
   // but this API also applies them to receivers, similar to ORTC:
   // http://ortc.org/wp-content/uploads/2016/03/ortc.html#rtcrtpparameters*.
   virtual RtpParameters GetParameters() const = 0;
-  // Currently, doesn't support changing any parameters, but may in the future.
-  virtual bool SetParameters(const RtpParameters& parameters) = 0;
+  // TODO(dinosaurav): Delete SetParameters entirely after rolling to Chromium.
+  // Currently, doesn't support changing any parameters.
+  virtual bool SetParameters(const RtpParameters& parameters) { return false; }
 
   // Does not take ownership of observer.
   // Must call SetObserver(nullptr) before the observer is destroyed.
@@ -166,6 +108,12 @@ class RtpReceiverInterface : public rtc::RefCountInterface {
   // user. This can be used to update the state of the object.
   virtual rtc::scoped_refptr<FrameDecryptorInterface> GetFrameDecryptor() const;
 
+  // Sets a frame transformer between the depacketizer and the decoder to enable
+  // client code to transform received frames according to their own processing
+  // logic.
+  virtual void SetDepacketizerToDecoderFrameTransformer(
+      rtc::scoped_refptr<FrameTransformerInterface> frame_transformer);
+
  protected:
   ~RtpReceiverInterface() override = default;
 };
@@ -183,7 +131,6 @@ PROXY_CONSTMETHOD0(std::vector<rtc::scoped_refptr<MediaStreamInterface>>,
 PROXY_CONSTMETHOD0(cricket::MediaType, media_type)
 PROXY_CONSTMETHOD0(std::string, id)
 PROXY_CONSTMETHOD0(RtpParameters, GetParameters)
-PROXY_METHOD1(bool, SetParameters, const RtpParameters&)
 PROXY_METHOD1(void, SetObserver, RtpReceiverObserverInterface*)
 PROXY_METHOD1(void, SetJitterBufferMinimumDelay, absl::optional<double>)
 PROXY_CONSTMETHOD0(std::vector<RtpSource>, GetSources)
@@ -192,6 +139,9 @@ PROXY_METHOD1(void,
               rtc::scoped_refptr<FrameDecryptorInterface>)
 PROXY_CONSTMETHOD0(rtc::scoped_refptr<FrameDecryptorInterface>,
                    GetFrameDecryptor)
+PROXY_METHOD1(void,
+              SetDepacketizerToDecoderFrameTransformer,
+              rtc::scoped_refptr<FrameTransformerInterface>)
 END_PROXY_MAP()
 
 }  // namespace webrtc

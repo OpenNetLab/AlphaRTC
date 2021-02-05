@@ -10,6 +10,7 @@
 
 #include "modules/congestion_controller/include/receive_side_congestion_controller.h"
 
+#include "api/alphacc_config.h"
 #include "modules/pacing/packet_router.h"
 #include "modules/remote_bitrate_estimator/include/bwe_defines.h"
 #include "modules/remote_bitrate_estimator/remote_bitrate_estimator_abs_send_time.h"
@@ -99,7 +100,7 @@ void ReceiveSideCongestionController::WrappingBitrateEstimator::
       if (packets_since_absolute_send_time_ >= kTimeOffsetSwitchThreshold) {
         RTC_LOG(LS_INFO)
             << "WrappingBitrateEstimator: Switching to transmission "
-            << "time offset RBE.";
+               "time offset RBE.";
         using_absolute_send_time_ = false;
         PickEstimator();
       }
@@ -121,18 +122,24 @@ void ReceiveSideCongestionController::WrappingBitrateEstimator::
 ReceiveSideCongestionController::ReceiveSideCongestionController(
     Clock* clock,
     PacketRouter* packet_router)
+    : ReceiveSideCongestionController(clock, packet_router, nullptr) {}
+
+ReceiveSideCongestionController::ReceiveSideCongestionController(
+    Clock* clock,
+    PacketRouter* packet_router,
+    NetworkStateEstimator* network_state_estimator)
     : remote_bitrate_estimator_(packet_router, clock),
-      remote_estimator_proxy_(clock, packet_router, &field_trial_config_) {}
+      remote_estimator_proxy_(clock,
+                              packet_router,
+                              &field_trial_config_,
+                              network_state_estimator) {}
 
 void ReceiveSideCongestionController::OnReceivedPacket(
     int64_t arrival_time_ms,
     size_t payload_size,
     const RTPHeader& header) {
-  // Send-side BWE.
-  if (header.extension.hasTransportSequenceNumber) {
-    remote_estimator_proxy_.IncomingPacket(arrival_time_ms, payload_size,
-                                           header);
-  } else {
+  remote_estimator_proxy_.IncomingPacket(arrival_time_ms, payload_size, header);
+  if (!header.extension.hasTransportSequenceNumber) {
     // Receive-side BWE.
     remote_bitrate_estimator_.IncomingPacket(arrival_time_ms, payload_size,
                                              header);

@@ -17,17 +17,15 @@
 #include <vector>
 
 #include "api/audio_codecs/audio_encoder_factory.h"
-#include "api/rtp_receiver_interface.h"
 #include "api/scoped_refptr.h"
 #include "api/task_queue/task_queue_factory.h"
+#include "api/transport/rtp/rtp_source.h"
 #include "call/audio_state.h"
 #include "call/call.h"
 #include "media/base/media_engine.h"
 #include "media/base/rtp_utils.h"
-#include "media/engine/apm_helpers.h"
 #include "rtc_base/buffer.h"
 #include "rtc_base/constructor_magic.h"
-#include "rtc_base/experiments/audio_allocation_settings.h"
 #include "rtc_base/network_route.h"
 #include "rtc_base/task_queue.h"
 #include "rtc_base/thread_checker.h"
@@ -66,7 +64,8 @@ class WebRtcVoiceEngine final : public VoiceEngineInterface {
 
   const std::vector<AudioCodec>& send_codecs() const override;
   const std::vector<AudioCodec>& recv_codecs() const override;
-  RtpCapabilities GetCapabilities() const override;
+  std::vector<webrtc::RtpHeaderExtensionCapability> GetRtpHeaderExtensions()
+      const override;
 
   // For tracking WebRtc channels. Needed because we have to pause them
   // all when switching devices.
@@ -104,8 +103,6 @@ class WebRtcVoiceEngine final : public VoiceEngineInterface {
   rtc::ThreadChecker signal_thread_checker_;
   rtc::ThreadChecker worker_thread_checker_;
 
-  const webrtc::AudioAllocationSettings allocation_settings_;
-
   // The audio device module.
   rtc::scoped_refptr<webrtc::AudioDeviceModule> adm_;
   rtc::scoped_refptr<webrtc::AudioEncoderFactory> encoder_factory_;
@@ -121,12 +118,9 @@ class WebRtcVoiceEngine final : public VoiceEngineInterface {
   bool is_dumping_aec_ = false;
   bool initialized_ = false;
 
-  // Cache received extended_filter_aec, delay_agnostic_aec and experimental_ns
-  // values, and apply them in case they are missing in the audio options.
-  // We need to do this because SetExtraOptions() will revert to defaults for
-  // options which are not provided.
-  absl::optional<bool> extended_filter_aec_;
-  absl::optional<bool> delay_agnostic_aec_;
+  // Cache experimental_ns and apply in case they are missing in the audio
+  // options. We need to do this because SetExtraOptions() will revert to
+  // defaults for options which are not provided.
   absl::optional<bool> experimental_ns_;
   // Jitter buffer settings for new streams.
   size_t audio_jitter_buffer_max_packets_ = 200;
@@ -158,9 +152,7 @@ class WebRtcVoiceMediaChannel final : public VoiceMediaChannel,
       uint32_t ssrc,
       const webrtc::RtpParameters& parameters) override;
   webrtc::RtpParameters GetRtpReceiveParameters(uint32_t ssrc) const override;
-  bool SetRtpReceiveParameters(
-      uint32_t ssrc,
-      const webrtc::RtpParameters& parameters) override;
+  webrtc::RtpParameters GetDefaultRtpReceiveParameters() const override;
 
   void SetPlayout(bool playout) override;
   void SetSend(bool send) override;
@@ -172,6 +164,7 @@ class WebRtcVoiceMediaChannel final : public VoiceMediaChannel,
   bool RemoveSendStream(uint32_t ssrc) override;
   bool AddRecvStream(const StreamParams& sp) override;
   bool RemoveRecvStream(uint32_t ssrc) override;
+  void ResetUnsignaledRecvStream() override;
 
   // E2EE Frame API
   // Set a frame decryptor to a particular ssrc that will intercept all
@@ -187,8 +180,9 @@ class WebRtcVoiceMediaChannel final : public VoiceMediaChannel,
                          rtc::scoped_refptr<webrtc::FrameEncryptorInterface>
                              frame_encryptor) override;
 
-  // SSRC=0 will apply the new volume to current and future unsignaled streams.
   bool SetOutputVolume(uint32_t ssrc, double volume) override;
+  // Applies the new volume to current and future unsignaled streams.
+  bool SetDefaultOutputVolume(double volume) override;
 
   bool SetBaseMinimumPlayoutDelayMs(uint32_t ssrc, int delay_ms) override;
   absl::optional<int> GetBaseMinimumPlayoutDelayMs(
@@ -199,20 +193,32 @@ class WebRtcVoiceMediaChannel final : public VoiceMediaChannel,
 
   void OnPacketReceived(rtc::CopyOnWriteBuffer packet,
                         int64_t packet_time_us) override;
-  void OnRtcpReceived(rtc::CopyOnWriteBuffer packet,
-                      int64_t packet_time_us) override;
   void OnNetworkRouteChanged(const std::string& transport_name,
                              const rtc::NetworkRoute& network_route) override;
   void OnReadyToSend(bool ready) override;
   bool GetStats(VoiceMediaInfo* info) override;
 
-  // SSRC=0 will set the audio sink on the latest unsignaled stream, future or
-  // current. Only one stream at a time will use the sink.
+  // Set the audio sink for an existing stream.
   void SetRawAudioSink(
       uint32_t ssrc,
       std::unique_ptr<webrtc::AudioSinkInterface> sink) override;
+  // Will set the audio sink on the latest unsignaled stream, future or
+  // current. Only one stream at a time will use the sink.
+  void SetDefaultRawAudioSink(
+      std::unique_ptr<webrtc::AudioSinkInterface> sink) override;
 
   std::vector<webrtc::RtpSource> GetSources(uint32_t ssrc) const override;
+
+  // Sets a frame transformer between encoder and packetizer, to transform
+  // encoded frames before sending them out the network.
+  void SetEncoderToPacketizerFrameTransformer(
+      uint32_t ssrc,
+      rtc::scoped_refptr<webrtc::FrameTransformerInterface> frame_transformer)
+      override;
+  void SetDepacketizerToDecoderFrameTransformer(
+      uint32_t ssrc,
+      rtc::scoped_refptr<webrtc::FrameTransformerInterface> frame_transformer)
+      override;
 
   // implements Transport interface
   bool SendRtp(const uint8_t* data,

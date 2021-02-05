@@ -12,6 +12,7 @@
 
 #include <errno.h>
 #include <stdio.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <memory>
@@ -1189,7 +1190,7 @@ void PseudoTcp::disableWindowScale() {
 }
 
 void PseudoTcp::queueConnectMessage() {
-  rtc::ByteBufferWriter buf(rtc::ByteBuffer::ORDER_NETWORK);
+  rtc::ByteBufferWriter buf;
 
   buf.WriteUInt8(CTL_CONNECT);
   if (m_support_wnd_scale) {

@@ -8,7 +8,7 @@
 
 import("../../webrtc.gni")
 
-rtc_static_library("remote_bitrate_estimator") {
+rtc_library("remote_bitrate_estimator") {
   visibility = [ "*" ]
   sources = [
     "aimd_rate_control.cc",
@@ -49,7 +49,8 @@ rtc_static_library("remote_bitrate_estimator") {
     "../../api/units:timestamp",
     "../../modules:module_api",
     "../../modules:module_api_public",
-    "../../modules/congestion_controller/goog_cc:link_capacity_estimator",
+    # Revision for enabling AlphaCC and disabling GCC
+    "../../modules/congestion_controller/alpha_cc:link_capacity_estimator",    
     "../../modules/rtp_rtcp:rtp_rtcp_format",
     "../../rtc_base:checks",
     "../../rtc_base:rtc_base_approved",
@@ -59,12 +60,18 @@ rtc_static_library("remote_bitrate_estimator") {
     "../../system_wrappers",
     "../../system_wrappers:field_trial",
     "../../system_wrappers:metrics",
+    "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/types:optional",
+    "//modules/third_party/statcollect:stat_collect"
   ]
+
+  if (is_linux) {
+    deps += [ "//modules/third_party/onnxinfer:onnxinfer" ]
+  }
 }
 
 if (!build_with_chromium) {
-  rtc_source_set("bwe_rtp") {
+  rtc_library("bwe_rtp") {
     testonly = true
     sources = [
       "tools/bwe_rtp.cc",
@@ -75,12 +82,26 @@ if (!build_with_chromium) {
       "../../rtc_base:rtc_base_approved",
       "../../test:rtp_test_utils",
       "../rtp_rtcp",
+      "//third_party/abseil-cpp/absl/flags:flag",
+      "//third_party/abseil-cpp/absl/flags:parse",
+    ]
+  }
+
+  rtc_executable("rtp_to_text") {
+    testonly = true
+    sources = [ "tools/rtp_to_text.cc" ]
+    deps = [
+      ":bwe_rtp",
+      "../../modules/rtp_rtcp",
+      "../../rtc_base:macromagic",
+      "../../rtc_base:stringutils",
+      "../../test:rtp_test_utils",
     ]
   }
 }
 
 if (rtc_include_tests) {
-  rtc_source_set("remote_bitrate_estimator_unittests") {
+  rtc_library("remote_bitrate_estimator_unittests") {
     testonly = true
 
     sources = [
@@ -98,6 +119,8 @@ if (rtc_include_tests) {
       "..:module_api_public",
       "../..:webrtc_common",
       "../../api/transport:field_trial_based_config",
+      "../../api/transport:mock_network_control",
+      "../../api/transport:network_control",
       "../../rtc_base",
       "../../rtc_base:checks",
       "../../rtc_base:rtc_base_approved",

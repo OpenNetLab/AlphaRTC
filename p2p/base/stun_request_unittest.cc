@@ -8,9 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "p2p/base/stun_request.h"
+
 #include <vector>
 
-#include "p2p/base/stun_request.h"
 #include "rtc_base/fake_clock.h"
 #include "rtc_base/gunit.h"
 #include "rtc_base/logging.h"
@@ -192,6 +193,24 @@ TEST_F(StunRequestTest, TestNoEmptyRequest) {
 
   EXPECT_TRUE(response_ == res);
   EXPECT_TRUE(success_);
+  EXPECT_FALSE(failure_);
+  EXPECT_FALSE(timeout_);
+  delete res;
+}
+
+// If the response contains an attribute in the "comprehension required" range
+// which is not recognized, the transaction should be considered a failure and
+// the response should be ignored.
+TEST_F(StunRequestTest, TestUnrecognizedComprehensionRequiredAttribute) {
+  StunMessage* req = CreateStunMessage(STUN_BINDING_REQUEST, NULL);
+
+  manager_.Send(new StunRequestThunker(req, this));
+  StunMessage* res = CreateStunMessage(STUN_BINDING_ERROR_RESPONSE, req);
+  res->AddAttribute(StunAttribute::CreateUInt32(0x7777));
+  EXPECT_FALSE(manager_.CheckResponse(res));
+
+  EXPECT_EQ(nullptr, response_);
+  EXPECT_FALSE(success_);
   EXPECT_FALSE(failure_);
   EXPECT_FALSE(timeout_);
   delete res;

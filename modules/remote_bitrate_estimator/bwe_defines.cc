@@ -9,6 +9,7 @@
  */
 
 #include "modules/remote_bitrate_estimator/include/bwe_defines.h"
+
 #include "system_wrappers/include/field_trial.h"
 
 namespace webrtc {
@@ -22,7 +23,7 @@ int GetMinBitrateBps() {
 }
 
 DataRate GetMinBitrate() {
-  return DataRate::bps(GetMinBitrateBps());
+  return DataRate::BitsPerSec(GetMinBitrateBps());
 }
 
 }  // namespace congestion_controller

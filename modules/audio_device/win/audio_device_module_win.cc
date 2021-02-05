@@ -10,9 +10,9 @@
 
 #include "modules/audio_device/win/audio_device_module_win.h"
 
+#include <memory>
 #include <utility>
 
-#include "absl/memory/memory.h"
 #include "modules/audio_device/audio_device_buffer.h"
 #include "modules/audio_device/include/audio_device.h"
 #include "rtc_base/checks.h"
@@ -37,6 +37,34 @@ namespace {
     if (input_->Restarting()) {       \
       return __VA_ARGS__;             \
     }                                 \
+  } while (0)
+
+#define RETURN_IF_OUTPUT_IS_INITIALIZED(...) \
+  do {                                       \
+    if (output_->PlayoutIsInitialized()) {   \
+      return __VA_ARGS__;                    \
+    }                                        \
+  } while (0)
+
+#define RETURN_IF_INPUT_IS_INITIALIZED(...) \
+  do {                                      \
+    if (input_->RecordingIsInitialized()) { \
+      return __VA_ARGS__;                   \
+    }                                       \
+  } while (0)
+
+#define RETURN_IF_OUTPUT_IS_ACTIVE(...) \
+  do {                                  \
+    if (output_->Playing()) {           \
+      return __VA_ARGS__;               \
+    }                                   \
+  } while (0)
+
+#define RETURN_IF_INPUT_IS_ACTIVE(...) \
+  do {                                 \
+    if (input_->Recording()) {         \
+      return __VA_ARGS__;              \
+    }                                  \
   } while (0)
 
 // This class combines a generic instance of an AudioInput and a generic
@@ -105,7 +133,7 @@ class WindowsAudioDeviceModule : public AudioDeviceModuleForTest {
       return 0;
     }
     audio_device_buffer_ =
-        absl::make_unique<AudioDeviceBuffer>(task_queue_factory_);
+        std::make_unique<AudioDeviceBuffer>(task_queue_factory_);
     AttachAudioBuffer();
     InitStatus status;
     if (output_->Init() != 0) {
@@ -230,6 +258,7 @@ class WindowsAudioDeviceModule : public AudioDeviceModuleForTest {
     RTC_LOG(INFO) << __FUNCTION__;
     RTC_DCHECK_RUN_ON(&thread_checker_);
     RETURN_IF_OUTPUT_RESTARTS(0);
+    RETURN_IF_OUTPUT_IS_INITIALIZED(0);
     return output_->InitPlayout();
   }
 
@@ -251,6 +280,7 @@ class WindowsAudioDeviceModule : public AudioDeviceModuleForTest {
     RTC_LOG(INFO) << __FUNCTION__;
     RTC_DCHECK_RUN_ON(&thread_checker_);
     RETURN_IF_INPUT_RESTARTS(0);
+    RETURN_IF_INPUT_IS_INITIALIZED(0);
     return input_->InitRecording();
   }
 
@@ -265,6 +295,7 @@ class WindowsAudioDeviceModule : public AudioDeviceModuleForTest {
     RTC_LOG(INFO) << __FUNCTION__;
     RTC_DCHECK_RUN_ON(&thread_checker_);
     RETURN_IF_OUTPUT_RESTARTS(0);
+    RETURN_IF_OUTPUT_IS_ACTIVE(0);
     return output_->StartPlayout();
   }
 
@@ -286,6 +317,7 @@ class WindowsAudioDeviceModule : public AudioDeviceModuleForTest {
     RTC_LOG(INFO) << __FUNCTION__;
     RTC_DCHECK_RUN_ON(&thread_checker_);
     RETURN_IF_INPUT_RESTARTS(0);
+    RETURN_IF_INPUT_IS_ACTIVE(0);
     return input_->StartRecording();
   }
 
@@ -464,6 +496,7 @@ class WindowsAudioDeviceModule : public AudioDeviceModuleForTest {
   const std::unique_ptr<AudioOutput> output_;
 
   TaskQueueFactory* const task_queue_factory_;
+
   // The AudioDeviceBuffer (ADB) instance is needed for sending/receiving audio
   // to/from the WebRTC layer. Created and owned by this object. Used by
   // both |input_| and |output_| but they use orthogonal parts of the ADB.

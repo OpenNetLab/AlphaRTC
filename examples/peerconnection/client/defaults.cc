@@ -25,6 +25,9 @@ const char kVideoLabel[] = "video_label";
 const char kStreamId[] = "stream_id";
 const uint16_t kDefaultServerPort = 8888;
 
+// The value of auto close time for disabling auto close 
+const int kAutoCloseDisableValue = 0;
+
 std::string GetEnvVarOrDefault(const char* env_var_name,
                                const char* default_value) {
   std::string value;

@@ -12,6 +12,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include <memory>
 #include <string>
 
@@ -83,6 +84,17 @@ class TestAudioDeviceModule : public AudioDeviceModule {
       std::unique_ptr<Capturer> capturer,
       std::unique_ptr<Renderer> renderer,
       float speed = 1);
+
+  // AlphaCC version.
+  // Pass a rtc::Event |audio_started| to mark audio has started 
+  static rtc::scoped_refptr<TestAudioDeviceModule> Create(
+      TaskQueueFactory* task_queue_factory,
+      std::unique_ptr<Capturer> capturer,
+      std::unique_ptr<Renderer> renderer,
+	  std::shared_ptr<rtc::Event> audio_started,
+      float speed = 1);
+
+
 
   // Returns a Capturer instance that generates a signal of |num_channels|
   // channels where every second frame is zero and every second frame is evenly

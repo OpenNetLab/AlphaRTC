@@ -13,6 +13,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include <memory>
 #include <vector>
 
@@ -77,6 +78,8 @@ class EchoControlMobileImpl {
 
   std::vector<std::unique_ptr<Canceller>> cancellers_;
   std::unique_ptr<StreamProperties> stream_properties_;
+  std::vector<std::array<int16_t, 160>> low_pass_reference_;
+  bool reference_copied_ = false;
 };
 }  // namespace webrtc
 

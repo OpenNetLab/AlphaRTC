@@ -11,82 +11,63 @@
 #include "test/pc/e2e/analyzer/video/video_quality_analyzer_injection_helper.h"
 
 #include <utility>
+#include <vector>
 
 #include "absl/memory/memory.h"
 #include "test/pc/e2e/analyzer/video/quality_analyzing_video_decoder.h"
 #include "test/pc/e2e/analyzer/video/quality_analyzing_video_encoder.h"
 #include "test/pc/e2e/analyzer/video/simulcast_dummy_buffer_helper.h"
+#include "test/video_renderer.h"
 
 namespace webrtc {
 namespace webrtc_pc_e2e {
 
 namespace {
 
-// Intercepts generated frames and passes them also to video quality analyzer
-// and into video frame writer, if the last one is provided.
-class InterceptingFrameGenerator : public test::FrameGenerator {
+class VideoWriter final : public rtc::VideoSinkInterface<VideoFrame> {
  public:
-  InterceptingFrameGenerator(std::string stream_label,
-                             std::unique_ptr<test::FrameGenerator> delegate,
-                             VideoQualityAnalyzerInterface* analyzer,
-                             test::VideoFrameWriter* video_writer)
-      : stream_label_(std::move(stream_label)),
-        delegate_(std::move(delegate)),
-        analyzer_(analyzer),
-        video_writer_(video_writer) {
-    RTC_DCHECK(analyzer_);
-  }
-  ~InterceptingFrameGenerator() override = default;
+  VideoWriter(test::VideoFrameWriter* video_writer)
+      : video_writer_(video_writer) {}
+  ~VideoWriter() override = default;
 
-  VideoFrame* NextFrame() override {
-    VideoFrame* frame = delegate_->NextFrame();
-    uint16_t frame_id = analyzer_->OnFrameCaptured(stream_label_, *frame);
-    frame->set_id(frame_id);
-    if (video_writer_) {
-      bool result = video_writer_->WriteFrame(*frame);
-      RTC_CHECK(result) << "Failed to write frame";
+  void OnFrame(const VideoFrame& frame) override {
+    bool result = video_writer_->WriteFrame(frame);
+    RTC_CHECK(result) << "Failed to write frame";
+  }
+
+ private:
+  test::VideoFrameWriter* video_writer_;
+};
+
+class AnalyzingFramePreprocessor
+    : public test::TestVideoCapturer::FramePreprocessor {
+ public:
+  AnalyzingFramePreprocessor(
+      std::string stream_label,
+      VideoQualityAnalyzerInterface* analyzer,
+      std::vector<std::unique_ptr<rtc::VideoSinkInterface<VideoFrame>>> sinks)
+      : stream_label_(std::move(stream_label)),
+        analyzer_(analyzer),
+        sinks_(std::move(sinks)) {}
+  ~AnalyzingFramePreprocessor() override = default;
+
+  VideoFrame Preprocess(const VideoFrame& source_frame) override {
+    // Copy VideoFrame to be able to set id on it.
+    VideoFrame frame = source_frame;
+    uint16_t frame_id = analyzer_->OnFrameCaptured(stream_label_, frame);
+    frame.set_id(frame_id);
+
+    for (auto& sink : sinks_) {
+      sink->OnFrame(frame);
     }
     return frame;
   }
 
-  void ChangeResolution(size_t width, size_t height) override {
-    delegate_->ChangeResolution(width, height);
-  }
-
  private:
-  std::string stream_label_;
-  std::unique_ptr<test::FrameGenerator> delegate_;
-  VideoQualityAnalyzerInterface* analyzer_;
-  test::VideoFrameWriter* video_writer_;
-};
-
-// Implements the video sink, that forwards rendered frames to the video quality
-// analyzer and to the video frame writer, if the last one is provided.
-class AnalyzingVideoSink : public rtc::VideoSinkInterface<VideoFrame> {
- public:
-  AnalyzingVideoSink(VideoQualityAnalyzerInterface* analyzer,
-                     test::VideoFrameWriter* video_writer)
-      : analyzer_(analyzer), video_writer_(video_writer) {
-    RTC_DCHECK(analyzer_);
-  }
-  ~AnalyzingVideoSink() override = default;
-
-  void OnFrame(const VideoFrame& frame) override {
-    if (IsDummyFrameBuffer(frame.video_frame_buffer()->ToI420())) {
-      // This is dummy frame, so we  don't need to process it further.
-      return;
-    }
-    analyzer_->OnFrameRendered(frame);
-    if (video_writer_) {
-      bool result = video_writer_->WriteFrame(frame);
-      RTC_CHECK(result) << "Failed to write frame";
-    }
-  }
-  void OnDiscardedFrame() override {}
-
- private:
-  VideoQualityAnalyzerInterface* analyzer_;
-  test::VideoFrameWriter* video_writer_;
+  const std::string stream_label_;
+  VideoQualityAnalyzerInterface* const analyzer_;
+  const std::vector<std::unique_ptr<rtc::VideoSinkInterface<VideoFrame>>>
+      sinks_;
 };
 
 }  // namespace
@@ -98,7 +79,7 @@ VideoQualityAnalyzerInjectionHelper::VideoQualityAnalyzerInjectionHelper(
     : analyzer_(std::move(analyzer)),
       injector_(injector),
       extractor_(extractor),
-      encoding_entities_id_generator_(absl::make_unique<IntIdGenerator>(1)) {
+      encoding_entities_id_generator_(std::make_unique<IntIdGenerator>(1)) {
   RTC_DCHECK(injector_);
   RTC_DCHECK(extractor_);
 }
@@ -111,7 +92,7 @@ VideoQualityAnalyzerInjectionHelper::WrapVideoEncoderFactory(
     double bitrate_multiplier,
     std::map<std::string, absl::optional<int>> stream_required_spatial_index)
     const {
-  return absl::make_unique<QualityAnalyzingVideoEncoderFactory>(
+  return std::make_unique<QualityAnalyzingVideoEncoderFactory>(
       std::move(delegate), bitrate_multiplier,
       std::move(stream_required_spatial_index),
       encoding_entities_id_generator_.get(), injector_, analyzer_.get());
@@ -120,24 +101,36 @@ VideoQualityAnalyzerInjectionHelper::WrapVideoEncoderFactory(
 std::unique_ptr<VideoDecoderFactory>
 VideoQualityAnalyzerInjectionHelper::WrapVideoDecoderFactory(
     std::unique_ptr<VideoDecoderFactory> delegate) const {
-  return absl::make_unique<QualityAnalyzingVideoDecoderFactory>(
+  return std::make_unique<QualityAnalyzingVideoDecoderFactory>(
       std::move(delegate), encoding_entities_id_generator_.get(), extractor_,
       analyzer_.get());
 }
 
-std::unique_ptr<test::FrameGenerator>
-VideoQualityAnalyzerInjectionHelper::WrapFrameGenerator(
-    std::string stream_label,
-    std::unique_ptr<test::FrameGenerator> delegate,
-    test::VideoFrameWriter* writer) const {
-  return absl::make_unique<InterceptingFrameGenerator>(
-      std::move(stream_label), std::move(delegate), analyzer_.get(), writer);
+std::unique_ptr<test::TestVideoCapturer::FramePreprocessor>
+VideoQualityAnalyzerInjectionHelper::CreateFramePreprocessor(
+    const VideoConfig& config) {
+  std::vector<std::unique_ptr<rtc::VideoSinkInterface<VideoFrame>>> sinks;
+  test::VideoFrameWriter* writer =
+      MaybeCreateVideoWriter(config.input_dump_file_name, config);
+  if (writer) {
+    sinks.push_back(std::make_unique<VideoWriter>(writer));
+  }
+  if (config.show_on_screen) {
+    sinks.push_back(absl::WrapUnique(
+        test::VideoRenderer::Create((*config.stream_label + "-capture").c_str(),
+                                    config.width, config.height)));
+  }
+  {
+    rtc::CritScope crit(&lock_);
+    known_video_configs_.insert({*config.stream_label, config});
+  }
+  return std::make_unique<AnalyzingFramePreprocessor>(
+      std::move(*config.stream_label), analyzer_.get(), std::move(sinks));
 }
 
 std::unique_ptr<rtc::VideoSinkInterface<VideoFrame>>
-VideoQualityAnalyzerInjectionHelper::CreateVideoSink(
-    test::VideoFrameWriter* writer) const {
-  return absl::make_unique<AnalyzingVideoSink>(analyzer_.get(), writer);
+VideoQualityAnalyzerInjectionHelper::CreateVideoSink() {
+  return std::make_unique<AnalyzingVideoSink>(this);
 }
 
 void VideoQualityAnalyzerInjectionHelper::Start(std::string test_case_name,
@@ -153,6 +146,72 @@ void VideoQualityAnalyzerInjectionHelper::OnStatsReports(
 
 void VideoQualityAnalyzerInjectionHelper::Stop() {
   analyzer_->Stop();
+  for (const auto& video_writer : video_writers_) {
+    video_writer->Close();
+  }
+  video_writers_.clear();
+}
+
+test::VideoFrameWriter*
+VideoQualityAnalyzerInjectionHelper::MaybeCreateVideoWriter(
+    absl::optional<std::string> file_name,
+    const PeerConnectionE2EQualityTestFixture::VideoConfig& config) {
+  if (!file_name.has_value()) {
+    return nullptr;
+  }
+  // TODO(titovartem) create only one file writer for simulcast video track.
+  // For now this code will be invoked for each simulcast stream separately, but
+  // only one file will be used.
+  auto video_writer = std::make_unique<test::Y4mVideoFrameWriterImpl>(
+      file_name.value(), config.width, config.height, config.fps);
+  test::VideoFrameWriter* out = video_writer.get();
+  video_writers_.push_back(std::move(video_writer));
+  return out;
+}
+
+void VideoQualityAnalyzerInjectionHelper::OnFrame(const VideoFrame& frame) {
+  if (IsDummyFrameBuffer(frame.video_frame_buffer()->ToI420())) {
+    // This is dummy frame, so we  don't need to process it further.
+    return;
+  }
+  analyzer_->OnFrameRendered(frame);
+  std::string stream_label = analyzer_->GetStreamLabel(frame.id());
+  std::vector<std::unique_ptr<rtc::VideoSinkInterface<VideoFrame>>>* sinks =
+      PopulateSinks(stream_label);
+  if (sinks == nullptr) {
+    return;
+  }
+  for (auto& sink : *sinks) {
+    sink->OnFrame(frame);
+  }
+}
+
+std::vector<std::unique_ptr<rtc::VideoSinkInterface<VideoFrame>>>*
+VideoQualityAnalyzerInjectionHelper::PopulateSinks(
+    const std::string& stream_label) {
+  rtc::CritScope crit(&lock_);
+  auto sinks_it = sinks_.find(stream_label);
+  if (sinks_it != sinks_.end()) {
+    return &sinks_it->second;
+  }
+  auto it = known_video_configs_.find(stream_label);
+  RTC_DCHECK(it != known_video_configs_.end())
+      << "No video config for stream " << stream_label;
+  const VideoConfig& config = it->second;
+
+  std::vector<std::unique_ptr<rtc::VideoSinkInterface<VideoFrame>>> sinks;
+  test::VideoFrameWriter* writer =
+      MaybeCreateVideoWriter(config.output_dump_file_name, config);
+  if (writer) {
+    sinks.push_back(std::make_unique<VideoWriter>(writer));
+  }
+  if (config.show_on_screen) {
+    sinks.push_back(absl::WrapUnique(
+        test::VideoRenderer::Create((*config.stream_label + "-render").c_str(),
+                                    config.width, config.height)));
+  }
+  sinks_.insert({stream_label, std::move(sinks)});
+  return &(sinks_.find(stream_label)->second);
 }
 
 }  // namespace webrtc_pc_e2e

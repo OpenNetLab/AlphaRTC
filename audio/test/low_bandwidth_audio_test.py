@@ -16,7 +16,6 @@ output files will be performed.
 
 import argparse
 import collections
-import json
 import logging
 import os
 import re
@@ -58,9 +57,9 @@ def _ParseArgs():
   parser.add_argument('--num-retries', default='0',
                       help='Number of times to retry the test on Android.')
   parser.add_argument('--isolated-script-test-perf-output', default=None,
-      help='Path to store perf results in chartjson format.')
-  parser.add_argument('--isolated-script-test-output', default=None,
-      help='Path to output an empty JSON file which Chromium infra requires.')
+      help='Path to store perf results in histogram proto format.')
+  parser.add_argument('--extra-test-args', default=[], action='append',
+      help='Extra args to path to the test binary.')
 
   # Ignore Chromium-specific flags
   parser.add_argument('--test-launcher-summary-output',
@@ -110,7 +109,8 @@ def _GetPathToTools():
 def ExtractTestRuns(lines, echo=False):
   """Extracts information about tests from the output of a test runner.
 
-  Produces tuples (android_device, test_name, reference_file, degraded_file).
+  Produces tuples
+  (android_device, test_name, reference_file, degraded_file, cur_perf_results).
   """
   for line in lines:
     if echo:
@@ -118,7 +118,8 @@ def ExtractTestRuns(lines, echo=False):
 
     # Output from Android has a prefix with the device name.
     android_prefix_re = r'(?:I\b.+\brun_tests_on_device\((.+?)\)\s*)?'
-    test_re = r'^' + android_prefix_re + r'TEST (\w+) ([^ ]+?) ([^ ]+?)\s*$'
+    test_re = r'^' + android_prefix_re + (r'TEST (\w+) ([^ ]+?) ([^\s]+)'
+                                          r' ?([^\s]+)?\s*$')
 
     match = re.search(test_re, line)
     if match:
@@ -168,7 +169,7 @@ def _RunPesq(executable_path, reference_file, degraded_file,
   if match:
     raw_mos, _ = match.groups()
 
-    return {'pesq_mos': (raw_mos, 'score')}
+    return {'pesq_mos': (raw_mos, 'unitless')}
   else:
     logging.error('PESQ: %s', out.splitlines()[-1])
     return {}
@@ -194,27 +195,70 @@ def _RunPolqa(executable_path, reference_file, degraded_file):
     return {}
 
   mos_lqo, = match.groups()
-  return {'polqa_mos_lqo': (mos_lqo, 'score')}
+  return {'polqa_mos_lqo': (mos_lqo, 'unitless')}
 
 
-def _AddChart(charts, metric, test_name, value, units):
-  chart = charts.setdefault(metric, {})
-  chart[test_name] = {
-      "type": "scalar",
-      "value": value,
-      "units": units,
-  }
+def _MergeInPerfResultsFromCcTests(histograms, run_perf_results_file):
+  from tracing.value import histogram_set
+
+  cc_histograms = histogram_set.HistogramSet()
+  with open(run_perf_results_file, 'rb') as f:
+    contents = f.read()
+    if not contents:
+      return
+
+    cc_histograms.ImportProto(contents)
+
+  histograms.Merge(cc_histograms)
 
 
-Analyzer = collections.namedtuple('Analyzer', ['func', 'executable',
+Analyzer = collections.namedtuple('Analyzer', ['name', 'func', 'executable',
                                                'sample_rate_hz'])
+
+
+def _ConfigurePythonPath(args):
+  script_dir = os.path.dirname(os.path.realpath(__file__))
+  checkout_root = os.path.abspath(
+      os.path.join(script_dir, os.pardir, os.pardir))
+
+  # TODO(https://crbug.com/1029452): Use a copy rule and add these from the out
+  # dir like for the third_party/protobuf code.
+  sys.path.insert(0, os.path.join(checkout_root, 'third_party', 'catapult',
+                                  'tracing'))
+
+  # The low_bandwidth_audio_perf_test gn rule will build the protobuf stub for
+  # python, so put it in the path for this script before we attempt to import
+  # it.
+  histogram_proto_path = os.path.join(
+      os.path.abspath(args.build_dir), 'pyproto', 'tracing', 'tracing', 'proto')
+  sys.path.insert(0, histogram_proto_path)
+  proto_stub_path = os.path.join(os.path.abspath(args.build_dir), 'pyproto')
+  sys.path.insert(0, proto_stub_path)
+
+  # Fail early in case the proto hasn't been built.
+  try:
+    import histogram_pb2
+  except ImportError as e:
+    logging.exception(e)
+    raise ImportError('Could not import histogram_pb2. You need to build the '
+                      'low_bandwidth_audio_perf_test target before invoking '
+                      'this script. Expected to find '
+                      'histogram_pb2.py in %s.' % histogram_proto_path)
 
 
 def main():
   # pylint: disable=W0101
   logging.basicConfig(level=logging.INFO)
+  logging.info('Invoked with %s', str(sys.argv))
 
   args = _ParseArgs()
+
+  _ConfigurePythonPath(args)
+
+  # Import catapult modules here after configuring the pythonpath.
+  from tracing.value import histogram_set
+  from tracing.value.diagnostics import reserved_infos
+  from tracing.value.diagnostics import generic_set
 
   pesq_path, polqa_path = _GetPathToTools()
   if pesq_path is None:
@@ -228,25 +272,28 @@ def main():
   else:
     test_command = [os.path.join(args.build_dir, 'low_bandwidth_audio_test')]
 
-  analyzers = [Analyzer(_RunPesq, pesq_path, 16000)]
+  analyzers = [Analyzer('pesq', _RunPesq, pesq_path, 16000)]
   # Check if POLQA can run at all, or skip the 48 kHz tests entirely.
   example_path = os.path.join(SRC_DIR, 'resources',
                               'voice_engine', 'audio_tiny48.wav')
   if polqa_path and _RunPolqa(polqa_path, example_path, example_path):
-    analyzers.append(Analyzer(_RunPolqa, polqa_path, 48000))
+    analyzers.append(Analyzer('polqa', _RunPolqa, polqa_path, 48000))
 
-  charts = {}
-
+  histograms = histogram_set.HistogramSet()
   for analyzer in analyzers:
     # Start the test executable that produces audio files.
     test_process = subprocess.Popen(
-        _LogCommand(test_command + ['--sample_rate_hz=%d' %
-                                    analyzer.sample_rate_hz]),
+        _LogCommand(test_command + [
+            '--sample_rate_hz=%d' % analyzer.sample_rate_hz,
+            '--test_case_prefix=%s' % analyzer.name,
+          ] + args.extra_test_args),
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    perf_results_file = None
     try:
       lines = iter(test_process.stdout.readline, '')
       for result in ExtractTestRuns(lines, echo=True):
-        (android_device, test_name, reference_file, degraded_file) = result
+        (android_device, test_name, reference_file, degraded_file,
+         perf_results_file) = result
 
         adb_prefix = (args.adb_path,)
         if android_device:
@@ -260,23 +307,28 @@ def main():
         analyzer_results = analyzer.func(analyzer.executable,
                                          reference_file, degraded_file)
         for metric, (value, units) in analyzer_results.items():
-          # Output a result for the perf dashboard.
+          hist = histograms.CreateHistogram(metric, units, [value])
+          user_story = generic_set.GenericSet([test_name])
+          hist.diagnostics[reserved_infos.STORIES.name] = user_story
+
+          # Output human readable results.
           print 'RESULT %s: %s= %s %s' % (metric, test_name, value, units)
-          _AddChart(charts, metric, test_name, value, units)
 
         if args.remove:
           os.remove(reference_file)
           os.remove(degraded_file)
     finally:
       test_process.terminate()
+    if perf_results_file:
+      perf_results_file = _GetFile(perf_results_file, out_dir, move=True,
+                           android=args.android, adb_prefix=adb_prefix)
+      _MergeInPerfResultsFromCcTests(histograms, perf_results_file)
+      if args.remove:
+        os.remove(perf_results_file)
 
   if args.isolated_script_test_perf_output:
-    with open(args.isolated_script_test_perf_output, 'w') as f:
-      json.dump({"format_version": "1.0", "charts": charts}, f)
-
-  if args.isolated_script_test_output:
-    with open(args.isolated_script_test_output, 'w') as f:
-      json.dump({"version": 3}, f)
+    with open(args.isolated_script_test_perf_output, 'wb') as f:
+      f.write(histograms.AsProto().SerializeToString())
 
   return test_process.wait()
 

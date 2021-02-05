@@ -18,7 +18,8 @@
 #include "api/transport/webrtc_key_value_config.h"
 #include "api/units/data_rate.h"
 #include "api/units/timestamp.h"
-#include "modules/congestion_controller/goog_cc/link_capacity_estimator.h"
+// Revision for enabling AlphaCC and disabling GCC
+#include "modules/congestion_controller/alpha_cc/link_capacity_estimator.h"
 #include "modules/remote_bitrate_estimator/include/bwe_defines.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 
@@ -73,14 +74,9 @@ class AimdRateControl {
   // in the "decrease" state the bitrate will be decreased to slightly below the
   // current throughput. When in the "hold" state the bitrate will be kept
   // constant to allow built up queues to drain.
-  DataRate ChangeBitrate(DataRate current_bitrate,
-                         const RateControlInput& input,
-                         Timestamp at_time);
-  // Clamps new_bitrate to within the configured min bitrate and a linear
-  // function of the throughput, so that the new bitrate can't grow too
-  // large compared to the bitrate actually being received by the other end.
-  DataRate ClampBitrate(DataRate new_bitrate,
-                        DataRate estimated_throughput) const;
+  void ChangeBitrate(const RateControlInput& input, Timestamp at_time);
+
+  DataRate ClampBitrate(DataRate new_bitrate) const;
   DataRate MultiplicativeRateIncrease(Timestamp at_time,
                                       Timestamp last_ms,
                                       DataRate current_bitrate) const;
@@ -107,13 +103,15 @@ class AimdRateControl {
   // Allow the delay based estimate to only increase as long as application
   // limited region (alr) is not detected.
   const bool no_bitrate_increase_in_alr_;
-  const bool smoothing_experiment_;
+  // Use estimated link capacity lower bound if it is higher than the
+  // acknowledged rate when backing off due to overuse.
+  const bool estimate_bounded_backoff_;
+  // Use estimated link capacity upper bound as upper limit for increasing
+  // bitrate over the acknowledged rate.
+  const bool estimate_bounded_increase_;
   absl::optional<DataRate> last_decrease_;
   FieldTrialOptional<TimeDelta> initial_backoff_interval_;
-  FieldTrialParameter<DataRate> low_throughput_threshold_;
-  FieldTrialOptional<double> capacity_deviation_ratio_threshold_;
-  FieldTrialParameter<double> cross_traffic_factor_;
-  FieldTrialOptional<double> capacity_limit_deviation_factor_;
+  FieldTrialFlag link_capacity_fix_;
 };
 }  // namespace webrtc
 

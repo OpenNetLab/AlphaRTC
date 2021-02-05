@@ -9,11 +9,14 @@
  */
 
 #include "modules/audio_processing/aecm/aecm_core.h"
-
 #include "modules/audio_processing/aecm/echo_control_mobile.h"
 #include "modules/audio_processing/utility/delay_estimator_wrapper.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/numerics/safe_conversions.h"
+
+namespace webrtc {
+
+namespace {
 
 static const ALIGN8_BEG int16_t WebRtcAecm_kSqrtHanning[] ALIGN8_END = {
     0,     399,   798,   1196,  1594,  1990,  2386,  2780,  3172,  3562,  3951,
@@ -47,6 +50,8 @@ static int16_t coefTable_ifft[] = {
     360, 404, 232, 148, 488, 276, 24,  20,  280, 484, 152, 228, 408, 356, 88,
     100, 344, 420, 216, 164, 472, 292, 56,  36,  312, 452, 184, 196, 440, 324,
     120, 68,  376, 388, 248, 132, 504, 260};
+
+}  // namespace
 
 static void ComfortNoise(AecmCore* aecm,
                          const uint16_t* dfa,
@@ -1647,3 +1652,5 @@ static void ComfortNoise(AecmCore* aecm,
   sgn = ((int)tt) >> 31;
   out[PART_LEN].imag = sgn == (int16_t)(tt >> 15) ? (int16_t)tt : (16384 ^ sgn);
 }
+
+}  // namespace webrtc

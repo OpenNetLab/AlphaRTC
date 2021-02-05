@@ -11,6 +11,7 @@
 #include "modules/audio_coding/audio_network_adaptor/audio_network_adaptor_impl.h"
 
 #include <stdint.h>
+
 #include <utility>
 #include <vector>
 
@@ -68,18 +69,6 @@ void AudioNetworkAdaptorImpl::SetUplinkPacketLossFraction(
 
   Controller::NetworkMetrics network_metrics;
   network_metrics.uplink_packet_loss_fraction = uplink_packet_loss_fraction;
-  UpdateNetworkMetrics(network_metrics);
-}
-
-void AudioNetworkAdaptorImpl::SetUplinkRecoverablePacketLossFraction(
-    float uplink_recoverable_packet_loss_fraction) {
-  last_metrics_.uplink_recoverable_packet_loss_fraction =
-      uplink_recoverable_packet_loss_fraction;
-  DumpNetworkMetrics();
-
-  Controller::NetworkMetrics network_metrics;
-  network_metrics.uplink_recoverable_packet_loss_fraction =
-      uplink_recoverable_packet_loss_fraction;
   UpdateNetworkMetrics(network_metrics);
 }
 

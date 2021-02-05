@@ -13,7 +13,7 @@
 
 #include "api/audio_codecs/audio_decoder_factory.h"
 #include "api/audio_codecs/audio_encoder_factory.h"
-#include "api/media_transport_interface.h"
+#include "api/transport/media/media_transport_interface.h"
 #include "api/video_codecs/video_decoder_factory.h"
 #include "api/video_codecs/video_encoder_factory.h"
 #include "modules/audio_device/include/audio_device.h"
@@ -33,8 +33,9 @@
   return [[RTCPeerConnectionFactoryBuilder alloc] init];
 }
 
-- (RTCPeerConnectionFactory *)createPeerConnectionFactory {
-  RTCPeerConnectionFactory *factory = [RTCPeerConnectionFactory alloc];
+- (RTC_OBJC_TYPE(RTCPeerConnectionFactory) *)createPeerConnectionFactory {
+  RTC_OBJC_TYPE(RTCPeerConnectionFactory) *factory =
+      [RTC_OBJC_TYPE(RTCPeerConnectionFactory) alloc];
   return [factory initWithNativeAudioEncoderFactory:_audioEncoderFactory
                           nativeAudioDecoderFactory:_audioDecoderFactory
                           nativeVideoEncoderFactory:std::move(_videoEncoderFactory)

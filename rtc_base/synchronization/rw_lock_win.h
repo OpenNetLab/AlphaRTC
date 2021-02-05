@@ -11,9 +11,9 @@
 #ifndef RTC_BASE_SYNCHRONIZATION_RW_LOCK_WIN_H_
 #define RTC_BASE_SYNCHRONIZATION_RW_LOCK_WIN_H_
 
-#include "rtc_base/synchronization/rw_lock_wrapper.h"
-
 #include <Windows.h>
+
+#include "rtc_base/synchronization/rw_lock_wrapper.h"
 
 namespace webrtc {
 
@@ -29,7 +29,6 @@ class RWLockWin : public RWLockWrapper {
 
  private:
   RWLockWin();
-  static bool LoadModule();
 
   SRWLOCK lock_;
 };

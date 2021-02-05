@@ -7,7 +7,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "modules/video_coding/receiver.h"
+
 #include <string.h>
+
 #include <cstdint>
 #include <memory>
 #include <queue>
@@ -16,7 +19,6 @@
 #include "modules/video_coding/encoded_frame.h"
 #include "modules/video_coding/jitter_buffer_common.h"
 #include "modules/video_coding/packet.h"
-#include "modules/video_coding/receiver.h"
 #include "modules/video_coding/test/stream_generator.h"
 #include "modules/video_coding/timing.h"
 #include "rtc_base/checks.h"
@@ -35,7 +37,7 @@ class TestVCMReceiver : public ::testing::Test {
         new StreamGenerator(0, clock_->TimeInMilliseconds()));
   }
 
-  virtual void SetUp() { receiver_.Reset(); }
+  virtual void SetUp() {}
 
   int32_t InsertPacket(int index) {
     VCMPacket packet;
@@ -348,8 +350,8 @@ class FrameInjectEvent : public EventWrapper {
 
   bool Set() override { return true; }
 
-  EventTypeWrapper Wait(unsigned long max_time) override {  // NOLINT
-    if (clock_->AdvanceTimeMilliseconds(max_time, stop_on_frame_) &&
+  EventTypeWrapper Wait(int max_time_ms) override {
+    if (clock_->AdvanceTimeMilliseconds(max_time_ms, stop_on_frame_) &&
         stop_on_frame_) {
       return EventTypeWrapper::kEventSignaled;
     } else {
@@ -376,7 +378,7 @@ class VCMReceiverTimingTest : public ::testing::Test {
             std::unique_ptr<EventWrapper>(
                 new FrameInjectEvent(&clock_, true))) {}
 
-  virtual void SetUp() { receiver_.Reset(); }
+  virtual void SetUp() {}
 
   SimulatedClockWithFrames clock_;
   StreamGenerator stream_generator_;

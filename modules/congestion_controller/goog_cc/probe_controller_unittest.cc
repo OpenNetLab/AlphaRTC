@@ -7,6 +7,8 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
+#include "modules/congestion_controller/goog_cc/probe_controller.h"
+
 #include <memory>
 
 #include "api/transport/field_trial_based_config.h"
@@ -14,7 +16,6 @@
 #include "api/units/data_rate.h"
 #include "api/units/timestamp.h"
 #include "logging/rtc_event_log/mock/mock_rtc_event_log.h"
-#include "modules/congestion_controller/goog_cc/probe_controller.h"
 #include "rtc_base/logging.h"
 #include "system_wrappers/include/clock.h"
 #include "test/field_trial.h"
@@ -54,7 +55,7 @@ class ProbeControllerTest : public ::testing::Test {
 
   std::vector<ProbeClusterConfig> SetNetworkAvailable(bool available) {
     NetworkAvailability msg;
-    msg.at_time = Timestamp::ms(NowMs());
+    msg.at_time = Timestamp::Millis(NowMs());
     msg.network_available = available;
     return probe_controller_->OnNetworkAvailability(msg);
   }
@@ -96,7 +97,6 @@ TEST_F(ProbeControllerTest, InitiatesProbingOnMaxBitrateIncrease) {
 }
 
 TEST_F(ProbeControllerTest, ProbesOnMaxBitrateIncreaseOnlyWhenInAlr) {
-  test::ScopedFieldTrials trials("WebRTC-BweAllocProbingOnlyInAlr/Enabled/");
   probe_controller_.reset(
       new ProbeController(&field_trial_config_, &mock_rtc_event_log));
   auto probes = probe_controller_->SetBitrates(kMinBitrateBps, kStartBitrateBps,
@@ -363,6 +363,7 @@ TEST_F(ProbeControllerTest, ConfigurableProbingFieldTrial) {
   clock_.AdvanceTimeMilliseconds(5000);
   probes = probe_controller_->Process(NowMs());
 
+  probe_controller_->SetAlrStartTimeMs(NowMs());
   probes = probe_controller_->OnMaxTotalAllocatedBitrate(200000, NowMs());
   EXPECT_EQ(probes.size(), 1u);
   EXPECT_EQ(probes[0].target_data_rate.bps(), 400000);

@@ -9,15 +9,15 @@
  */
 #include "api/transport/test/create_feedback_generator.h"
 
-#include "absl/memory/memory.h"
+#include <memory>
 
-#include "test/scenario/network/feedback_generator.h"
+#include "test/network/feedback_generator.h"
 
 namespace webrtc {
 
 std::unique_ptr<FeedbackGenerator> CreateFeedbackGenerator(
     FeedbackGenerator::Config confg) {
-  return absl::make_unique<FeedbackGeneratorImpl>(confg);
+  return std::make_unique<FeedbackGeneratorImpl>(confg);
 }
 
 }  // namespace webrtc

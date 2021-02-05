@@ -68,6 +68,8 @@ class MainWindow {
   virtual void StopRemoteRenderer() = 0;
 
   virtual void QueueUIThreadCallback(int msg_id, void* data) = 0;
+
+  virtual void StartAutoCloseTimer(int interval_ms) = 0;
 };
 
 #ifdef WIN32
@@ -75,6 +77,8 @@ class MainWindow {
 class MainWnd : public MainWindow {
  public:
   static const wchar_t kClassName[];
+  // kAutoCloseTimerIDEvent is used for AutoClose Timer.
+  static const int kAutoCloseTimerIDEvent = 1;
 
   enum WindowMessages {
     UI_THREAD_CALLBACK = WM_APP + 1,
@@ -101,6 +105,8 @@ class MainWnd : public MainWindow {
   virtual void StopRemoteRenderer();
 
   virtual void QueueUIThreadCallback(int msg_id, void* data);
+
+  virtual void StartAutoCloseTimer(int interval_ms);
 
   HWND handle() const { return wnd_; }
 

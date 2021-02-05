@@ -1,0 +1,54 @@
+{
+    "server_connection": {
+        "ip": "127.0.0.1",
+        "port": 8888,
+        "autoconnect": true,
+        "autocall": false,
+        "autoclose": 0
+    },
+    
+    "serverless_connection": {
+        "sender": {
+            "enabled": false,
+            "dest_ip": "127.0.0.1",
+            "dest_port": 8888
+        },
+        "receiver": {
+            "enabled": true,
+            "listening_ip": "127.0.0.1",
+            "listening_port": 8888
+        }
+    },
+
+    "bwe_feedback_duration": 200,
+
+    "onnx": {
+        "onnx_model_path": "C:\\Users\\v-rutong\\AlphaRTC\\rtc\\src\\out\\Default\rl_model.onnx"
+    },
+
+    "video_source":{
+        "video_disabled": {
+            "enabled": false
+        },
+        "webcam": {
+            "enabled": false
+        },
+        "video_file": {
+            "enabled": true,
+            "height": 1920,
+            "width": 1080,
+            "fps": 25,
+            "file_path": "C:\\Users\\v-rutong\\Desktop\\webrtc_test_video.yuv"
+        }
+    },
+
+    "audio_source": {
+        "microphone": {
+            "enabled": false
+        },
+        "audio_file": {
+            "enabled": true,
+            "file_path": "C:\\Users\\v-rutong\\Desktop\\webrtc_test_audio.wav"
+        }
+    }
+}

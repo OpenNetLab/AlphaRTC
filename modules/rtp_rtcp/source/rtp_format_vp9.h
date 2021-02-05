@@ -23,6 +23,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include <vector>
 
 #include "api/array_view.h"
@@ -65,15 +66,6 @@ class RtpPacketizerVp9 : public RtpPacketizer {
   std::vector<int>::const_iterator current_packet_;
 
   RTC_DISALLOW_COPY_AND_ASSIGN(RtpPacketizerVp9);
-};
-
-class RtpDepacketizerVp9 : public RtpDepacketizer {
- public:
-  ~RtpDepacketizerVp9() override = default;
-
-  bool Parse(ParsedPayload* parsed_payload,
-             const uint8_t* payload,
-             size_t payload_length) override;
 };
 
 }  // namespace webrtc

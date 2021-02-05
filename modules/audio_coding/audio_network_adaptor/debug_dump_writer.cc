@@ -33,9 +33,9 @@ namespace webrtc {
 #if WEBRTC_ENABLE_PROTOBUF
 namespace {
 
+using audio_network_adaptor::debug_dump::EncoderRuntimeConfig;
 using audio_network_adaptor::debug_dump::Event;
 using audio_network_adaptor::debug_dump::NetworkMetrics;
-using audio_network_adaptor::debug_dump::EncoderRuntimeConfig;
 
 void DumpEventToFile(const Event& event, FileWrapper* dump_file) {
   RTC_CHECK(dump_file->is_open());
@@ -104,11 +104,6 @@ void DebugDumpWriterImpl::DumpNetworkMetrics(
 
   if (metrics.rtt_ms)
     dump_metrics->set_rtt_ms(*metrics.rtt_ms);
-
-  if (metrics.uplink_recoverable_packet_loss_fraction) {
-    dump_metrics->set_uplink_recoverable_packet_loss_fraction(
-        *metrics.uplink_recoverable_packet_loss_fraction);
-  }
 
   DumpEventToFile(event, &dump_file_);
 #endif  // WEBRTC_ENABLE_PROTOBUF

@@ -11,6 +11,7 @@
 #ifndef API_TRANSPORT_NETWORK_TYPES_H_
 #define API_TRANSPORT_NETWORK_TYPES_H_
 #include <stdint.h>
+
 #include <vector>
 
 #include "absl/types/optional.h"
@@ -24,6 +25,19 @@ namespace webrtc {
 
 // Configuration
 
+// Represents constraints and rates related to the currently enabled streams.
+// This is used as input to the congestion controller via the StreamsConfig
+// struct.
+struct BitrateAllocationLimits {
+  // The total minimum send bitrate required by all sending streams.
+  DataRate min_allocatable_rate = DataRate::Zero();
+  // The total maximum allocatable bitrate for all currently available streams.
+  DataRate max_allocatable_rate = DataRate::Zero();
+  // The max bitrate to use for padding. The sum of the per-stream max padding
+  // rate.
+  DataRate max_padding_rate = DataRate::Zero();
+};
+
 // Use StreamsConfig for information about streams that is required for specific
 // adjustments to the algorithms in network controllers. Especially useful
 // for experiments.
@@ -34,11 +48,9 @@ struct StreamsConfig {
   Timestamp at_time = Timestamp::PlusInfinity();
   absl::optional<bool> requests_alr_probing;
   absl::optional<double> pacing_factor;
-  union {
-    absl::optional<DataRate> min_total_allocated_bitrate = absl::nullopt;
-    // Use min_total_allocated_bitrate instead.
-    RTC_DEPRECATED absl::optional<DataRate> min_pacing_rate;
-  };
+
+  // TODO(srte): Use BitrateAllocationLimits here.
+  absl::optional<DataRate> min_total_allocated_bitrate;
   absl::optional<DataRate> max_padding_rate;
   absl::optional<DataRate> max_total_allocated_bitrate;
 };
@@ -86,13 +98,20 @@ struct PacedPacketInfo {
   int probe_cluster_id = kNotAProbe;
   int probe_cluster_min_probes = -1;
   int probe_cluster_min_bytes = -1;
+  int probe_cluster_bytes_sent = 0;
 };
 
 struct SentPacket {
   Timestamp send_time = Timestamp::PlusInfinity();
+  // Size of packet with overhead up to IP layer.
   DataSize size = DataSize::Zero();
+  // Size of preceeding packets that are not part of feedback.
   DataSize prior_unacked_data = DataSize::Zero();
+  // Probe cluster id and parameters including bitrate, number of packets and
+  // number of bytes.
   PacedPacketInfo pacing_info;
+  // True if the packet is an audio packet, false for video, padding, RTX etc.
+  bool audio = false;
   // Transport independent sequence number, any tracked packet should have a
   // sequence number that is unique over the whole call and increasing by 1 for
   // each packet.
@@ -168,6 +187,7 @@ struct TransportPacketsFeedback {
 
 struct NetworkEstimate {
   Timestamp at_time = Timestamp::PlusInfinity();
+  // Deprecated, use TargetTransferRate::target_rate instead.
   DataRate bandwidth = DataRate::Infinity();
   TimeDelta round_trip_time = TimeDelta::PlusInfinity();
   TimeDelta bwe_period = TimeDelta::PlusInfinity();
@@ -201,6 +221,8 @@ struct TargetTransferRate {
   // The estimate on which the target rate is based on.
   NetworkEstimate network_estimate;
   DataRate target_rate = DataRate::Zero();
+  DataRate stable_target_rate = DataRate::Zero();
+  double cwnd_reduce_ratio = 0;
 };
 
 // Contains updates of network controller comand state. Using optionals to
@@ -235,11 +257,10 @@ struct NetworkStateEstimate {
 
   // Total estimated link capacity.
   DataRate link_capacity = DataRate::MinusInfinity();
-  // Lower bound of link capacity estimate.
+  // Used as a safe measure of available capacity.
   DataRate link_capacity_lower = DataRate::MinusInfinity();
-  // Expected available capacity for sending data after cross traffic is taken
-  // into consideration.
-  DataRate available_capacity = DataRate::MinusInfinity();
+  // Used as limit for increasing bitrate.
+  DataRate link_capacity_upper = DataRate::MinusInfinity();
 
   TimeDelta pre_link_buffer_delay = TimeDelta::MinusInfinity();
   TimeDelta post_link_buffer_delay = TimeDelta::MinusInfinity();
@@ -254,6 +275,14 @@ struct NetworkStateEstimate {
   DataRate link_capacity_min = DataRate::MinusInfinity();
   double cross_traffic_ratio = NAN;
 };
+
+struct BweMessage {
+  int64_t timestamp_ms = 0;
+  float target_rate = 3000000; // 3Mbps
+  float pacing_rate = 3000000; // 3Mbps/2.5
+  float padding_rate = 0;
+};
+
 }  // namespace webrtc
 
 #endif  // API_TRANSPORT_NETWORK_TYPES_H_

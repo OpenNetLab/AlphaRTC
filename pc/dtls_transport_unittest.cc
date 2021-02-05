@@ -56,7 +56,7 @@ class DtlsTransportTest : public ::testing::Test {
   DtlsTransportObserverInterface* observer() { return &observer_; }
 
   void CreateTransport(rtc::FakeSSLCertificate* certificate = nullptr) {
-    auto cricket_transport = absl::make_unique<FakeDtlsTransport>(
+    auto cricket_transport = std::make_unique<FakeDtlsTransport>(
         "audio", cricket::ICE_CANDIDATE_COMPONENT_RTP);
     if (certificate) {
       cricket_transport->SetRemoteSSLCertificate(certificate);
@@ -68,13 +68,13 @@ class DtlsTransportTest : public ::testing::Test {
 
   void CompleteDtlsHandshake() {
     auto fake_dtls1 = static_cast<FakeDtlsTransport*>(transport_->internal());
-    auto fake_dtls2 = absl::make_unique<FakeDtlsTransport>(
+    auto fake_dtls2 = std::make_unique<FakeDtlsTransport>(
         "audio", cricket::ICE_CANDIDATE_COMPONENT_RTP);
-    auto cert1 = rtc::RTCCertificate::Create(absl::WrapUnique(
-        rtc::SSLIdentity::Generate("session1", rtc::KT_DEFAULT)));
+    auto cert1 = rtc::RTCCertificate::Create(
+        rtc::SSLIdentity::Create("session1", rtc::KT_DEFAULT));
     fake_dtls1->SetLocalCertificate(cert1);
-    auto cert2 = rtc::RTCCertificate::Create(absl::WrapUnique(
-        rtc::SSLIdentity::Generate("session1", rtc::KT_DEFAULT)));
+    auto cert2 = rtc::RTCCertificate::Create(
+        rtc::SSLIdentity::Create("session1", rtc::KT_DEFAULT));
     fake_dtls2->SetLocalCertificate(cert2);
     fake_dtls1->SetDestination(fake_dtls2.get());
   }
@@ -84,7 +84,7 @@ class DtlsTransportTest : public ::testing::Test {
 };
 
 TEST_F(DtlsTransportTest, CreateClearDelete) {
-  auto cricket_transport = absl::make_unique<FakeDtlsTransport>(
+  auto cricket_transport = std::make_unique<FakeDtlsTransport>(
       "audio", cricket::ICE_CANDIDATE_COMPONENT_RTP);
   rtc::scoped_refptr<DtlsTransport> webrtc_transport =
       new rtc::RefCountedObject<DtlsTransport>(std::move(cricket_transport));

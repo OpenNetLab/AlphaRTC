@@ -15,11 +15,10 @@
 #include <memory>
 
 #include "api/audio_codecs/builtin_audio_decoder_factory.h"
-#include "modules/audio_coding/neteq/include/neteq.h"
+#include "api/neteq/neteq.h"
 #include "modules/audio_coding/neteq/tools/audio_sink.h"
 #include "modules/audio_coding/neteq/tools/input_audio_file.h"
 #include "modules/audio_coding/neteq/tools/rtp_generator.h"
-#include "rtc_base/flags.h"
 #include "system_wrappers/include/clock.h"
 #include "test/gtest.h"
 

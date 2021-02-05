@@ -8,6 +8,8 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "modules/video_capture/video_capture.h"
+
 #include <stdio.h>
 
 #include <map>
@@ -20,7 +22,6 @@
 #include "api/video/video_frame.h"
 #include "common_video/libyuv/include/webrtc_libyuv.h"
 #include "modules/utility/include/process_thread.h"
-#include "modules/video_capture/video_capture.h"
 #include "modules/video_capture/video_capture_factory.h"
 #include "rtc_base/critical_section.h"
 #include "rtc_base/time_utils.h"
@@ -241,11 +242,6 @@ TEST_F(VideoCaptureTest, MAYBE_CreateDelete) {
 #define MAYBE_Capabilities Capabilities
 #endif
 TEST_F(VideoCaptureTest, MAYBE_Capabilities) {
-#ifdef WEBRTC_MAC
-  printf("Video capture capabilities are not supported on Mac.\n");
-  return;
-#endif
-
   TestVideoCaptureCallback capture_observer;
 
   rtc::scoped_refptr<VideoCaptureModule> module(
