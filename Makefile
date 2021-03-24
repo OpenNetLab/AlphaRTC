@@ -60,6 +60,7 @@ docker-peerconnection_serverless:
 
 	mkdir -p $(target_bin_dir)
 	cp $(output_dir)/peerconnection_serverless $(target_bin_dir)
+	cp examples/peerconnection/serverless/peerconnection_serverless_pyinfer $(target_bin_dir)
 
 	mkdir -p $(target_pylib_dir)
 	cp modules/third_party/cmdinfer/*.py $(target_pylib_dir)/

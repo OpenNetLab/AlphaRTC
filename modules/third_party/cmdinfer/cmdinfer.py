@@ -9,14 +9,6 @@ import glob
 RequestBandwidthCommand = "RequestBandwidth"
 
 
-class EasyEstimator(object):
-    def report_states(self, stats: dict):
-        pass
-
-    def get_estimated_bandwidth(self)->int:
-        return int(1e6) # 1Mbps
-
-
 def fetch_stats(line: str)->dict:
     line = line.strip()
     try:
@@ -34,11 +26,8 @@ def request_estimated_bandwidth(line: str)->bool:
 
 
 def find_estimator_class():
-    try:
-        import BandwidthEstimator
-        return BandwidthEstimator.Estimator
-    except ModuleNotFoundError:
-        return EasyEstimator
+    import BandwidthEstimator
+    return BandwidthEstimator.Estimator
 
 
 def main(ifd = sys.stdin, ofd = sys.stdout):
