@@ -34,6 +34,6 @@ steps:
             && docker exec alphartc peerconnection_serverless sender.json
   displayName: 'run example'
 
-- script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless_pyinfer receiver_cmdinfer.json
-            && docker exec alphartc peerconnection_serverless_pyinfer sender_cmdinfer.json
+- script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc_pyinfer alphartc peerconnection_serverless_pyinfer receiver_cmdinfer.json
+            && docker exec alphartc_pyinfer peerconnection_serverless_pyinfer sender_cmdinfer.json
   displayName: 'run cmdinfer example'
