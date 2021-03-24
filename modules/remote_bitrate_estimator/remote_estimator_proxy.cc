@@ -13,11 +13,13 @@
 #endif  //  WIN32
 
 #include "modules/remote_bitrate_estimator/remote_estimator_proxy.h"
+#include "modules/third_party/cmdinfer/cmdinfer.h"
 
 #include <algorithm>
 #include <limits>
 #include <memory>
 #include <utility>
+#include <iostream>
 
 #include "api/alphacc_config.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/transport_feedback.h"
@@ -54,11 +56,15 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       last_bwe_sendback_ms_(clock->TimeInMilliseconds()),
       stats_collect_(StatCollect::SC_TYPE_STRUCT),
       cycles_(-1),
-      max_abs_send_time_(0) {
-  onnx_infer_ = onnxinfer::CreateONNXInferInterface(
-      GetAlphaCCConfig()->onnx_model_path.c_str());
-  if (!onnxinfer::IsReady(onnx_infer_)) {
-    RTC_LOG(LS_ERROR) << "Failed to create onnx_infer_.";
+      max_abs_send_time_(0),
+      onnx_infer_(nullptr) {
+
+  if (!GetAlphaCCConfig()->onnx_model_path.empty()) {
+    onnx_infer_ = onnxinfer::CreateONNXInferInterface(
+        GetAlphaCCConfig()->onnx_model_path.c_str());
+    if (!onnxinfer::IsReady(onnx_infer_)) {
+      RTC_LOG(LS_ERROR) << "Failed to create onnx_infer_.";
+    }
   }
   RTC_LOG(LS_INFO)
       << "Maximum interval between transport feedback RTCP messages (ms): "
@@ -89,16 +95,32 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
 
   // lossCound and RTT field for onnxinfer::OnReceived() are set to -1 since
   // no available lossCound and RTT in webrtc
-  onnxinfer::OnReceived(onnx_infer_, header.payloadType, header.sequenceNumber,
-                        send_time_ms, header.ssrc, header.paddingLength,
-                        header.headerLength, arrival_time_ms, payload_size, -1, -1);
+  if (onnx_infer_) {
+    onnxinfer::OnReceived(onnx_infer_, header.payloadType, header.sequenceNumber,
+                          send_time_ms, header.ssrc, header.paddingLength,
+                          header.headerLength, arrival_time_ms, payload_size, -1, -1);
+  } else {
+    cmdinfer::ReportStates(
+        send_time_ms,
+        arrival_time_ms,
+        payload_size,
+        header.payloadType,
+        header.sequenceNumber,
+        header.ssrc,
+        header.paddingLength,
+        header.headerLength);
+  }
 
   //--- BandWidthControl: Send back bandwidth estimation into to sender ---
   bool time_to_send_bew_message = TimeToSendBweMessage();
   float estimation = 0;
   if (time_to_send_bew_message) {
     BweMessage bwe;
-    estimation = onnxinfer::GetBweEstimate(onnx_infer_);
+    if (onnx_infer_) {
+      estimation = onnxinfer::GetBweEstimate(onnx_infer_);
+    } else {
+      estimation = cmdinfer::GetEstimatedBandwidth();
+    }
     bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
     bwe.timestamp_ms = clock_->TimeInMilliseconds();
     SendbackBweEstimation(bwe);

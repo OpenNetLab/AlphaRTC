@@ -1,0 +1,9 @@
+static_library("cmdinfer") {
+  deps = [
+    "//modules/third_party/statcollect:stat_collect",
+  ]
+  sources = [
+    "cmdinfer.h",
+    "cmdinfer.cc",
+  ]
+}
