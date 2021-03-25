@@ -39,7 +39,7 @@
 
 AlphaRTC is a fork of Google's WebRTC project using ML-based bandwidth estimation, delivered by the OpenNetLab team. By equipping WebRTC with a more accurate bandwidth estimator, our mission is to eventually increase the quality of transmission.
 
-AlphaRTC replaces Google Congestion Control (GCC) with ONNXInfer, an ML-powered bandwidth estimator, which takes in an ONNX model to make bandwidth estimation more accurate. ONNXInfer is proudly powered by Microsoft's [ONNXRuntime](https://github.com/microsoft/onnxruntime).
+AlphaRTC replaces Google Congestion Control (GCC) with two customized congestion control interfaces, PyInfer and ONNXInfer. The PyInfer provides an opportunity to load external bandwidth estimator written by Python. The external bandwidth estimator could be based on ML framework, like PyTorch or TensorFlow, or a pure Python algorithm without any dependencies. And the ONNXInfer is an ML-powered bandwidth estimator, which takes in an ONNX model to make bandwidth estimation more accurate. ONNXInfer is proudly powered by Microsoft's [ONNXRuntime](https://github.com/microsoft/onnxruntime).
 
 ## Environment
 
@@ -107,7 +107,7 @@ Note: all commands below work for both Linux (sh) and Windows (pwsh), unless oth
     gn gen out/Default
     ```
 
-5. Comile
+5. Compile
     ```shell
     ninja -C out/Default peerconnection_serverless
     ```
@@ -151,9 +151,6 @@ This section describes required fields for the json configuration file.
 
 - **bwe_feedback_duration**: The duration the receiver sends its estimated target rate every time(*in millisecond*)
 
-- **onnx**
-  - **onnx_model_path**: The path of the [onnx](https://www.onnxruntime.ai/) model
-
 - **video_source**
   - **video_disabled**:
     - **enabled**: If set to `true`, the client will not take any video source as input
@@ -188,11 +185,57 @@ This section describes required fields for the json configuration file.
     - **fps**: Frames per second of the output video file
     - **file_path**: The file path of the output video file in YUV format
 
+#### Use PyInfer or ONNXInfer
+
+##### PyInfer
+
+The default bandwidth estimator is PyInfer, You should implement your Python class named `Estimator` with required methods `report_states` and `get_estimated_bandwidth` in Python file `BandwidthEstimator.py ` and put this file in your workspace. And you should use the `peerconnection_serverless_pyinfer` as the start program.
+There is an example of Estimator with fixed estimated bandwidth 1Mbps. Here is an example [BandwidthEstimator.py](examples/peerconnection/serverless/corpus/BandwidthEstimator.py).
+
+```python
+class Estimator(object):
+    def report_states(self, stats: dict):
+        '''
+        stats is a dict with the following items
+        {
+            "send_time_ms": uint,
+            "arrival_time_ms": uint,
+            "payload_type": int,
+            "sequence_number": uint,
+            "ssrc": int,
+            "padding_length": uint,
+            "header_length": uint,
+            "payload_size": uint
+        }
+        '''
+        pass
+
+    def get_estimated_bandwidth(self)->int:
+        return int(1e6) # 1Mbps
+
+```
+
+##### ONNXInfer
+
+If you want to use the ONNXInfer as the bandwidth estimator, you should specify the path of onnx model in the config file. Here is an example configuration [receiver.json](examples/peerconnection/serverless/corpus/receiver.json)
+
+- **onnx**
+  - **onnx_model_path**: The path of the [onnx](https://www.onnxruntime.ai/) model
+
+
 #### Run peerconnection_serverless
 - Dockerized environment
 
     To better demonstrate the usage of peerconnection_serverless, we provide an all-inclusive corpus in `examples/peerconnection/serverless/corpus`. You can use the following commands to execute a tiny example. After these commands terminates, you will get `outvideo.yuv` and `outaudio.wav`.
-    
+
+
+    PyInfer:
+    ```shell
+    sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless_pyinfer receiver_pyinfer.json
+    sudo docker exec alphartc sender_pyinfer sender.json
+    ```
+
+    ONNXInfer:
     ``` shell
     sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
     sudo docker exec alphartc peerconnection_serverless sender.json

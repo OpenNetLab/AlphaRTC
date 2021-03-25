@@ -68,10 +68,10 @@ bool ParseAlphaCCConfig(const std::string& file_path) {
   RETURN_ON_FAIL(
       GetInt(top, "bwe_feedback_duration", &config->bwe_feedback_duration_ms));
 
-  RETURN_ON_FAIL(GetValue(top, "onnx", &second));
-  RETURN_ON_FAIL(
-      GetString(second, "onnx_model_path", &config->onnx_model_path));
-  second.clear();
+  if (GetValue(top, "onnx", &second)) {
+    GetString(second, "onnx_model_path", &config->onnx_model_path);
+    second.clear();
+  }
 
   bool enabled = false;
   RETURN_ON_FAIL(GetValue(top, "video_source", &second));
