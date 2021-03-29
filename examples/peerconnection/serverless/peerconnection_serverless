@@ -14,7 +14,7 @@ import cmdinfer
 
 def main():
     app = subprocess.Popen(
-        ["peerconnection_serverless"] + sys.argv[1:],
+        ["peerconnection_serverless.origin"] + sys.argv[1:],
         bufsize=1,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
