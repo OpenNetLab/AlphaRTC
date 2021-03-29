@@ -189,7 +189,7 @@ This section describes required fields for the json configuration file.
 
 ##### PyInfer
 
-The default bandwidth estimator is PyInfer, You should implement your Python class named `Estimator` with required methods `report_states` and `get_estimated_bandwidth` in Python file `BandwidthEstimator.py ` and put this file in your workspace. And you should use the `peerconnection_serverless_pyinfer` as the start program.
+The default bandwidth estimator is PyInfer, You should implement your Python class named `Estimator` with required methods `report_states` and `get_estimated_bandwidth` in Python file `BandwidthEstimator.py ` and put this file in your workspace.
 There is an example of Estimator with fixed estimated bandwidth 1Mbps. Here is an example [BandwidthEstimator.py](examples/peerconnection/serverless/corpus/BandwidthEstimator.py).
 
 ```python
@@ -231,8 +231,8 @@ If you want to use the ONNXInfer as the bandwidth estimator, you should specify 
 
     PyInfer:
     ```shell
-    sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless_pyinfer receiver_pyinfer.json
-    sudo docker exec alphartc peerconnection_serverless_pyinfer sender_pyinfer.json
+    sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver_pyinfer.json
+    sudo docker exec alphartc peerconnection_serverless sender_pyinfer.json
     ```
 
     ONNXInfer:

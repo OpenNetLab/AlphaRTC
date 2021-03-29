@@ -59,8 +59,8 @@ docker-peerconnection_serverless:
 	cp modules/third_party/onnxinfer/lib/*.so.* $(target_lib_dir)
 
 	mkdir -p $(target_bin_dir)
-	cp $(output_dir)/peerconnection_serverless $(target_bin_dir)
-	cp examples/peerconnection/serverless/peerconnection_serverless_pyinfer $(target_bin_dir)
+	cp $(output_dir)/peerconnection_serverless $(target_bin_dir)/peerconnection_serverless.origin
+	cp examples/peerconnection/serverless/peerconnection_serverless $(target_bin_dir)
 
 	mkdir -p $(target_pylib_dir)
 	cp modules/third_party/cmdinfer/*.py $(target_pylib_dir)/
