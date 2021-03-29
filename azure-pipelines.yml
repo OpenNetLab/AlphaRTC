@@ -38,7 +38,23 @@ steps:
             && docker exec alphartc_pyinfer peerconnection_serverless sender_pyinfer.json
   displayName: 'run pyinfer example'
 
-- publish: $(System.DefaultWorkingDirectory)/target
+- script: docker save alphartc | gzip > alphartc.tar.gz
+  displayName: "Export alphartc docker image"
+
+- publish: $(System.DefaultWorkingDirectory)/alphartc.tar.gz
   continueOnError: true
-  artifact: target
+  artifact: alphartc.tar.gz
   displayName: "Archive AlphaRTC Peerconnection"
+
+- task: GitHubRelease@0
+  inputs:
+    gitHubConnection: 'Pterosaur (1)'
+    repositoryName: '$(Build.Repository.Name)'
+    action: 'create'
+    tagSource: manual
+    tag: $(Build.BuildNumber)
+    title: alphartc
+    assets: '$(System.DefaultWorkingDirectory)/alphartc.tar.gz'
+    changeLogCompareToRelease: 'lastFullRelease'
+    changeLogType: 'commitBased'
+  displayName: "Release target"
