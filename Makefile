@@ -5,6 +5,7 @@ output_dir := out/Default
 target_dir := target
 target_lib_dir := $(target_dir)/lib
 target_bin_dir := $(target_dir)/bin
+target_pylib_dir := $(target_dir)/pylib
 
 compile_docker := alphartc-compile
 release_docker := alphartc
@@ -37,7 +38,8 @@ peerconnection_serverless:
 		make docker-$@ \
 		output_dir=$(output_dir) \
 		target_lib_dir=$(target_lib_dir) \
-		target_bin_dir=$(target_bin_dir)
+		target_bin_dir=$(target_bin_dir) \
+		target_pylib_dir=$(target_pylib_dir)
 
 # Docker internal command
 
@@ -51,8 +53,14 @@ docker-app: docker-peerconnection_serverless
 
 docker-peerconnection_serverless:
 	ninja -C $(output_dir) peerconnection_serverless
+
 	mkdir -p $(target_lib_dir)
 	cp modules/third_party/onnxinfer/lib/*.so $(target_lib_dir)
 	cp modules/third_party/onnxinfer/lib/*.so.* $(target_lib_dir)
+
 	mkdir -p $(target_bin_dir)
-	cp $(output_dir)/peerconnection_serverless $(target_bin_dir)
+	cp $(output_dir)/peerconnection_serverless $(target_bin_dir)/peerconnection_serverless.origin
+	cp examples/peerconnection/serverless/peerconnection_serverless $(target_bin_dir)
+
+	mkdir -p $(target_pylib_dir)
+	cp modules/third_party/cmdinfer/*.py $(target_pylib_dir)/

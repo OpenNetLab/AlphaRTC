@@ -207,7 +207,7 @@ namespace StatCollect {
                 totalSamplesReceived,
                 concealedSamples,
                 concealmentEvents);
-            std::string* tempStrPrt = &collectInfoJson;
+            std::string* tempStrPrt = new std::string(collectInfoJson);
             resultPtr = static_cast<void*>(tempStrPrt);
         }
         else {
