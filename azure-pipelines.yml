@@ -58,3 +58,13 @@ steps:
     changeLogCompareToRelease: 'lastFullRelease'
     changeLogType: 'commitBased'
   displayName: "Release target"
+
+- script: docker image tag alphartc:latest $(dockerRegistry)/alphartc:latest
+  displayName: 'tag Docker container'
+
+- task: Docker@2
+  inputs:
+    containerRegistry: 'opennetlab Azure registry'
+    repository: 'alphartc'
+    command: 'push'
+    tags: 'latest'
