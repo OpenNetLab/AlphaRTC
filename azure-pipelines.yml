@@ -60,7 +60,7 @@ steps:
   displayName: "Release target"
 
 - script: docker image tag alphartc:latest $(dockerRegistry)/alphartc:latest
-  displayName: 'tag Docker container'
+  displayName: 'Tag alphartc image'
 
 - task: Docker@2
   inputs:
@@ -68,3 +68,4 @@ steps:
     repository: 'alphartc'
     command: 'push'
     tags: 'latest'
+  displayName: "Push alphartc image"
