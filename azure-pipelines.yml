@@ -16,6 +16,7 @@ pool:
 
 
 steps:
+
 - checkout: self
 
 - script: make init
@@ -58,3 +59,14 @@ steps:
     changeLogCompareToRelease: 'lastFullRelease'
     changeLogType: 'commitBased'
   displayName: "Release target"
+
+- script: docker image tag alphartc:latest $(dockerRegistry)/alphartc:latest
+  displayName: 'Tag alphartc image'
+
+- task: Docker@2
+  inputs:
+    containerRegistry: 'opennetlab Azure registry'
+    repository: 'alphartc'
+    command: 'push'
+    tags: 'latest'
+  displayName: "Push alphartc image"
