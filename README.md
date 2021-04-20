@@ -43,9 +43,21 @@ AlphaRTC replaces Google Congestion Control (GCC) with two customized congestion
 
 ## Environment
 
-**We recommend you directly fetch the pre-provided Docker images from [Github release](https://github.com/OpenNetLab/AlphaRTC/releases/latest/download/alphartc.tar.gz)**
+**We recommend you directly fetch the pre-provided Docker images from `opennetlab.azurecr.io/alphartc` or [Github release](https://github.com/OpenNetLab/AlphaRTC/releases/latest/download/alphartc.tar.gz)**
 
-Ubuntu 18.04 is the only officially supported distro at this moment. For other distros, you may be able to compile your own binary, or use our pre-provided Docker images.
+### From docker registry
+``` bash
+docker pull opennetlab.azurecr.io/alphartc
+docker image tag opennetlab.azurecr.io/alphartc alphartc
+```
+
+### From github release
+``` bash
+wget https://github.com/OpenNetLab/AlphaRTC/releases/latest/download/alphartc.tar.gz
+docker load -i alphartc.tar.gz
+```
+
+Ubuntu 18.04 or 20.04 is the only officially supported distro at this moment. For other distros, you may be able to compile your own binary, or use our pre-provided Docker images.
 
 ## Compilation
 
