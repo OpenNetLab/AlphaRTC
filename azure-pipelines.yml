@@ -16,6 +16,7 @@ pool:
 
 
 steps:
+
 - checkout: self
 
 - script: make init
