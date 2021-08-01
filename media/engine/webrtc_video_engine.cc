@@ -920,8 +920,11 @@ bool WebRtcVideoChannel::ApplyChangedParams(
   if (changed_params.negotiated_codecs)
     negotiated_codecs_ = *changed_params.negotiated_codecs;
 
-  if (changed_params.send_codec)
+  if (changed_params.send_codec) {
     send_codec_ = changed_params.send_codec;
+
+    RTC_LOG(LS_INFO) << "Set codec: " << send_codec_->codec.ToString();
+  }
 
   if (changed_params.extmap_allow_mixed) {
     SetExtmapAllowMixed(*changed_params.extmap_allow_mixed);
@@ -1168,6 +1171,7 @@ bool WebRtcVideoChannel::SetRecvParameters(const VideoRecvParameters& params) {
   if (changed_params.rtp_header_extensions) {
     recv_rtp_extensions_ = *changed_params.rtp_header_extensions;
   }
+
   if (changed_params.codec_settings) {
     RTC_LOG(LS_INFO) << "Changing recv codecs from "
                      << CodecSettingsVectorToString(recv_codecs_) << " to "

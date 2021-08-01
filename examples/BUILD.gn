@@ -52,6 +52,7 @@ group("examples") {
     ]
     if (current_os != "winuwp") {
       deps += [ ":peerconnection_client" ]
+      deps += [ ":peerconnection_gcc" ]
     }
   }
 
@@ -693,6 +694,80 @@ if (is_linux || is_win) {
         "Xrender",
       ]
       deps += [ "//build/config/linux/gtk" ]
+    }
+
+    deps += [
+      "../api:libjingle_peerconnection_api",
+      "../api/audio_codecs:builtin_audio_decoder_factory",
+      "../api/audio_codecs:builtin_audio_encoder_factory",
+      "../api/video:video_frame",
+      "../api/video:video_rtp_headers",
+      "../api/video_codecs:builtin_video_decoder_factory",
+      "../api/video_codecs:builtin_video_encoder_factory",
+      "../media:rtc_audio_video",
+      "../modules/audio_device",
+      "../modules/audio_processing",
+      "../modules/audio_processing:api",
+      "../modules/video_capture:video_capture_module",
+      "../pc:libjingle_peerconnection",
+      "../pc:peerconnection",
+      "../rtc_base",
+      "../rtc_base:rtc_base_approved",
+      "../rtc_base:rtc_json",
+      "../test:video_test_common",
+      "//third_party/abseil-cpp/absl/flags:flag",
+      "//third_party/abseil-cpp/absl/flags:parse",
+      "//third_party/libyuv",
+    ]
+  }
+
+  rtc_executable("peerconnection_gcc") {
+    testonly = true
+    sources = [
+      "peerconnection/gcc/main.cc",
+      "peerconnection/gcc/logger.cc",
+      "peerconnection/gcc/logger.h",
+      "peerconnection/gcc/conductor.cc",
+      "peerconnection/gcc/conductor.h",
+      "peerconnection/gcc/defaults.cc",
+      "peerconnection/gcc/defaults.h",
+      "peerconnection/gcc/peer_connection_client.cc",
+      "peerconnection/gcc/peer_connection_client.h",
+    ]
+
+    deps = [
+      "../api:audio_options_api",
+      "../api:create_peerconnection_factory",
+      "../api:libjingle_peerconnection_api",
+      "../api:media_stream_interface",
+      "../api:scoped_refptr",
+      "../api/audio:audio_mixer_api",
+      "../api/audio_codecs:audio_codecs_api",
+      "../api/video:video_frame_i420",
+      "../api/video:video_rtp_headers",
+      "../api/video_codecs:video_codecs_api",
+      "../media:rtc_media_base",
+      "../p2p:rtc_p2p",
+      "../rtc_base:checks",
+      "../rtc_base/third_party/sigslot",
+      "../system_wrappers:field_trial",
+      "../test:field_trial",
+      "../test:platform_video_capturer",
+      "../test:test_support",
+      "../test:video_test_support",
+      "../test:rtp_test_utils",
+      "//third_party/abseil-cpp/absl/memory",
+      "//third_party/abseil-cpp/absl/types:optional",
+    ]
+    if (is_win) {
+      sources += [
+        "peerconnection/gcc/flag_defs.h",
+        "peerconnection/gcc/main.cc",
+        "peerconnection/gcc/main_wnd.cc",
+        "peerconnection/gcc/main_wnd.h",
+      ]
+      configs += [ "//build/config/win:windowed" ]
+      deps += [ "../media:rtc_media_base" ]
     }
 
     deps += [

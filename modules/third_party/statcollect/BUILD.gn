@@ -1,0 +1,7 @@
+static_library("stat_collect") {
+  sources = [
+    "StatCollect.cpp",
+    "StatCollect.h",
+    "json.hpp"
+  ]
+}

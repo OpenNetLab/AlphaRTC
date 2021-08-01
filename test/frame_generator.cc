@@ -22,6 +22,8 @@
 #include "rtc_base/bind.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/keep_ref_until_done.h"
+#include "rtc_base/logging.h"
+#include "rtc_base/time_utils.h"
 #include "test/frame_utils.h"
 
 namespace webrtc {
@@ -31,6 +33,11 @@ namespace {
 // Helper method for keeping a reference to passed pointers.
 void KeepBufferRefs(rtc::scoped_refptr<webrtc::VideoFrameBuffer>,
                     rtc::scoped_refptr<webrtc::VideoFrameBuffer>) {}
+
+const size_t kMaxHeaderSize = 100;
+
+// Size of header: "FRAME\n"
+const size_t kFrameHeaderSize = 6;
 
 }  // namespace
 
@@ -206,6 +213,77 @@ bool YuvFileGenerator::ReadNextFrame() {
                              static_cast<int>(height_), files_[file_index_]);
     RTC_CHECK(last_read_buffer_);
   }
+  return frame_index_ != prev_frame_index || file_index_ != prev_file_index;
+}
+
+Y4mFileGenerator::Y4mFileGenerator(std::vector<FILE*> files,
+                                   size_t width,
+                                   size_t height,
+                                   int frame_repeat_count)
+    : YuvFileGenerator(files, width, height, frame_repeat_count) {
+  buffer_ = new uint8_t[kMaxHeaderSize];
+
+  // read the Y4m file header from each file
+  for (FILE* file : files_) {
+    if (!fgets(reinterpret_cast<char*>(buffer_), kMaxHeaderSize, file)) {
+      RTC_CHECK(false) << "Failed to read Y4m file header";
+    }
+  }
+}
+
+Y4mFileGenerator::~Y4mFileGenerator() {
+  delete[] buffer_;
+}
+
+FrameGeneratorInterface::VideoFrameData Y4mFileGenerator::NextFrame() {
+  // Empty update by default.
+  VideoFrame::UpdateRect update_rect{0, 0, 0, 0};
+  if (current_display_count_ == 0) {
+    const bool got_new_frame = ReadNextY4mFrame();
+    // Full update on a new frame from file.
+    if (got_new_frame) {
+      update_rect = VideoFrame::UpdateRect{0, 0, static_cast<int>(width_),
+                                           static_cast<int>(height_)};
+    }
+  }
+  if (++current_display_count_ >= frame_display_count_)
+    current_display_count_ = 0;
+
+
+  // Read a frame from Y4M
+  RTC_LOG(INFO) << "FRAME READ: " << rtc::TimeMicros();
+
+  return VideoFrameData(last_read_buffer_, update_rect);
+}
+
+bool Y4mFileGenerator::ReadNextY4mFrame() {
+  size_t prev_frame_index = frame_index_;
+  size_t prev_file_index = file_index_;
+  ++frame_index_;
+
+  if (fread(buffer_, 1, kFrameHeaderSize, files_[file_index_]) < kFrameHeaderSize) {
+    if (ferror(files_[file_index_])) {
+      RTC_CHECK(false) << "Failed to read Y4m frame header";
+    } else if (feof(files_[file_index_])) {
+      // No more frames to read in this file, rewind and move to next file.
+      rewind(files_[file_index_]);
+      char * file_header = fgets(reinterpret_cast<char*>(buffer_),
+                                 kMaxHeaderSize, files_[file_index_]);
+      RTC_CHECK(file_header);
+
+      frame_index_ = 0;
+      file_index_ = (file_index_ + 1) % files_.size();
+
+      size_t size = fread(buffer_, 1, kFrameHeaderSize, files_[file_index_]);
+      RTC_CHECK_EQ(size, kFrameHeaderSize);
+    }
+  }
+
+  last_read_buffer_ =
+      test::ReadI420Buffer(static_cast<int>(width_),
+                           static_cast<int>(height_), files_[file_index_]);
+  RTC_CHECK(last_read_buffer_);
+
   return frame_index_ != prev_frame_index || file_index_ != prev_file_index;
 }
 

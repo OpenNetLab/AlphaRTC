@@ -1,0 +1,8 @@
+FROM ubuntu:18.04
+
+RUN apt-get update && apt-get install -y \
+    libx11-6 libgomp1 python3
+
+COPY lib /usr/lib/
+
+COPY bin /usr/bin/
