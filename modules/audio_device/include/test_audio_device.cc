@@ -58,13 +58,25 @@ class TestAudioDeviceModuleImpl
                             std::unique_ptr<Capturer> capturer,
                             std::unique_ptr<Renderer> renderer,
                             float speed = 1)
+      : TestAudioDeviceModuleImpl(task_queue_factory,
+                            std::move(capturer),
+                            std::move(renderer),
+                            nullptr,
+                            1) {}
+
+  TestAudioDeviceModuleImpl(TaskQueueFactory* task_queue_factory,
+                            std::unique_ptr<Capturer> capturer,
+                            std::unique_ptr<Renderer> renderer,
+                            std::shared_ptr<rtc::Event> audio_started,
+                            float speed = 1)
       : task_queue_factory_(task_queue_factory),
         capturer_(std::move(capturer)),
         renderer_(std::move(renderer)),
         process_interval_us_(kFrameLengthUs / speed),
         audio_callback_(nullptr),
         rendering_(false),
-        capturing_(false) {
+        capturing_(false),
+        audio_started_(audio_started) {
     auto good_sample_rate = [](int sr) {
       return sr == 8000 || sr == 16000 || sr == 32000 || sr == 44100 ||
              sr == 48000;
@@ -122,6 +134,7 @@ class TestAudioDeviceModuleImpl
     rtc::CritScope cs(&lock_);
     RTC_CHECK(capturer_);
     capturing_ = true;
+    audio_started_->Set();
     return 0;
   }
 
@@ -200,6 +213,7 @@ class TestAudioDeviceModuleImpl
   bool capturing_ RTC_GUARDED_BY(lock_);
   rtc::Event done_rendering_;
   rtc::Event done_capturing_;
+  std::shared_ptr<rtc::Event> audio_started_;
 
   std::vector<int16_t> playout_buffer_ RTC_GUARDED_BY(lock_);
   rtc::BufferT<int16_t> recording_buffer_ RTC_GUARDED_BY(lock_);
@@ -449,6 +463,17 @@ rtc::scoped_refptr<TestAudioDeviceModule> TestAudioDeviceModule::Create(
     float speed) {
   return new rtc::RefCountedObject<TestAudioDeviceModuleImpl>(
       task_queue_factory, std::move(capturer), std::move(renderer), speed);
+}
+
+rtc::scoped_refptr<TestAudioDeviceModule> TestAudioDeviceModule::Create(
+    TaskQueueFactory* task_queue_factory,
+    std::unique_ptr<TestAudioDeviceModule::Capturer> capturer,
+    std::unique_ptr<TestAudioDeviceModule::Renderer> renderer,
+    std::shared_ptr<rtc::Event> audio_started,
+    float speed) {
+  return new rtc::RefCountedObject<TestAudioDeviceModuleImpl>(
+      task_queue_factory, std::move(capturer), std::move(renderer),
+      audio_started);
 }
 
 std::unique_ptr<TestAudioDeviceModule::PulsedNoiseCapturer>

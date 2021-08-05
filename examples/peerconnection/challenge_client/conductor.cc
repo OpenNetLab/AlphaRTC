@@ -72,6 +72,64 @@ class DummySetSessionDescriptionObserver
   }
 };
 
+
+class FrameGeneratorTrackSource : public webrtc::VideoTrackSource {
+ public:
+  static rtc::scoped_refptr<FrameGeneratorTrackSource> Create(
+      std::shared_ptr<rtc::Event> audio_started_) {
+    auto alphaCCConfig = webrtc::GetAlphaCCConfig();
+    // Creat an FrameGenerator, responsible for reading yuv files
+    std::unique_ptr<webrtc::test::FrameGeneratorInterface> yuv_frame_generator(
+        webrtc::test::CreateFromYuvFileFrameGenerator(
+            std::vector<std::string>{
+                alphaCCConfig->video_file_path}, /* file_path */
+            alphaCCConfig->video_width,          /*video_width */
+            alphaCCConfig->video_height,         /*video_height*/
+            1 /*frame_repeat_count*/));
+
+    // Use FrameGenerator to periodically capture frames
+    std::unique_ptr<webrtc::test::FrameGeneratorCapturer> capturer(
+        new webrtc::test::FrameGeneratorCapturer(
+            webrtc::Clock::GetRealTimeClock(),        /* clock */
+            std::move(yuv_frame_generator),           /* frame_generator */
+            alphaCCConfig->video_fps,                 /* target_fps*/
+            *webrtc::CreateDefaultTaskQueueFactory())); /* task_queue_factory */
+
+    return new rtc::RefCountedObject<FrameGeneratorTrackSource>(
+        std::move(capturer), audio_started_);
+  }
+
+ protected:
+  explicit FrameGeneratorTrackSource(
+      std::unique_ptr<webrtc::test::FrameGeneratorCapturer> capturer,
+      std::shared_ptr<rtc::Event> audio_started_)
+      : VideoTrackSource(/*remote=*/false), capturer_(std::move(capturer)) {
+    // Creat a thread that waits for the audio capturer thread
+    // to start
+    std::thread waiting_for_audio_started_([this, audio_started_]() {
+      auto alphaCCConfig = webrtc::GetAlphaCCConfig();
+
+      // Only wait for audio to start when use audio file
+      if (alphaCCConfig->audio_source_option ==
+          webrtc::AlphaCCConfig::AudioSourceOption::kAudioFile) {
+        audio_started_->Wait(rtc::Event::kForever);
+      }
+      if (capturer_ && capturer_->Init()) {
+        capturer_->Start();
+      }
+    });
+    // Detach() instead of Join(), for non-blocking
+    waiting_for_audio_started_.detach();
+  }
+
+ private:
+  rtc::VideoSourceInterface<webrtc::VideoFrame>* source() override {
+    return capturer_.get();
+  }
+
+  std::unique_ptr<webrtc::test::FrameGeneratorCapturer> capturer_;
+};
+
 class CapturerTrackSource : public webrtc::VideoTrackSource {
  public:
   static rtc::scoped_refptr<CapturerTrackSource> Create() {
@@ -143,9 +201,29 @@ bool Conductor::InitializePeerConnection() {
   RTC_DCHECK(!peer_connection_factory_);
   RTC_DCHECK(!peer_connection_);
 
+  auto task_queue_factory = webrtc::CreateDefaultTaskQueueFactory();
+  rtc::scoped_refptr<webrtc::AudioDeviceModule> audio_device_module = nullptr;
+
+  using AudioSourceOption = webrtc::AlphaCCConfig::AudioSourceOption;
+  // Use audio file for audio input
+  if (alphacc_config_->audio_source_option == AudioSourceOption::kAudioFile) {
+    auto capturer = webrtc::TestAudioDeviceModule::CreateWavFileReader(
+        alphacc_config_->audio_file_path, true);
+
+    auto discard = webrtc::TestAudioDeviceModule::CreateDiscardRenderer(
+        8000 /*sampling frequecy, unused*/, 2 /*num_channels, ununsed*/);
+
+    audio_device_module = webrtc::TestAudioDeviceModule::Create(
+        task_queue_factory.get(), std::move(capturer), std::move(discard),
+        audio_started_);
+  } else if (alphacc_config_->audio_source_option ==
+             AudioSourceOption::kMicrophone) {
+    audio_device_module = nullptr;
+  }
+
   peer_connection_factory_ = webrtc::CreatePeerConnectionFactory(
       nullptr /* network_thread */, nullptr /* worker_thread */,
-      nullptr /* signaling_thread */, nullptr /* default_adm */,
+      nullptr /* signaling_thread */, audio_device_module /* default_adm */,
       webrtc::CreateBuiltinAudioEncoderFactory(),
       webrtc::CreateBuiltinAudioDecoderFactory(),
       webrtc::CreateBuiltinVideoEncoderFactory(),
@@ -315,8 +393,23 @@ void Conductor::AddTracks() {
                       << result_or_error.error().message();
   }
 
-  rtc::scoped_refptr<CapturerTrackSource> video_device =
-      CapturerTrackSource::Create();
+  rtc::scoped_refptr<webrtc::VideoTrackSource> video_device;
+  using VideoSourceOption = webrtc::AlphaCCConfig::VideoSourceOption;
+
+  switch (alphacc_config_->video_source_option) {
+    case VideoSourceOption::kVideoDisabled:
+      video_device = webrtc::FakeVideoTrackSource::Create();
+      break;
+    case VideoSourceOption::kWebcam:
+      video_device = CapturerTrackSource::Create();
+      break;
+    case VideoSourceOption::kVideoFile:
+      video_device = FrameGeneratorTrackSource::Create(audio_started_);
+      break;
+    default:
+      RTC_NOTREACHED();
+  }
+
   if (video_device) {
     rtc::scoped_refptr<webrtc::VideoTrackInterface> video_track_(
         peer_connection_factory_->CreateVideoTrack(kVideoLabel, video_device));
