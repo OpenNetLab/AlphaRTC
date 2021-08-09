@@ -108,7 +108,6 @@ class FrameGeneratorTrackSource : public webrtc::VideoTrackSource {
     // to start
     std::thread waiting_for_audio_started_([this, audio_started_]() {
       auto alphaCCConfig = webrtc::GetAlphaCCConfig();
-
       // Only wait for audio to start when use audio file
       if (alphaCCConfig->audio_source_option ==
           webrtc::AlphaCCConfig::AudioSourceOption::kAudioFile) {
@@ -210,11 +209,18 @@ bool Conductor::InitializePeerConnection() {
     auto capturer = webrtc::TestAudioDeviceModule::CreateWavFileReader(
         alphacc_config_->audio_file_path, true);
 
-    auto discard = webrtc::TestAudioDeviceModule::CreateDiscardRenderer(
-        8000 /*sampling frequecy, unused*/, 2 /*num_channels, ununsed*/);
+    std::unique_ptr<webrtc::TestAudioDeviceModule::Renderer> renderer;
+    if (alphacc_config_->save_to_file) {
+      renderer = webrtc::TestAudioDeviceModule::CreateWavFileWriter(
+          alphacc_config_->audio_output_path,
+          capturer.get()->SamplingFrequency(), capturer.get()->NumChannels());
+    } else {
+      renderer = webrtc::TestAudioDeviceModule::CreateDiscardRenderer(
+          8000 /*sampling frequecy, unused*/, 2 /*num_channels, ununsed*/);
+    }
 
     audio_device_module = webrtc::TestAudioDeviceModule::Create(
-        task_queue_factory.get(), std::move(capturer), std::move(discard),
+        task_queue_factory.get(), std::move(capturer), std::move(renderer),
         audio_started_);
   } else if (alphacc_config_->audio_source_option ==
              AudioSourceOption::kMicrophone) {
