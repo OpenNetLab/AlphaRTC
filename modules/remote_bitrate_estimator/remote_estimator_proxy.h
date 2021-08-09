@@ -20,6 +20,7 @@
 #include "rtc_base/critical_section.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/numerics/sequence_number_util.h"
+#include "modules/third_party/statcollect/StatCollect.h"
 
 namespace webrtc {
 
@@ -73,10 +74,20 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
 
   static const int kMaxNumberOfPackets;
 
+  void OnPacketArrival(uint16_t sequence_number,
+                       int64_t arrival_time,
+                       absl::optional<FeedbackRequest> feedback_request)
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
+
   void SendPeriodicFeedbacks() RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
   void SendFeedbackOnRequest(int64_t sequence_number,
                              const FeedbackRequest& feedback_request)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
+
+  void SendbackBweEstimation(const BweMessage& bwe_message)
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
+  bool TimeToSendBweMessage() RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
+
   static int64_t BuildFeedbackPacket(
       uint8_t feedback_packet_count,
       uint32_t media_ssrc,
@@ -86,6 +97,9 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
       std::map<int64_t, int64_t>::const_iterator
           end_iterator,  // |end_iterator| is exclusive.
       rtcp::TransportFeedback* feedback_packet);
+
+  uint32_t GetTtimeFromAbsSendtime(uint32_t absoluteSendTime)
+      RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
 
   Clock* const clock_;
   TransportFeedbackSenderInterface* const feedback_sender_;
@@ -106,8 +120,18 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   bool send_periodic_feedback_ RTC_GUARDED_BY(&lock_);
 
   // Unwraps absolute send times.
-  uint32_t previous_abs_send_time_ RTC_GUARDED_BY(&lock_);
-  Timestamp abs_send_timestamp_ RTC_GUARDED_BY(&lock_);
+//   uint32_t previous_abs_send_time_ RTC_GUARDED_BY(&lock_);
+//   Timestamp abs_send_timestamp_ RTC_GUARDED_BY(&lock_);
+
+  // Bandwidth estimation sending back
+  int64_t bwe_sendback_interval_ms_ RTC_GUARDED_BY(&lock_);
+  int64_t last_bwe_sendback_ms_ RTC_GUARDED_BY(&lock_);
+
+  // StatCollect moudule
+  StatCollect::StatsCollectModule stats_collect_;
+  int cycles_ RTC_GUARDED_BY(&lock_);
+  uint32_t max_abs_send_time_ RTC_GUARDED_BY(&lock_);
+//   void* onnx_infer_;
 };
 
 }  // namespace webrtc
