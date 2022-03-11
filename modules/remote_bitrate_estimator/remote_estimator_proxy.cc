@@ -126,14 +126,11 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
     SendbackBweEstimation(bwe);
   }
 
-  // Save per-packet info locally on receiving
-  // ---------- Collect packet-related info into a local file ----------
+  // Collect per-packet info into a WebRTC event log (default: webrtc.log) on the receiver side.
   double pacing_rate =
       time_to_send_bew_message ? estimation : SC_PACER_PACING_RATE_EMPTY;
   double padding_rate =
       time_to_send_bew_message ? estimation : SC_PACER_PADDING_RATE_EMPTY;
-
-  // Save per-packet info locally on receiving
   auto res = stats_collect_.StatsCollect(
       pacing_rate, padding_rate, header.payloadType,
                               header.sequenceNumber, send_time_ms, header.ssrc,

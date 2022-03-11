@@ -1,14 +1,15 @@
 dockers_dir := dockers
-build_dockerfile := $(dockers_dir)/Dockerfile.compile
-release_dockerfile := $(dockers_dir)/Dockerfile.release
+dockerfile_compile := $(dockers_dir)/Dockerfile.compile
+dockerfile_release := $(dockers_dir)/Dockerfile.release
 output_dir := out/Default
 target_dir := target
 target_lib_dir := $(target_dir)/lib
 target_bin_dir := $(target_dir)/bin
 target_pylib_dir := $(target_dir)/pylib
 
-compile_docker := alphartc-compile
-release_docker := alphartc
+# image name
+image_compile := alphartc-compile
+image_release := alphartc
 
 host_workdir := `pwd`
 docker_homedir := /app/AlphaRTC/
@@ -17,30 +18,37 @@ docker_workdir := $(docker_homedir)
 docker_flags := --rm -v $(host_workdir):$(docker_homedir) -w $(docker_workdir)
 gn_flags := --args='is_debug=false'
 
+
 all: init sync app release
 
+# Create a docker image with name $(image_compile)
 init:
-	docker build dockers --build-arg UID=$(shell id -u) --build-arg GUID=$(shell id -g) -f $(build_dockerfile) -t $(compile_docker)
+	docker build dockers --build-arg UID=$(shell id -u) --build-arg GUID=$(shell id -g) -f $(dockerfile_compile) -t $(image_compile)
 
-release:
-	docker build $(target_dir) -f $(release_dockerfile) -t $(release_docker)
-
+# Build AlphaRTC inside the image
+# After modifying and re-compiling the AlphaRTC, skip `make init`.
 sync:
-	docker run $(docker_flags) $(compile_docker) \
+	docker run $(docker_flags) $(image_compile) \
 		make docker-$@ \
 		output_dir=$(output_dir) \
 		gn_flags=$(gn_flags)
 
-app: peerconnection_serverless
-
-peerconnection_serverless:
-	docker run $(docker_flags) $(compile_docker) \
+# Build peerconnection_serverless binary.
+app: 
+	docker run $(docker_flags) $(image_compile) \
 		make docker-$@ \
 		output_dir=$(output_dir) \
 		target_lib_dir=$(target_lib_dir) \
 		target_bin_dir=$(target_bin_dir) \
 		target_pylib_dir=$(target_pylib_dir)
 
+release:
+	docker build $(target_dir) -f $(dockerfile_release) -t $(image_release)
+
+
+clean:
+	docker rmi alphartc-compile
+	
 # Docker internal command
 
 docker-sync:
@@ -49,18 +57,17 @@ docker-sync:
 	rm -rf src
 	gn gen $(output_dir) $(gn_flags)
 
-docker-app: docker-peerconnection_serverless
-
-docker-peerconnection_serverless:
+# Build peerconnection_serverless AlphaRTC e2e example.
+# (check ninja project files for peerconnection_serverless executable under ./examples/BUILD.gn)
+#
+# Create out/Default/lib and place libraries needed to run ONNX models into it
+docker-app: 
 	ninja -C $(output_dir) peerconnection_serverless
-
 	mkdir -p $(target_lib_dir)
 	cp modules/third_party/onnxinfer/lib/*.so $(target_lib_dir)
 	cp modules/third_party/onnxinfer/lib/*.so.* $(target_lib_dir)
-
 	mkdir -p $(target_bin_dir)
 	cp $(output_dir)/peerconnection_serverless $(target_bin_dir)/peerconnection_serverless.origin
 	cp examples/peerconnection/serverless/peerconnection_serverless $(target_bin_dir)
-
 	mkdir -p $(target_pylib_dir)
 	cp modules/third_party/cmdinfer/*.py $(target_pylib_dir)/

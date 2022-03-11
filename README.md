@@ -116,7 +116,7 @@ Note: all commands below work for both Linux (sh) and Windows (pwsh), unless oth
 4. Generate build rules
 
     _Windows users_: Please use __x64 Native Tools Command Prompt for VS2017__. The clang version comes with the project is 9.0.0, hence incompatible with VS2019. In addition, environmental variable `DEPOT_TOOLS_WIN_TOOLSCHAIN` has to be set to `0` and `GYP_MSVS_VERSION` has to be set to `2017`.
-    
+
     ```shell
     gn gen out/Default
     ```
@@ -129,7 +129,13 @@ Note: all commands below work for both Linux (sh) and Windows (pwsh), unless oth
     ```shell
     ninja -C out/Default peerconnection_serverless_win_gui
     ```
-    
+
+6. Compiling AlphaRTC to make custom-built [challenge-env](https://github.com/OpenNetLab/Challenge-Example) docker image
+- Build AlphaRTC with `make all` to create local alphartc:latest docker image
+  - When alphartc-compile already exists due to make init && make sync, do make-app && make-release instead of make all
+- Build `challenge-env` docker image with `make local` using [ChallengeEnv/Makefile](https://github.com/jeongyooneo/ChallengeEnv/blob/main/Makefile)
+
+
 ## Demo
 
 AlphaRTC consists of many different components. `peerconnection_serverless` is an application for demo purposes that comes with AlphaRTC. It establishes RTC communication with another peer without the need of a server.
@@ -153,7 +159,7 @@ This section describes required fields for the json configuration file.
 - **serverless_connection**
   - **sender**
     - **enabled**: If set to `true`, the client will act as sender and automatically connect to receiver when launched
-    - **send_to_ip**: The IP of serverless peerconnection receiver 
+    - **send_to_ip**: The IP of serverless peerconnection receiver
     - **send_to_port**: The port of serverless peerconnection receiver
   - **receiver**
     - **enabled**: If set to `true`, the client will act as receiver and wait for sender to connect.
@@ -258,7 +264,7 @@ If you want to use the ONNXInfer as the bandwidth estimator, you should specify 
 - Bare metal
 
     If you compiled your own binary, you can also run it on your bare-metal machine.
-    
+
     - Linux users:
         1. Copy the provided corpus to a new directory
 
@@ -300,7 +306,7 @@ If you want to use the ONNXInfer as the bandwidth estimator, you should specify 
 
 ## Who Are We
 
-The OpenNetLab is an open-networking research community. Our members are from Microsoft Research Asia, Tsinghua Univeristy, Peking University, Nanjing University, KAIST, Seoul National University, National University of Singapore, SUSTech, Shanghai Jiaotong Univerisity. 
+The OpenNetLab is an open-networking research community. Our members are from Microsoft Research Asia, Tsinghua Univeristy, Peking University, Nanjing University, KAIST, Seoul National University, National University of Singapore, SUSTech, Shanghai Jiaotong Univerisity.
 
 ## WebRTC
 
