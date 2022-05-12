@@ -30,7 +30,7 @@ class PacketRecord:
                 >= self.packet_list[-1]['timestamp']), \
             "The incoming packets receive_timestamp disordered"
 
-        print(f'on_receive: receive_ts {packet_info.receive_timestamp} packet_info {packet_info}')
+        # print(f'on_receive: receive_ts {packet_info.receive_timestamp} packet_info {packet_info}')
 
         # Calculate the loss count
         loss_count = 0
@@ -125,7 +125,6 @@ class PacketRecord:
         The unit of return value: bps
         '''
         if self.packet_num > 0:
-            print(f'self.packet_list[-1]: {self.packet_list[-1]} len {len(self.packet_list[-1])}')
             return self.packet_list[-1]['bandwidth_prediction']
         else:
             return 0

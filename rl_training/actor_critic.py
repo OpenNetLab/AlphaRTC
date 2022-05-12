@@ -52,7 +52,6 @@ class ActorCritic(nn.Module):
     def evaluate(self, state, action):
         action_mean = self.actor(state)
         cov_mat = torch.diag(self.action_var).to(self.device)
-        print(f'action_mean {action_mean} cov_mat {cov_mat}')
         dist = MultivariateNormal(action_mean, cov_mat)
 
         action_logprobs = dist.log_prob(action)
