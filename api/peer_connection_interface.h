@@ -659,7 +659,6 @@ class RTC_EXPORT PeerConnectionInterface : public rtc::RefCountInterface {
 
     // The rate update time in milliseconds
     int rate_update_ms = kUndefined;
-
     // TURN logging identifier.
     // This identifier is added to a TURN allocation
     // and it intended to be used to be able to match client side

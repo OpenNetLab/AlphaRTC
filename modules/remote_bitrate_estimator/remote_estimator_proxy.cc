@@ -112,20 +112,15 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   }
 
   //--- BandWidthControl: Send back bandwidth estimation into to sender ---
-  bool time_to_send_bew_message = true; // TimeToSendBweMessage();
+  bool time_to_send_bew_message = TimeToSendBweMessage(); // true;
   float estimation = 0;
-  // TimeStampAndBwe ts_bwe = TimeStampAndBwe();
   if (time_to_send_bew_message) {
     BweMessage bwe;
     if (onnx_infer_) {
       estimation = onnxinfer::GetBweEstimate(onnx_infer_);
     } else {
-      // ts_bwe = cmdtrain::GetEstimatedBandwidth();
-      // RTC_LOG(LS_INFO) << "cmdtrain::GetEstimatedBandwidth() timestamp: " << ts_bwe.ts << " estimated bandwidth " << ts_bwe.bwe;
-      // estimation = ts_bwe.bwe;
-
       estimation = cmdtrain::GetEstimatedBandwidth();
-      RTC_LOG(LS_INFO) << "cmdtrain::GetEstimatedBandwidth() estimated bandwidth " << estimation;
+      RTC_LOG(LS_INFO) << "cmdtrain::GetEstimatedBandwidth() estimated bandwidth: " << estimation << " bps";
     }
     bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
     bwe.timestamp_ms = clock_->TimeInMilliseconds();

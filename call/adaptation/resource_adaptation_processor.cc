@@ -14,7 +14,6 @@
 #include <utility>
 
 #include "absl/algorithm/container.h"
-#include "rtc_base/logging.h"
 
 namespace webrtc {
 
@@ -258,7 +257,6 @@ void ResourceAdaptationProcessor::OnResourceUnderuse(
 
 void ResourceAdaptationProcessor::OnResourceOveruse(
     rtc::scoped_refptr<Resource> reason_resource) {
-  RTC_LOG(LS_INFO) << "Resource Overuse!";
   RTC_DCHECK_RUN_ON(&sequence_checker_);
   RTC_DCHECK(!processing_in_progress_);
   processing_in_progress_ = true;

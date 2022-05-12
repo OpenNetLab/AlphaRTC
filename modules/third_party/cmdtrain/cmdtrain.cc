@@ -30,20 +30,12 @@ void cmdtrain::ReportStates(
     j["payload_size"] = payloadSize;
 
     std::cout << j.dump() << std::endl;
-
-    // std::ofstream packet_info;
-    // packet_info.open ("packet_info.json");
-    // packet_info << j.dump() << std::endl;
-    // packet_info.close();
 }
 
 // Read the latest estimated bandwdith from a file named `estimated_bandwdith`.
 // Use `latest_timestamp` to see if it is latest
 // returns: bps
 float cmdtrain::GetEstimatedBandwidth() {
-    // 3000000 is 3Mbps
-    // 100000 is 100Kbps
-
     std::uint64_t bandwidth = 0;
     std::cout << RequestBandwidthCommand << std::endl;
     std::cin >> bandwidth;

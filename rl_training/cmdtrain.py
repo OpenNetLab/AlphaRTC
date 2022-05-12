@@ -3,7 +3,6 @@
 
 import sys
 import json
-import time
 
 RequestBandwidthCommand = "RequestBandwidth"
 
@@ -34,7 +33,6 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
         # Read a line from app.stdout, which is packet statistics
         line = ifd.readline()
         if not line:
-            print(f'peerconnection_serverless.origin produced nothing!')
             break
         if isinstance(line, bytes):
             line = line.decode("utf-8")
@@ -42,7 +40,6 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
         # Receive per-packet stats
         stats = fetch_stats(line)
         if stats:
-            print(f'peerconnection_serverless.origin produced {stats}')
             # deliver this to the RL agent
             estimator.report_states(stats)
             continue
@@ -51,8 +48,6 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
         bwe_request = is_bwe_requested(line)
         if bwe_request:
             bandwidth = estimator.get_estimated_bandwidth()
-            # bandwidth = 1000
-            print(f'BWE requested: latest action {bandwidth}')
             ofd.write("{}\n".format(int(bandwidth)).encode("utf-8"))
             ofd.flush()
             continue

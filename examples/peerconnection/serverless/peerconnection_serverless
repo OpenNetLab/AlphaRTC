@@ -9,11 +9,9 @@ import json
 
 sys.path.append(os.getcwd())
 
-# import cmdtrain
 import rl_training.cmdtrain as cmdtrain
 
 def main():
-    print("Starting peerconnection_serverless.main")
     # `peerconnection_serverless.origin` is an e2e WebRTC app built by examples/BUILD.gn
     # Run this e2e app on a separate process,
     # with AlphaCC config file as an argument (e.g. receiver_pyinfer.json)
@@ -24,12 +22,11 @@ def main():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT)
     try:
-        print("Starting cmdtrain.main")
+        print("Starting the training loop (cmdtrain.main)")
         # This e2e app's stdout and stdin are piped to cmdtrain.main
         cmdtrain.main(app.stdout, app.stdin)
-        print("Finished main")
+        print("Finished the training loop (cmdtrain.main)")
         app.wait()
-        print("Finished app.wait()")
     except:
         app.terminate()
         app.wait()

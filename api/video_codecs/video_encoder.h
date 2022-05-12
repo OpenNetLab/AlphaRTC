@@ -59,12 +59,13 @@ class EncodedImageCallback {
     // error=OK.
     uint32_t frame_id = 0;
 
-    // Tells the encoder that the next frame should be dropped.
+    // Tells the encoder that the next frame is should be dropped.
     bool drop_next_frame = false;
   };
 
   // Used to signal the encoder about reason a frame is dropped.
-  // kDroppedByMediaOptimizations - dropped by MediaOptimizations (for rate limiting purposes).
+  // kDroppedByMediaOptimizations - dropped by MediaOptimizations (for rate
+  // limiting purposes).
   // kDroppedByEncoder - dropped by encoder's internal rate limiter.
   enum class DropReason : uint8_t {
     kDroppedByMediaOptimizations,
