@@ -327,7 +327,7 @@ class VideoStreamEncoderResourceManager
   // adapted for each reason. The sum of active_counts_ MUST always equal the
   // total adaptation provided by the VideoSourceRestrictions.
   // TODO(https://crbug.com/webrtc/11542): When we have an adaptation queue,
-  // guard the activec counts by it instead. The |encoder_stats_observer_| is
+  // guard the active counts by it instead. The |encoder_stats_observer_| is
   // thread-safe anyway, and active counts are used by
   // PreventAdaptUpDueToActiveCounts to make decisions.
   std::unordered_map<VideoAdaptationReason, VideoAdaptationCounters>

@@ -77,3 +77,7 @@
 target/
 src/
 .gclient_entries
+*.log
+*.wav
+*.yuv
+*.json

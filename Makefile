@@ -7,7 +7,7 @@ target_lib_dir := $(target_dir)/lib
 target_bin_dir := $(target_dir)/bin
 target_pylib_dir := $(target_dir)/pylib
 
-# image name
+# docker image name
 image_compile := alphartc-compile
 image_release := alphartc
 
@@ -34,7 +34,7 @@ sync:
 		gn_flags=$(gn_flags)
 
 # Build peerconnection_serverless binary.
-app: 
+app:
 	docker run $(docker_flags) $(image_compile) \
 		make docker-$@ \
 		output_dir=$(output_dir) \
@@ -47,21 +47,22 @@ release:
 
 
 clean:
-	docker rmi alphartc-compile
-	
-# Docker internal command
+	rm -rf webrtc.log
+	docker rmi alphartc-compile alphartc
 
+# Docker internal command
+# Removed the following three lines: 
+# gclient sync
+# mv -fvn src/* .
+# rm -rf src
 docker-sync:
-	gclient sync
-	mv -fvn src/* .
-	rm -rf src
 	gn gen $(output_dir) $(gn_flags)
 
 # Build peerconnection_serverless AlphaRTC e2e example.
 # (check ninja project files for peerconnection_serverless executable under ./examples/BUILD.gn)
 #
 # Create out/Default/lib and place libraries needed to run ONNX models into it
-docker-app: 
+docker-app:
 	ninja -C $(output_dir) peerconnection_serverless
 	mkdir -p $(target_lib_dir)
 	cp modules/third_party/onnxinfer/lib/*.so $(target_lib_dir)
@@ -71,3 +72,5 @@ docker-app:
 	cp examples/peerconnection/serverless/peerconnection_serverless $(target_bin_dir)
 	mkdir -p $(target_pylib_dir)
 	cp modules/third_party/cmdinfer/*.py $(target_pylib_dir)/
+	cp modules/third_party/cmdtrain/*.py $(target_pylib_dir)/
+

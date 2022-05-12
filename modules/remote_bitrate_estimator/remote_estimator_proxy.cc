@@ -13,7 +13,7 @@
 #endif  //  WIN32
 
 #include "modules/remote_bitrate_estimator/remote_estimator_proxy.h"
-#include "modules/third_party/cmdinfer/cmdinfer.h"
+#include "modules/third_party/cmdtrain/cmdtrain.h"
 
 #include <algorithm>
 #include <limits>
@@ -100,7 +100,7 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
                           send_time_ms, header.ssrc, header.paddingLength,
                           header.headerLength, arrival_time_ms, payload_size, -1, -1);
   } else {
-    cmdinfer::ReportStates(
+    cmdtrain::ReportStates(
         send_time_ms,
         arrival_time_ms,
         payload_size,
@@ -112,14 +112,20 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   }
 
   //--- BandWidthControl: Send back bandwidth estimation into to sender ---
-  bool time_to_send_bew_message = TimeToSendBweMessage();
+  bool time_to_send_bew_message = true; // TimeToSendBweMessage();
   float estimation = 0;
+  // TimeStampAndBwe ts_bwe = TimeStampAndBwe();
   if (time_to_send_bew_message) {
     BweMessage bwe;
     if (onnx_infer_) {
       estimation = onnxinfer::GetBweEstimate(onnx_infer_);
     } else {
-      estimation = cmdinfer::GetEstimatedBandwidth();
+      // ts_bwe = cmdtrain::GetEstimatedBandwidth();
+      // RTC_LOG(LS_INFO) << "cmdtrain::GetEstimatedBandwidth() timestamp: " << ts_bwe.ts << " estimated bandwidth " << ts_bwe.bwe;
+      // estimation = ts_bwe.bwe;
+
+      estimation = cmdtrain::GetEstimatedBandwidth();
+      RTC_LOG(LS_INFO) << "cmdtrain::GetEstimatedBandwidth() estimated bandwidth " << estimation;
     }
     bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
     bwe.timestamp_ms = clock_->TimeInMilliseconds();

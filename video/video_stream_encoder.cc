@@ -556,7 +556,7 @@ void VideoStreamEncoder::ReconfigureEncoder() {
           std::min(streams.back().target_bitrate_bps,
                    encoder_bitrate_limits_->max_bitrate_bps);
     } else {
-      RTC_LOG(LS_WARNING) << "Bitrate limits provided by encoder"
+      RTC_LOG(LS_INFO) << "Bitrate limits provided by encoder"
                           << " (min="
                           << encoder_bitrate_limits_->min_bitrate_bps
                           << ", max="
@@ -1076,7 +1076,7 @@ void VideoStreamEncoder::MaybeEncodeVideoFrame(const VideoFrame& video_frame,
         VideoFrame::UpdateRect{0, 0, video_frame.width(), video_frame.height()};
   }
 
-  // We have to create then encoder before the frame drop logic,
+  // We have to create the encoder before the frame drop logic,
   // because the latter depends on encoder_->GetScalingSettings.
   // According to the testcase
   // InitialFrameDropOffWhenEncoderDisabledScaling, the return value
@@ -1280,7 +1280,6 @@ void VideoStreamEncoder::EncodeVideoFrame(const VideoFrame& video_frame,
       update_rect.offset_y -= crop_height_ / 2;
       update_rect.Intersect(
           VideoFrame::UpdateRect{0, 0, cropped_width, cropped_height});
-
     } else {
       cropped_buffer->ScaleFrom(*i420_buffer);
       if (!update_rect.IsEmpty()) {
@@ -2008,6 +2007,7 @@ void VideoStreamEncoder::CheckForAnimatedContent(
     video_source_sink_controller_.PushSourceSinkSettings();
   }
 }
+
 void VideoStreamEncoder::InjectAdaptationResource(
     rtc::scoped_refptr<Resource> resource,
     VideoAdaptationReason reason) {
