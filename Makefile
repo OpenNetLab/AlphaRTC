@@ -43,6 +43,7 @@ app:
 		target_pylib_dir=$(target_pylib_dir)
 
 release:
+	cp requirements.txt $(target_dir)
 	docker build $(target_dir) -f $(dockerfile_release) -t $(image_release)
 
 

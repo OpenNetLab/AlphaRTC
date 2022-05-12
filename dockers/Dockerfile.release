@@ -4,7 +4,6 @@ RUN apt-get update && apt-get install -y \
     libx11-6 libgomp1 python3 python3-pip
 
 # Use pip install for torch and numpy inside docker.
-# Before running this, move requirements.txt into target dir
 COPY requirements.txt ./
 RUN pip3 install --no-cache-dir -r requirements.txt
 

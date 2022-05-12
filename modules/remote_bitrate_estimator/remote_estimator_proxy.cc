@@ -112,7 +112,7 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   }
 
   //--- BandWidthControl: Send back bandwidth estimation into to sender ---
-  bool time_to_send_bew_message = TimeToSendBweMessage(); // true;
+  bool time_to_send_bew_message = TimeToSendBweMessage();
   float estimation = 0;
   if (time_to_send_bew_message) {
     BweMessage bwe;
@@ -259,6 +259,9 @@ void RemoteEstimatorProxy::OnPacketArrival(
 bool RemoteEstimatorProxy::TimeToSendBweMessage() {
   int64_t time_now = clock_->TimeInMilliseconds();
   if (time_now - bwe_sendback_interval_ms_ > last_bwe_sendback_ms_) {
+    RTC_LOG(LS_INFO)
+      << "BWE sendback interval (ms) "
+      << bwe_sendback_interval_ms_;
     last_bwe_sendback_ms_ = time_now;
     return true;
   }

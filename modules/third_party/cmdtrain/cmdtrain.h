@@ -4,12 +4,6 @@
 #include <cinttypes>
 #include <cstddef>
 
-struct TimeStampAndBwe {
-    TimeStampAndBwe() : ts(0), bwe(0) {}
-    int ts;
-    int bwe;
-};
-
 namespace cmdtrain {
     void ReportStates(
         std::uint64_t sendTimeMs,
