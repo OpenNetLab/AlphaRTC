@@ -5,7 +5,7 @@
 #include <cstddef>
 
 namespace cmdtrain {
-    void ReportStates(
+    float ReportStatsAndGetBWE(
         std::uint64_t sendTimeMs,
         std::uint64_t receiveTimeMs,
         std::size_t payloadSize,
@@ -14,8 +14,6 @@ namespace cmdtrain {
         std::uint32_t ssrc,
         std::size_t paddingLength,
         std::size_t headerLength);
-
-    float GetEstimatedBandwidth();
 }
 
 #endif

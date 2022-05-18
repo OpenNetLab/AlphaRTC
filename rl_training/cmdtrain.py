@@ -4,8 +4,6 @@
 import sys
 import json
 
-RequestBandwidthCommand = "RequestBandwidth"
-
 def fetch_stats(line: str)->dict:
     line = line.strip()
     try:
@@ -13,12 +11,6 @@ def fetch_stats(line: str)->dict:
         return stats
     except json.decoder.JSONDecodeError:
         return None
-
-def is_bwe_requested(line: str)->bool:
-    line = line.strip()
-    if RequestBandwidthCommand == line:
-        return True
-    return False
 
 def find_estimator_class():
     import rl_training.BandwidthEstimator as BandwidthEstimator
@@ -37,18 +29,11 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
         if isinstance(line, bytes):
             line = line.decode("utf-8")
 
-        # Receive per-packet stats
         stats = fetch_stats(line)
         if stats:
-            # deliver this to the RL agent
-            estimator.report_states(stats)
-            continue
-
-        # Send latest action
-        bwe_request = is_bwe_requested(line)
-        if bwe_request:
-            bandwidth = estimator.get_estimated_bandwidth()
-            ofd.write("{}\n".format(int(bandwidth)).encode("utf-8"))
+            # Send per-packet stats to the RL agent and receive latest BWE
+            bwe = estimator.report_states(stats)
+            ofd.write("{}\n".format(int(bwe)).encode("utf-8"))
             ofd.flush()
             continue
 

@@ -4,7 +4,9 @@
 import torch
 import numpy as np
 
-
+# TODO: Refactor 'Storage' to 'RolloutBuffer', as normally used in PPO implementations.
+# (cf. https://github.com/nikhilbarhate99/PPO-PyTorch/blob/d5c883783ac6406c4d58a1e1e9eb6f08a6462d89/PPO.py#L20)
+# TODO: Decouple compute_returns from this class and move it to PPO#update.
 class Storage:
     def __init__(self):
         self.actions = []
@@ -19,6 +21,8 @@ class Storage:
         returns = np.zeros(len(self.rewards)+1)
         returns[-1] = next_value
         for i in reversed(range(len(self.rewards))):
+            # Original: returns[i] = returns[i+1] * gamma * (1-self.is_terminals[i]) + self.rewards[i]
+            # i.e. if done == True, returns[i] = self.rewards[i]
             returns[i] = returns[i+1] * gamma + self.rewards[i]
             self.returns.append(torch.tensor([returns[i]]))
         self.returns.reverse()

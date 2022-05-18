@@ -6,6 +6,7 @@ import os
 import subprocess
 import traceback
 import json
+import time
 
 sys.path.append(os.getcwd())
 
@@ -22,10 +23,14 @@ def main():
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT)
     try:
+        # TODO: Move this measurement inside conductor.cc
         print("Starting the training loop (cmdtrain.main)")
+        start = time.time()
         # This e2e app's stdout and stdin are piped to cmdtrain.main
         cmdtrain.main(app.stdout, app.stdin)
         print("Finished the training loop (cmdtrain.main)")
+        end = time.time()
+        print(f'Completion time: {end - start} sec')
         app.wait()
     except:
         app.terminate()

@@ -5,11 +5,7 @@
 #include <fstream>
 #include <unistd.h>
 
-int32_t latest_ts = 0;
-int32_t latest_bwe = 0;
-const char * RequestBandwidthCommand = "RequestBandwidth";
-
-void cmdtrain::ReportStates(
+float cmdtrain::ReportStatsAndGetBWE(
     std::uint64_t sendTimeMs,
     std::uint64_t receiveTimeMs,
     std::size_t payloadSize,
@@ -29,15 +25,11 @@ void cmdtrain::ReportStates(
     j["header_length"] = headerLength;
     j["payload_size"] = payloadSize;
 
+    // Receive packet statistics from WebRTC receiver
     std::cout << j.dump() << std::endl;
-}
 
-// Read the latest estimated bandwdith from a file named `estimated_bandwdith`.
-// Use `latest_timestamp` to see if it is latest
-// returns: bps
-float cmdtrain::GetEstimatedBandwidth() {
+    // Send BWE to the WebRTC receiver
     std::uint64_t bandwidth = 0;
-    std::cout << RequestBandwidthCommand << std::endl;
     std::cin >> bandwidth;
     return static_cast<float>(bandwidth);
 }

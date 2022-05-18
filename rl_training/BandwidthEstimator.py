@@ -1,8 +1,6 @@
-from audioop import avg
 import torch
 import numpy as np
-import time
-import datetime
+import os
 
 from rl_training.packet_info import PacketInfo
 from rl_training.packet_record import PacketRecord
@@ -10,8 +8,8 @@ from rl_training.ppo_agent import PPO
 from rl_training.storage import Storage
 
 UNIT_M = 1000000
-MAX_BANDWIDTH_MBPS = 8      # 8 Mbps
-MIN_BANDWIDTH_MBPS = 0.01   # 10 Kbps
+MAX_BANDWIDTH_MBPS = 8      # Max: 8 Mbps
+MIN_BANDWIDTH_MBPS = 0.01   # Min: 10 Kbps
 LOG_MAX_BANDWIDTH_MBPS = np.log(MAX_BANDWIDTH_MBPS)
 LOG_MIN_BANDWIDTH_MBPS = np.log(MIN_BANDWIDTH_MBPS)
 
@@ -34,22 +32,21 @@ Estimator class for emulator or in-situ training.
 class Estimator(object):
     def __init__(self):
         # Hyperparameters for RL training
-        # 1 episode = num_steps_per_episode steps
-        # 1 step = whenever a reward is generated, i.e. applied an action and observed new state as a result of it
-        self.num_steps_per_episode = 4000     # set as in gym-example
-        self.step_time = 60
+        # 1 episode = num_steps_per_episode steps. Policy is updated whenever an episode is finished.
+        # 1 step = whenever a reward is generated, i.e. an action is applied and new state is observed as a result of it
+        self.num_steps_per_episode = 10     # cf. set as 4000 in gym-example
         self.num_steps = 0
         self.num_episodes = 0
 
         # PPO agent for RL policy
         state_dim = 4
         action_dim = 1
-        exploration_param = 0.05    # the std var of action distribution
-        lr = 3e-5                   # for Adam
+        exploration_param = 0.05            # the std var of action distribution
+        lr = 3e-5                           # 0.00003. for Adam
         betas = (0.9, 0.999)
-        self.gamma = 0.99                # discount factor
-        K_epochs = 37               # update policy for K_epochs
-        ppo_clip = 0.2              # clip parameters of PPO
+        self.gamma = 0.99                   # discount factor
+        K_epochs = 37                       # update policy for K_epochs epochs in one PPO update
+        ppo_clip = 0.2                      # clip parameter
         self.ppo = PPO(state_dim, action_dim, exploration_param, lr, betas, self.gamma, K_epochs, ppo_clip)
 
         # Initial state and action
@@ -67,17 +64,17 @@ class Estimator(object):
         self.packet_record.reset()
         self.storage = Storage()
 
-        # Lastest packet info (ssrc-sequence_number) that is already used in training
-        self.latest_packet_info = ""
-
         # Path to save model ckpt
-        self.ckpt_path = "./rl_model/ckpt/pretrained_model.pth"
+        self.ckpt_dir = './rl_model/ckpt/'
+        if not os.path.exists(self.ckpt_dir):
+            os.makedirs(self.ckpt_dir)
+        # Save ckpt at every 10 episodes
+        self.episodes_between_ckpt = 10
 
         # Path to save reward curve
-        self.reward_curve_path = './rl_model/reward_curves/'
-
-        # Status marker
-        self.last_call = "init"
+        self.reward_curve_dir = './rl_model/reward_curves/'
+        if not os.path.exists(self.reward_curve_dir):
+            os.makedirs(self.reward_curve_dir)
 
 
     '''
@@ -86,64 +83,38 @@ class Estimator(object):
     Should be called once per every step.
     '''
     def report_states(self, stats: dict):
-        '''
-        stats is a dict with the following items
-        {
-            "send_time_ms": uint,
-            "arrival_time_ms": uint,
-            "payload_type": int,
-            "sequence_number": uint,
-            "ssrc": int,
-            "padding_length": uint,
-            "header_length": uint,
-            "payload_size": uint
-        }
-        '''
-
         # Calculate state and reward
         state, reward = self.calculate_state_reward(stats)
-        # print(f'state {state} reward {reward}')
         self.state = torch.Tensor(state)
+
+        # BWE: action of the current policy
+        action = self.ppo.select_action(self.state, self.storage)
+        self.bwe = log_to_linear(action)
+        print(f'Episode {self.num_episodes} Step {self.num_steps} Action (BWE): {self.bwe}')
 
         # Calculate cumulative sum of per step reward
         self.storage.rewards.append(reward)
         self.accum_reward += reward
+
+        # Increase step counter
         self.num_steps += 1
 
-        self.last_call = "report_states"
+        # Check whether to update the policy (episode finished)
+        if self.num_steps % self.num_steps_per_episode == 0:
+            # Update the policy
+            self.policy_update()
 
+            # Clear per-episode data and reset step counter
+            self.storage.clear_storage()
+            self.accum_reward = 0
+            self.num_steps = 0
 
-    '''
-    Send estimated bandwidth.
-    Policy update should be done after an episode is finished
-    (i.e. once after num_steps_per_episode steps).
-    '''
-    def get_estimated_bandwidth(self):
-        if self.last_call == "report_states":
-            if self.num_steps % self.num_steps_per_episode == 0:
-                # One episode is finished
-                self.num_episodes += 1
+            # Save model ckpt
+            if self.num_episodes > 0 and self.num_episodes % self.episodes_between_ckpt == 0:
+                self.ppo.save_model(self.ckpt_dir)
 
-                # Update the policy
-                self.policy_update()
-
-                # Clear per-episode data and reset step counter
-                self.storage.clear_storage()
-                self.accum_reward = 0
-                self.num_steps = 0
-
-                # Save model ckpt
-                self.ppo.save_model(self.ckpt_path)
-                # Plot the reward curve
-                # plt.plot(range(len(self.record_avg_reward_per_step)), self.record_avg_reward_per_step)
-                # plt.xlabel('Episode')
-                # plt.ylabel('Averaged reward per step in each episode')
-                # plt.savefig(f'{self.reward_curve_path}reward_curve.jpg')
-
-            # BWE: the latest action of the policy
-            action = self.ppo.select_action(self.state, self.storage)
-            self.bwe = log_to_linear(action)
-            print(f'Episode {self.num_episodes} step {self.num_steps} action (BWE): {self.bwe}')
+            # Increase episode counter
+            self.num_episodes += 1
 
         return self.bwe
 
@@ -159,7 +130,7 @@ class Estimator(object):
         policy_loss, val_loss = self.ppo.update(self.storage)
         avg_reward_per_step = self.accum_reward / self.num_steps
         self.avg_reward_per_step_list.append(avg_reward_per_step)
-        print(f'Episode {self.num_episodes} finished: policy loss {policy_loss} value loss {val_loss} avg. reward per step {avg_reward_per_step}')
+        print(f'Episode {self.num_episodes} finished, PPO policy updated: policy loss {policy_loss} value loss {val_loss} avg. reward per step {avg_reward_per_step}')
 
 
     '''
@@ -193,7 +164,7 @@ class Estimator(object):
         latest_prediction = self.packet_record.calculate_latest_prediction()
         states.append(liner_to_log(latest_prediction))
 
-        # Calculate reward
+        # Calculate reward.
         # Incentivize increase in throughput, penalize increase in loss rate.
         # TODO: Add normalizing coefficients
         reward = states[0] - states[1]
