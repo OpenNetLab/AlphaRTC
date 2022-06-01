@@ -76,6 +76,7 @@
 !Makefile
 target/
 src/
+rl_model/
 .gclient_entries
 *.log
 *.wav

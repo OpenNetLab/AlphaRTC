@@ -165,7 +165,7 @@ class Estimator(object):
         states.append(liner_to_log(latest_prediction))
 
         # Calculate reward.
-        # Incentivize increase in throughput, penalize increase in loss rate.
+        # Incentivize increase in throughput, penalize increase in delay.
         # TODO: Add normalizing coefficients
         reward = states[0] - states[1]
 
