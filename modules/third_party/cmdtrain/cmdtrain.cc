@@ -13,7 +13,9 @@ float cmdtrain::ReportStatsAndGetBWE(
     std::uint16_t sequenceNumber,
     std::uint32_t ssrc,
     std::size_t paddingLength,
-    std::size_t headerLength) {
+    std::size_t headerLength,
+    std::uint64_t remb,
+    std::uint64_t codecBitrate) {
 
     nlohmann::json j;
     j["send_time_ms"] = sendTimeMs;
@@ -24,12 +26,14 @@ float cmdtrain::ReportStatsAndGetBWE(
     j["padding_length"] = paddingLength;
     j["header_length"] = headerLength;
     j["payload_size"] = payloadSize;
+    j["remb"] = remb;
+    j["codec_bitrate"] = codecBitrate;
 
     // Receive packet statistics from WebRTC receiver
     std::cout << j.dump() << std::endl;
 
     // Send BWE to the WebRTC receiver
-    std::uint64_t bandwidth = 0;
-    std::cin >> bandwidth;
-    return static_cast<float>(bandwidth);
+    std::uint64_t bwe = 0;
+    std::cin >> bwe;
+    return static_cast<float>(bwe);
 }

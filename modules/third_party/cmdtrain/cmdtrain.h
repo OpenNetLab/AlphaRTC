@@ -13,7 +13,9 @@ namespace cmdtrain {
         std::uint16_t sequenceNumber,
         std::uint32_t ssrc,
         std::size_t paddingLength,
-        std::size_t headerLength);
+        std::size_t headerLength,
+        std::uint64_t remb,
+        std::uint64_t codecBitrate);
 }
 
 #endif

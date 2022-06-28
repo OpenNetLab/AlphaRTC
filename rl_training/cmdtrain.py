@@ -13,7 +13,8 @@ def fetch_stats(line: str)->dict:
         return None
 
 def find_estimator_class():
-    import rl_training.BandwidthEstimator as BandwidthEstimator
+    #import rl_training.BandwidthEstimator as BandwidthEstimator
+    import Concerto.BandwidthEstimator as BandwidthEstimator
     return BandwidthEstimator.Estimator
 
 

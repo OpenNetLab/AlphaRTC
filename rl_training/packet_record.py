@@ -67,12 +67,13 @@ class PacketRecord:
         if self.packet_num == 0:
             return []
 
-        result_list = []
         if interval == 0:
-            interval = self.packet_list[-1]['timestamp'] -\
-                self.last_interval_rtime
+            interval = self.packet_list[-1]['timestamp'] - self.last_interval_rtime
+
         start_time = self.packet_list[-1]['timestamp'] - interval
         index = self.packet_num - 1
+
+        result_list = []
         while index >= 0 and self.packet_list[index]['timestamp'] > start_time:
             result_list.append(self.packet_list[index][key])
             index -= 1

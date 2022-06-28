@@ -1,7 +1,7 @@
 FROM ubuntu:18.04
 
-RUN apt-get update && apt-get install -y \
-    git curl wget python libglib2.0-dev clang
+#RUN apt-get update && apt-get install -y \
+#    git curl wget python libglib2.0-dev clang
 
 # Add ONL user
 ARG USER=onl

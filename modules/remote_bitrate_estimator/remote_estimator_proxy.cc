@@ -94,6 +94,9 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
       GetTtimeFromAbsSendtime(header.extension.absoluteSendTime);
 
   float estimation = 0;
+  // TODO: for Concerto
+  float remb = 0;
+  float codec_bitrate = 0;
   // lossCound and RTT field for onnxinfer::OnReceived() are set to -1 since
   // no available lossCound and RTT in webrtc
   if (onnx_infer_) {
@@ -109,7 +112,9 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
         header.sequenceNumber,
         header.ssrc,
         header.paddingLength,
-        header.headerLength);
+        header.headerLength,
+        remb,
+        codec_bitrate);
     RTC_LOG(LS_INFO) << "cmdtrain::ReportStatsAndGetBWE() produced BWE: " << estimation << " bps";
   }
   BweMessage bwe;
