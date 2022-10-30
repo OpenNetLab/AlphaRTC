@@ -58,6 +58,7 @@ GoogCcNetworkController::GoogCcNetworkController(NetworkControllerConfig config,
   ParseFieldTrial(
       {&safe_reset_on_route_change_, &safe_reset_acknowledged_rate_},
       key_value_config_->Lookup("WebRTC-Bwe-SafeResetOnRouteChange"));
+  RTC_LOG(LS_INFO) << "Using AlphaCC";
 }
 
 GoogCcNetworkController::~GoogCcNetworkController() {}
