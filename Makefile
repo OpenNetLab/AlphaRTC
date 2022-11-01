@@ -48,7 +48,7 @@ release:
 
 
 clean:
-	rm -rf webrtc.log
+	rm -rf *.log
 	docker rmi alphartc-compile alphartc
 
 # Docker internal command

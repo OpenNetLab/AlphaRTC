@@ -160,6 +160,7 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
+  RTC_LOG(LS_INFO) << "OnReceiveBwe called";
   int32_t default_bitrate_bps = static_cast<int32_t>(bwe.target_rate);  // default: 300000 bps = 300 kbps
   DataRate bandwidth = DataRate::BitsPerSec(default_bitrate_bps);
   TimeDelta rtt = TimeDelta::Millis(last_estimated_rtt_ms_);
@@ -170,6 +171,9 @@ NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
   update.target_rate->network_estimate.loss_rate_ratio =
       last_estimated_fraction_loss_ / 255.0;
   update.target_rate->network_estimate.round_trip_time = rtt;
+
+  RTC_LOG(LS_INFO) << "RTT/2 " << last_estimated_rtt_ms_ / 2
+  << "loss rate " << last_estimated_fraction_loss_ / 255.0;
 
   TimeDelta default_bwe_period = TimeDelta::Seconds(3);  // the default is 3sec
   update.target_rate->network_estimate.bwe_period = default_bwe_period;

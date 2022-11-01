@@ -167,6 +167,7 @@ class Estimator(object):
         # Calculate reward.
         # Incentivize increase in throughput, penalize increase in delay.
         # TODO: Add normalizing coefficients
+        print(f'receiving rate\t{receiving_rate}, avg delay\t{delay}, loss rate\t{loss_ratio}, latest bwe\t{latest_prediction}')
         reward = states[0] - states[1]
 
         return states, reward
