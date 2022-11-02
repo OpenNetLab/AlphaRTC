@@ -275,6 +275,7 @@ NetworkControlUpdate GoogCcNetworkController::OnSentPacket(
   }
 }
 
+// Not called
 NetworkControlUpdate GoogCcNetworkController::OnReceivedPacket(
     ReceivedPacket received_packet) {
   last_packet_received_time_ = received_packet.receive_time;
@@ -377,6 +378,9 @@ NetworkControlUpdate GoogCcNetworkController::OnTransportLossReport(
     return NetworkControlUpdate();
   int64_t total_packets_delta =
       msg.packets_received_delta + msg.packets_lost_delta;
+  RTC_LOG(LS_INFO) << "OnTransportLossReport\ttotal_packets_delta " << total_packets_delta
+  << " packets_received_delta " << msg.packets_received_delta
+  << " packets_lost_delta " << msg.packets_lost_delta;
   bandwidth_estimation_->UpdatePacketsLost(
       msg.packets_lost_delta, total_packets_delta, msg.receive_time);
   return NetworkControlUpdate();

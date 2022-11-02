@@ -40,10 +40,10 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
             # Send per-packet stats to the RL agent and receive latest BWE
             bwe = estimator.report_states(stats)
             report_states_cnt += 1
-            if report_states_cnt % 600 == 0:
+            if report_states_cnt % 500 == 0:
                 end_ts = time.time()
                 step_time = end_ts - start_ts
-                print(f'start_ts {start_ts} end_ts {end_ts} report_states_cnt {report_states_cnt}\taggregate step time (s, 600 steps) : {step_time}')
+                print(f'start_ts {start_ts} end_ts {end_ts} report_states_cnt {report_states_cnt}\taggregate step time (s, 500 steps) : {step_time}')
                 start_ts = end_ts
 
             ofd.write("{}\n".format(int(bwe)).encode("utf-8"))
