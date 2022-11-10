@@ -903,7 +903,6 @@ bool PeerConnectionInterface::RTCConfiguration::operator==(
     absl::optional<bool> use_datagram_transport_for_data_channels_receive_only;
     absl::optional<CryptoOptions> crypto_options;
     bool offer_extmap_allow_mixed;
-    absl::optional<std::string> onnx_model_path;
     int rate_update_ms;
     std::string turn_logging_id;
     bool enable_implicit_rollback;
@@ -973,7 +972,6 @@ bool PeerConnectionInterface::RTCConfiguration::operator==(
              o.use_datagram_transport_for_data_channels_receive_only &&
          crypto_options == o.crypto_options &&
          offer_extmap_allow_mixed == o.offer_extmap_allow_mixed &&
-         onnx_model_path == o.onnx_model_path &&
          rate_update_ms == o.rate_update_ms;
 }
 

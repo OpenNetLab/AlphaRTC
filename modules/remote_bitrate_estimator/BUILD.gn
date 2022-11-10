@@ -65,10 +65,6 @@ rtc_library("remote_bitrate_estimator") {
     "//modules/third_party/statcollect:stat_collect",
     "//modules/third_party/cmdtrain:cmdtrain"
   ]
-
-  if (is_linux) {
-    deps += [ "//modules/third_party/onnxinfer:onnxinfer" ]
-  }
 }
 
 if (!build_with_chromium) {

@@ -42,7 +42,6 @@ struct AlphaCCConfig {
   int listening_port = 0;
 
   int bwe_feedback_duration_ms = 0;
-  std::string onnx_model_path;
 
   enum class VideoSourceOption {
     kVideoDisabled,

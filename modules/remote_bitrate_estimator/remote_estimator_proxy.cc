@@ -8,9 +8,6 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifdef WIN32
-#pragma comment(lib, "../../modules/third_party/onnxinfer/lib/onnxinfer.lib")
-#endif  //  WIN32
 
 #include "modules/remote_bitrate_estimator/remote_estimator_proxy.h"
 #include "modules/third_party/cmdtrain/cmdtrain.h"
@@ -56,26 +53,14 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       last_bwe_sendback_ms_(clock->TimeInMilliseconds()),
       stats_collect_(StatCollect::SC_TYPE_STRUCT),
       cycles_(-1),
-      max_abs_send_time_(0),
-      onnx_infer_(nullptr) {
+      max_abs_send_time_(0) {
 
-  if (!GetAlphaCCConfig()->onnx_model_path.empty()) {
-    onnx_infer_ = onnxinfer::CreateONNXInferInterface(
-        GetAlphaCCConfig()->onnx_model_path.c_str());
-    if (!onnxinfer::IsReady(onnx_infer_)) {
-      RTC_LOG(LS_ERROR) << "Failed to create onnx_infer_.";
-    }
-  }
   RTC_LOG(LS_INFO)
       << "Maximum interval between transport feedback RTCP messages (ms): "
       << send_config_.max_interval->ms();
 }
 
-RemoteEstimatorProxy::~RemoteEstimatorProxy() {
-  if (onnx_infer_) {
-    onnxinfer::DestroyONNXInferInterface(onnx_infer_);
-  }
-}
+RemoteEstimatorProxy::~RemoteEstimatorProxy() {}
 
 void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
                                           size_t payload_size,
@@ -89,7 +74,6 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   OnPacketArrival(header.extension.transportSequenceNumber, arrival_time_ms,
                   header.extension.feedback_request);
 
-  //--- ONNXInfer: Input the per-packet info to ONNXInfer module ---
   uint32_t send_time_ms =
       GetTtimeFromAbsSendtime(header.extension.absoluteSendTime);
 
@@ -97,26 +81,19 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   // TODO: for Concerto
   float remb = 0;
   float codec_bitrate = 0;
-  // lossCound and RTT field for onnxinfer::OnReceived() are set to -1 since
-  // no available lossCound and RTT in webrtc
-  if (onnx_infer_) {
-    onnxinfer::OnReceived(onnx_infer_, header.payloadType, header.sequenceNumber,
-                          send_time_ms, header.ssrc, header.paddingLength,
-                          header.headerLength, arrival_time_ms, payload_size, -1, -1);
-  } else {
-    estimation = cmdtrain::ReportStatsAndGetBWE(
-        send_time_ms,
-        arrival_time_ms,
-        payload_size,
-        header.payloadType,
-        header.sequenceNumber,
-        header.ssrc,
-        header.paddingLength,
-        header.headerLength,
-        remb,
-        codec_bitrate);
-    RTC_LOG(LS_INFO) << "cmdtrain::ReportStatsAndGetBWE() produced BWE: " << estimation << " bps";
-  }
+  estimation = cmdtrain::ReportStatsAndGetBWE(
+      send_time_ms,
+      arrival_time_ms,
+      payload_size,
+      header.payloadType,
+      header.sequenceNumber,
+      header.ssrc,
+      header.paddingLength,
+      header.headerLength,
+      remb,
+      codec_bitrate);
+  RTC_LOG(LS_INFO) << "cmdtrain::ReportStatsAndGetBWE() produced BWE: " << estimation << " bps";
+
   BweMessage bwe;
   bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
   bwe.timestamp_ms = clock_->TimeInMilliseconds();

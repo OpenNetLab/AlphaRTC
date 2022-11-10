@@ -7,6 +7,7 @@ import numpy as np
 class PacketRecord:
     def __init__(self, base_delay_ms=0):
         self.base_delay_ms = base_delay_ms
+        self.history_len = 10 # calculate a state based on the latest 10 packets
         self.reset()
 
     def reset(self):
@@ -15,22 +16,16 @@ class PacketRecord:
         self.last_seqNo = {}
         self.timer_delta = None # ms
         self.min_seen_delay = self.base_delay_ms  # ms
-        # ms, record the rtime of the last packet in last interval,
-        self.last_interval_rtime = None
 
     def clear(self):
         self.packet_num = 0
-        if self.packet_list:
-            self.last_interval_rtime = self.packet_list[-1]['timestamp']
         self.packet_list = []
 
-    def calculate_per_packet_stats(self, packet_info):
+    def add_packet_stats(self, packet_info):
         assert (len(self.packet_list) == 0
                 or packet_info.receive_timestamp
                 >= self.packet_list[-1]['timestamp']), \
             "The incoming packets receive_timestamp disordered"
-
-        # print(f'on_receive: receive_ts {packet_info.receive_timestamp} packet_info {packet_info}')
 
         # Calculate the loss count
         loss_count = 0
@@ -49,10 +44,6 @@ class PacketRecord:
         # self.min_seen_delay = min(delay, self.min_seen_delay)
         delay = packet_info.receive_timestamp - packet_info.send_timestamp
 
-        # Check the last interval rtime
-        if self.last_interval_rtime is None:
-            self.last_interval_rtime = packet_info.receive_timestamp
-
         # Record result in current packet
         packet_result = {
             'timestamp': packet_info.receive_timestamp,  # ms
@@ -61,44 +52,81 @@ class PacketRecord:
             'loss_count': loss_count,  # p
             'bandwidth_prediction': packet_info.bandwidth_prediction  # bps
         }
+        print(f'Packet {packet_info.sequence_number} result {packet_result}')
         self.packet_list.append(packet_result)
         self.packet_num += 1
 
-    def _get_result_list(self, interval, key):
+
+    def _get_latest_history_len_number_of_packets(self, key):
+        assert self.history_len > 0
+
         if self.packet_num == 0:
             return []
 
-        if interval == 0:
-            interval = self.packet_list[-1]['timestamp'] - self.last_interval_rtime
-
-        start_time = self.packet_list[-1]['timestamp'] - interval
+        # start_time = self.packet_list[-1]['timestamp'] - self.history_len
         index = self.packet_num - 1
+        history_len = 0
+        latest_history_len_number_of_packets = []
 
-        result_list = []
-        while index >= 0 and self.packet_list[index]['timestamp'] > start_time:
-            result_list.append(self.packet_list[index][key])
-            index -= 1
-        return result_list
+        if key is None:
+            # result_list of at most history_len packets
+            while index >= 0 and history_len < self.history_len:
+                latest_history_len_number_of_packets.append(self.packet_list[index])
+                index -= 1
+                history_len += 1
+        else:
+            # result_list of at most history_len packets
+            while index >= 0 and history_len < self.history_len:
+                latest_history_len_number_of_packets.append(self.packet_list[index][key])
+                index -= 1
+                history_len += 1
 
-    def calculate_average_delay(self, interval=0):
+        return latest_history_len_number_of_packets
+
+    def calculate_receiving_rate(self):
         '''
-        Calulate the average delay in the last interval time,
-        interval=0 means based on the whole packets
+        Calulate the receiving rate in the last history_len number of packets.
+        return type: bps
+        '''
+        assert self.history_len > 0
+
+        received_size_list = self._get_latest_history_len_number_of_packets(key='payload_byte')
+        received_list = self._get_latest_history_len_number_of_packets(key=None)
+        print(f'received_size_list {received_size_list}')
+        if received_size_list:
+            # aggregate payload of latest history_len number of packets
+            received_nbytes = np.sum(received_size_list)
+            start_time = received_list[0]['timestamp']
+            end_time = received_list[-1]['timestamp']
+            elapsed_ms = end_time - start_time
+            print(f'received_nbyptes {received_nbytes} elapsed_ms {elapsed_ms}')
+            return received_nbytes * 8 / elapsed_ms * 1000
+        else:
+            return 0
+
+    def calculate_average_delay(self):
+        '''
+        Calulate the average delay in the last history_len number of packets.
         The unit of return value: ms
         '''
-        delay_list = self._get_result_list(interval=interval, key='delay')
+        assert self.history_len > 0
+
+        delay_list = self._get_latest_history_len_number_of_packets(key='delay')
+        print(f'delay_list {delay_list}')
+
         if delay_list:
             return np.mean(delay_list) - self.base_delay_ms
         else:
             return 0
 
-    def calculate_loss_ratio(self, interval=0):
+    def calculate_loss_ratio(self):
         '''
-        Calulate the loss ratio in the last interval time,
-        interval=0 means based on the whole packets
-        The unit of return value: packet/packet
+        Calulate the loss ratio in the last history_len number of packets.
+        returns: %
         '''
-        loss_list = self._get_result_list(interval=interval, key='loss_count')
+        assert self.history_len > 0
+
+        loss_list = self._get_latest_history_len_number_of_packets(key='loss_count')
         if loss_list:
             loss_num = np.sum(loss_list)
             received_num = len(loss_list)
@@ -106,26 +134,13 @@ class PacketRecord:
         else:
             return 0
 
-    def calculate_receiving_rate(self, interval=0):
-        '''
-        Calulate the receiving rate in the last interval time,
-        interval=0 means based on the whole packets
-        The unit of return value: bps
-        '''
-        received_size_list = self._get_result_list(interval=interval, key='payload_byte')
-        if received_size_list:
-            received_nbytes = np.sum(received_size_list)
-            if interval == 0:
-                interval = self.packet_list[-1]['timestamp'] -\
-                    self.last_interval_rtime
-            return received_nbytes * 8 / interval * 1000
-        else:
-            return 0
 
     def calculate_latest_prediction(self):
         '''
         The unit of return value: bps
         '''
+        assert self.history_len > 0
+
         if self.packet_num > 0:
             return self.packet_list[-1]['bandwidth_prediction']
         else:

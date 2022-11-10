@@ -4,7 +4,9 @@
 import sys
 import json
 import time
-from statistics import mean
+import rl_training.BandwidthEstimator as BandwidthEstimator
+from rl_training.rtc_env import GymEnv
+from stable_baselines3 import PPO
 
 def fetch_stats(line: str)->dict:
     line = line.strip()
@@ -14,19 +16,18 @@ def fetch_stats(line: str)->dict:
     except json.decoder.JSONDecodeError:
         return None
 
-def find_estimator_class():
-    import rl_training.BandwidthEstimator as BandwidthEstimator
-    return BandwidthEstimator.Estimator
+# def find_estimator_class():
+#     import rl_training.BandwidthEstimator as BandwidthEstimator
+#     return BandwidthEstimator.Estimator
 
-
+# Rather an environment which provides real network statistics from end-to-end call
 def main(ifd = sys.stdin, ofd = sys.stdout):
-    step_times = []
     start_ts = time.time()
     end_ts = 0
     report_states_cnt = 0
     # Instantiate RL agent to train:
-    estimator_class = find_estimator_class()
-    estimator = estimator_class()
+    estimator = BandwidthEstimator.Estimator()
+
     while True:
         # Read a line from app.stdout, which is packet statistics
         line = ifd.readline()
@@ -35,17 +36,16 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
         if isinstance(line, bytes):
             line = line.decode("utf-8")
 
-        stats = fetch_stats(line)
-        if stats:
+        per_packet_stats = fetch_stats(line)
+        if per_packet_stats:
             # Send per-packet stats to the RL agent and receive latest BWE
-            bwe = estimator.report_states(stats)
+            bwe = estimator.relay_packet_statistics(per_packet_stats)
             report_states_cnt += 1
             if report_states_cnt % 500 == 0:
                 end_ts = time.time()
                 step_time = end_ts - start_ts
                 print(f'start_ts {start_ts} end_ts {end_ts} report_states_cnt {report_states_cnt}\taggregate step time (s, 500 steps) : {step_time}')
                 start_ts = end_ts
-
             ofd.write("{}\n".format(int(bwe)).encode("utf-8"))
             ofd.flush()
             continue

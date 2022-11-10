@@ -52,7 +52,7 @@ clean:
 	docker rmi alphartc-compile alphartc
 
 # Docker internal command
-# Removed the following three lines: 
+# Removed the following three lines:
 # gclient sync
 # mv -fvn src/* .
 # rm -rf src
@@ -61,13 +61,9 @@ docker-sync:
 
 # Build peerconnection_serverless AlphaRTC e2e example.
 # (check ninja project files for peerconnection_serverless executable under ./examples/BUILD.gn)
-#
-# Create out/Default/lib and place libraries needed to run ONNX models into it
 docker-app:
 	ninja -C $(output_dir) peerconnection_serverless
 	mkdir -p $(target_lib_dir)
-	cp modules/third_party/onnxinfer/lib/*.so $(target_lib_dir)
-	cp modules/third_party/onnxinfer/lib/*.so.* $(target_lib_dir)
 	mkdir -p $(target_bin_dir)
 	cp $(output_dir)/peerconnection_serverless $(target_bin_dir)/peerconnection_serverless.origin
 	cp examples/peerconnection/serverless/peerconnection_serverless $(target_bin_dir)
