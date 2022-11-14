@@ -82,7 +82,7 @@ To compile AlphaRTC, please refer to the following steps
    git clone https://github.com/OpenNetLab/AlphaRTC.git
    ```
 
-3. Build Docker images
+3. Build Docker images(Please make sure you can get depottools)
 
    ``` shell
    cd AlphaRTC
@@ -251,8 +251,8 @@ If you want to use the ONNXInfer as the bandwidth estimator, you should specify 
 
     ONNXInfer:
     ``` shell
-    sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
-    sudo docker exec alphartc peerconnection_serverless sender.json
+    sudo docker run -d --rm -v /home/wang/AlphaRTC/examples/peerconnection/serverless/corpus:/app -w /app --name="alpha" alphartc peerconnection_serverless sender_pyinfer.json
+    sudo docker exec alpha peerconnection_serverless sender_pyinfer.json
     ```
 
 - Bare metal
