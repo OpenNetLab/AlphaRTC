@@ -245,8 +245,10 @@ If you want to use the ONNXInfer as the bandwidth estimator, you should specify 
 
     PyInfer:
     ```shell
-    sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver_pyinfer.json
+    export ALPHARTC_HOME=/path/to/AlphaRTC
+    sudo docker run -d --rm -v ${ALPHARTC_HOME}/examples/peerconnection/serverless/corpus:/app -w /app --name="alphartc" alphartc peerconnection_serverless sender_pyinfer.json
     sudo docker exec alphartc peerconnection_serverless sender_pyinfer.json
+    
     ```
 
     ONNXInfer:
