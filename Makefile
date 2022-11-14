@@ -49,6 +49,7 @@ release:
 
 clean:
 	rm -rf *.log
+	rm -rf outvideo.yuv outaudio.wav
 	docker rmi alphartc-compile alphartc
 
 # Docker internal command
