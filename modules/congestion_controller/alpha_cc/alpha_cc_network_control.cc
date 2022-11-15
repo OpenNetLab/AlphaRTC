@@ -65,52 +65,62 @@ GoogCcNetworkController::~GoogCcNetworkController() {}
 
 NetworkControlUpdate GoogCcNetworkController::OnNetworkAvailability(
     NetworkAvailability msg) {
+  RTC_LOG(LS_INFO) << "AlphaCC: OnNetworkAvailability called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnNetworkRouteChange(
     NetworkRouteChange msg) {
+  RTC_LOG(LS_INFO) << "AlphaCC: OnNetworkRouteChange called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnProcessInterval(
     ProcessInterval msg) {
+  // RTC_LOG(LS_INFO) << "AlphaCC: OnProcessInterval called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnRemoteBitrateReport(
     RemoteBitrateReport msg) {
+  RTC_LOG(LS_INFO) << "AlphaCC: OnRemoteBitrateReport called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnRoundTripTimeUpdate(
     RoundTripTimeUpdate msg) {
+  RTC_LOG(LS_INFO) << "AlphaCC: OnRoundTripTimeUpdate called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnSentPacket(
     SentPacket sent_packet) {
+  RTC_LOG(LS_INFO) << "AlphaCC: OnSentPacket called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnStreamsConfig(
     StreamsConfig msg) {
+  RTC_LOG(LS_INFO) << "AlphaCC: OnStreamsConfig called";
   return GetDefaultState(msg.at_time);
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnReceivedPacket(
     ReceivedPacket received_packet) {
+  RTC_LOG(LS_INFO) << "AlphaCC: OnReceivedPacket called";
   return NetworkControlUpdate();
 }
 
 // Make this alive since this might be used to tune the birate.
 NetworkControlUpdate GoogCcNetworkController::OnTargetRateConstraints(
     TargetRateConstraints constraints) {
+  RTC_LOG(LS_INFO) << "AlphaCC: OnTargetRateConstraints called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
     Timestamp at_time) {
+    RTC_LOG(LS_INFO) << "AlphaCC: GetDefaultState called";
   //*-----Set target_rate-----*//
   constexpr int32_t default_bitrate_bps = 300000;  // default: 300000 bps = 300 kbps
   DataRate bandwidth = DataRate::BitsPerSec(default_bitrate_bps);
@@ -160,7 +170,7 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
-  RTC_LOG(LS_INFO) << "OnReceiveBwe called";
+  RTC_LOG(LS_INFO) << "AlphaCC: OnReceiveBwe called";
   int32_t default_bitrate_bps = static_cast<int32_t>(bwe.target_rate);  // default: 300000 bps = 300 kbps
   DataRate bandwidth = DataRate::BitsPerSec(default_bitrate_bps);
   TimeDelta rtt = TimeDelta::Millis(last_estimated_rtt_ms_);
@@ -181,7 +191,7 @@ NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
   update.target_rate->target_rate = bandwidth;
 
   //*-----Set pacing & padding_rate-----*//
-  int32_t default_pacing_rate = static_cast<int32_t>(bwe.pacing_rate); 
+  int32_t default_pacing_rate = static_cast<int32_t>(bwe.pacing_rate);
   int32_t default_padding_rate = 0;  // default: 0bps = 0kbps
   DataRate pacing_rate = DataRate::BitsPerSec(default_pacing_rate * pacing_factor_);
   DataRate padding_rate = DataRate::BitsPerSec(default_padding_rate);
@@ -199,6 +209,7 @@ NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
 }
 
 void GoogCcNetworkController::ClampConstraints() {
+  RTC_LOG(LS_INFO) << "AlphaCC: ClampConstraints called";
   // TODO(holmer): We should make sure the default bitrates are set to 10 kbps,
   // and that we don't try to set the min bitrate to 0 from any applications.
   // The congestion controller should allow a min bitrate of 0.
@@ -218,16 +229,19 @@ void GoogCcNetworkController::ClampConstraints() {
 
 NetworkControlUpdate GoogCcNetworkController::OnTransportLossReport(
     TransportLossReport msg) {
+  RTC_LOG(LS_INFO) << "AlphaCC: OnTransportLossReport called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnTransportPacketsFeedback(
     TransportPacketsFeedback report) {
+  RTC_LOG(LS_INFO) << "AlphaCC: OnTransportPacketsFeedback called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnNetworkStateEstimate(
     NetworkStateEstimate msg) {
+  RTC_LOG(LS_INFO) << "AlphaCC: OnNetworkStateEstimate called";
   return NetworkControlUpdate();
 }
 
