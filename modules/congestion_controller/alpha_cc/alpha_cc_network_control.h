@@ -22,6 +22,7 @@
 #include "api/rtc_event_log/rtc_event_log.h"
 #include "api/transport/field_trial_based_config.h"
 #include "api/transport/network_control.h"
+#include "modules/congestion_controller/goog_cc/send_side_bandwidth_estimation.h"
 #include "rtc_base/constructor_magic.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 
@@ -53,7 +54,7 @@ class GoogCcNetworkController : public NetworkControllerInterface {
   NetworkControlUpdate OnTransportPacketsFeedback(
       TransportPacketsFeedback msg) override;
   NetworkControlUpdate OnNetworkStateEstimate(
-      NetworkStateEstimate msg) override;      
+      NetworkStateEstimate msg) override;
   NetworkControlUpdate OnReceiveBwe(BweMessage msg) override;
   NetworkControlUpdate GetNetworkState(Timestamp at_time) const;
   NetworkControlUpdate GetDefaultState(Timestamp at_time);
@@ -69,9 +70,12 @@ class GoogCcNetworkController : public NetworkControllerInterface {
   const FieldTrialBasedConfig trial_based_config_;
 
   const WebRtcKeyValueConfig* const key_value_config_;
+  RtcEventLog* const event_log_;
   FieldTrialFlag safe_reset_on_route_change_;
   FieldTrialFlag safe_reset_acknowledged_rate_;
   const bool use_min_allocatable_as_lower_bound_;
+
+  std::unique_ptr<SendSideBandwidthEstimation> bandwidth_estimation_;
 
   absl::optional<NetworkControllerConfig> initial_config_;
 

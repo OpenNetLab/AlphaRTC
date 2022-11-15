@@ -21,6 +21,10 @@ rtc_static_library("alpha_cc") {
   sources = [
     "alpha_cc_network_control.cc",
     "alpha_cc_network_control.h",
+    "../goog_cc/send_side_bandwidth_estimation.cc",
+    "../goog_cc/send_side_bandwidth_estimation.h",
+    "../goog_cc/loss_based_bandwidth_estimation.cc",
+    "../goog_cc/loss_based_bandwidth_estimation.h",
   ]
 
   # There is no dependency now

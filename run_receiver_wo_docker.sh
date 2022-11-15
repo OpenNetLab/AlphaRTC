@@ -1,7 +1,7 @@
-echo "Removing webrtc logs from the previous run"
+echo -e "Removing webrtc logs from the previous run\n\n"
 rm *.log
-echo "Recompiling (make all)"
+echo -e "\n\nCompiling (make all)...\n\n"
 make all
-echo "Running the receiver..."
+echo -e "\n\nRunning the receiver...\n\n"
 ./setup_run_wo_docker.sh && python peerconnection_serverless_wo_docker.py receiver_pyinfer.json
 

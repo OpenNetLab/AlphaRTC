@@ -44,10 +44,13 @@ GoogCcNetworkController::GoogCcNetworkController(NetworkControllerConfig config,
                                                  GoogCcConfig alpha_cc_config)
     : key_value_config_(config.key_value_config ? config.key_value_config
                                                 : &trial_based_config_),
+      event_log_(config.event_log),
       safe_reset_on_route_change_("Enabled"),
       safe_reset_acknowledged_rate_("ack"),
       use_min_allocatable_as_lower_bound_(
           IsNotDisabled(key_value_config_, "WebRTC-Bwe-MinAllocAsLowerBound")),
+      bandwidth_estimation_(
+          std::make_unique<SendSideBandwidthEstimation>(event_log_)),
       initial_config_(config),
       pacing_factor_(config.stream_based_config.pacing_factor.value_or(
           kDefaultPaceMultiplier)),
@@ -65,19 +68,19 @@ GoogCcNetworkController::~GoogCcNetworkController() {}
 
 NetworkControlUpdate GoogCcNetworkController::OnNetworkAvailability(
     NetworkAvailability msg) {
-  RTC_LOG(LS_INFO) << "AlphaCC: OnNetworkAvailability called";
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnNetworkAvailability called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnNetworkRouteChange(
     NetworkRouteChange msg) {
-  RTC_LOG(LS_INFO) << "AlphaCC: OnNetworkRouteChange called";
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnNetworkRouteChange called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnProcessInterval(
     ProcessInterval msg) {
-  // RTC_LOG(LS_INFO) << "AlphaCC: OnProcessInterval called";
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnProcessInterval called";
   return NetworkControlUpdate();
 }
 
@@ -89,38 +92,42 @@ NetworkControlUpdate GoogCcNetworkController::OnRemoteBitrateReport(
 
 NetworkControlUpdate GoogCcNetworkController::OnRoundTripTimeUpdate(
     RoundTripTimeUpdate msg) {
-  RTC_LOG(LS_INFO) << "AlphaCC: OnRoundTripTimeUpdate called";
+  RTC_LOG(LS_INFO) << "AlphaCC: OnRoundTripTimeUpdate called, RTT (ms) " << msg.round_trip_time.ms();
+  if (msg.smoothed)
+    return NetworkControlUpdate();
+  RTC_DCHECK(!msg.round_trip_time.IsZero());
+  bandwidth_estimation_->UpdateRtt(msg.round_trip_time, msg.receive_time);
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnSentPacket(
     SentPacket sent_packet) {
-  RTC_LOG(LS_INFO) << "AlphaCC: OnSentPacket called";
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnSentPacket called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnStreamsConfig(
     StreamsConfig msg) {
-  RTC_LOG(LS_INFO) << "AlphaCC: OnStreamsConfig called";
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnStreamsConfig called";
   return GetDefaultState(msg.at_time);
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnReceivedPacket(
     ReceivedPacket received_packet) {
-  RTC_LOG(LS_INFO) << "AlphaCC: OnReceivedPacket called";
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnReceivedPacket called";
   return NetworkControlUpdate();
 }
 
 // Make this alive since this might be used to tune the birate.
 NetworkControlUpdate GoogCcNetworkController::OnTargetRateConstraints(
     TargetRateConstraints constraints) {
-  RTC_LOG(LS_INFO) << "AlphaCC: OnTargetRateConstraints called";
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnTargetRateConstraints called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
     Timestamp at_time) {
-    RTC_LOG(LS_INFO) << "AlphaCC: GetDefaultState called";
+    RTC_LOG(LS_VERBOSE) << "AlphaCC: GetDefaultState called";
   //*-----Set target_rate-----*//
   constexpr int32_t default_bitrate_bps = 300000;  // default: 300000 bps = 300 kbps
   DataRate bandwidth = DataRate::BitsPerSec(default_bitrate_bps);
@@ -182,9 +189,6 @@ NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
       last_estimated_fraction_loss_ / 255.0;
   update.target_rate->network_estimate.round_trip_time = rtt;
 
-  RTC_LOG(LS_INFO) << "RTT/2 " << last_estimated_rtt_ms_ / 2
-  << "loss rate " << last_estimated_fraction_loss_ / 255.0;
-
   TimeDelta default_bwe_period = TimeDelta::Seconds(3);  // the default is 3sec
   update.target_rate->network_estimate.bwe_period = default_bwe_period;
   update.target_rate->at_time = Timestamp::Millis(bwe.timestamp_ms);
@@ -209,7 +213,7 @@ NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
 }
 
 void GoogCcNetworkController::ClampConstraints() {
-  RTC_LOG(LS_INFO) << "AlphaCC: ClampConstraints called";
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: ClampConstraints called";
   // TODO(holmer): We should make sure the default bitrates are set to 10 kbps,
   // and that we don't try to set the min bitrate to 0 from any applications.
   // The congestion controller should allow a min bitrate of 0.
@@ -229,19 +233,29 @@ void GoogCcNetworkController::ClampConstraints() {
 
 NetworkControlUpdate GoogCcNetworkController::OnTransportLossReport(
     TransportLossReport msg) {
-  RTC_LOG(LS_INFO) << "AlphaCC: OnTransportLossReport called";
+  int64_t total_packets_delta =
+      msg.packets_received_delta + msg.packets_lost_delta;
+  bandwidth_estimation_->UpdatePacketsLost(
+      msg.packets_lost_delta, total_packets_delta, msg.receive_time);
+  uint8_t fraction_loss = bandwidth_estimation_->fraction_loss();
+  auto loss_rate = (fraction_loss * 100) / 256;
+  RTC_LOG(LS_INFO) << "AlphaCC: OnTransportLossReport called: "
+  << " loss rate (%) " << loss_rate
+  << " (total_packets_delta " << total_packets_delta
+  << " packets_received_delta " << msg.packets_received_delta
+  << " packets_lost_delta " << msg.packets_lost_delta << ")";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnTransportPacketsFeedback(
     TransportPacketsFeedback report) {
-  RTC_LOG(LS_INFO) << "AlphaCC: OnTransportPacketsFeedback called";
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnTransportPacketsFeedback called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnNetworkStateEstimate(
     NetworkStateEstimate msg) {
-  RTC_LOG(LS_INFO) << "AlphaCC: OnNetworkStateEstimate called";
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnNetworkStateEstimate called";
   return NetworkControlUpdate();
 }
 
