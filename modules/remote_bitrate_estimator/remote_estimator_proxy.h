@@ -82,8 +82,6 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
                              const FeedbackRequest& feedback_request)
       RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
 
-  void SendbackBweEstimation(const BweMessage& bwe_message)
-      RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
   bool TimeToSendBweMessage() RTC_EXCLUSIVE_LOCKS_REQUIRED(&lock_);
 
   int64_t BuildFeedbackPacket(
@@ -117,9 +115,11 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   int64_t send_interval_ms_ RTC_GUARDED_BY(&lock_);
   bool send_periodic_feedback_ RTC_GUARDED_BY(&lock_);
 
-  // Bandwidth estimation sending back
-  int64_t bwe_sendback_interval_ms_ RTC_GUARDED_BY(&lock_);
-  int64_t last_bwe_sendback_ms_ RTC_GUARDED_BY(&lock_);
+  // Estimated bandwidth produced by the RL agent
+  //   int64_t bwe_sendback_interval_ms_ RTC_GUARDED_BY(&lock_);
+  //   int64_t last_bwe_sendback_ms_ RTC_GUARDED_BY(&lock_);
+
+  float receiver_side_thp_ RTC_GUARDED_BY(&lock_);
 
   // StatCollect moudule
   StatCollect::StatsCollectModule stats_collect_;

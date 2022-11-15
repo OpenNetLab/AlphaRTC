@@ -569,11 +569,11 @@ void RtpTransportControllerSend::OnApplicationPacket(const rtcp::App& app) {
   if (app.sub_type() != kAppPacketSubType || app.name() != kAppPacketName) {
     return;
   }
-  const BweMessage bwe = *reinterpret_cast<const BweMessage*>(app.data());
-  task_queue_.PostTask([this, bwe]() {
+  const float receiver_side_thp = *reinterpret_cast<const float*>(app.data());
+  task_queue_.PostTask([this, receiver_side_thp]() {
     RTC_DCHECK_RUN_ON(&task_queue_);
     if (controller_) {
-      PostUpdates(controller_->OnReceiveBwe(bwe));
+      PostUpdates(controller_->OnReceiverSideThroughput(receiver_side_thp));
     }
   });
 }

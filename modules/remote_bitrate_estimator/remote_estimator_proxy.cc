@@ -49,8 +49,6 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       feedback_packet_count_(0),
       send_interval_ms_(send_config_.default_interval->ms()),
       send_periodic_feedback_(true),
-      bwe_sendback_interval_ms_(GetAlphaCCConfig()->bwe_feedback_duration_ms),
-      last_bwe_sendback_ms_(clock->TimeInMilliseconds()),
       stats_collect_(StatCollect::SC_TYPE_STRUCT),
       cycles_(-1),
       max_abs_send_time_(0) {
@@ -74,48 +72,8 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   OnPacketArrival(header.extension.transportSequenceNumber, arrival_time_ms,
                   header.extension.feedback_request);
 
-  uint32_t send_time_ms =
-      GetTtimeFromAbsSendtime(header.extension.absoluteSendTime);
-
-  float estimation = 0;
-  // TODO: for Concerto
-  float remb = 0;
-  float codec_bitrate = 0;
-  estimation = cmdtrain::ReportStatsAndGetBWE(
-      send_time_ms,
-      arrival_time_ms,
-      payload_size,
-      header.payloadType,
-      header.sequenceNumber,
-      header.ssrc,
-      header.paddingLength,
-      header.headerLength,
-      remb,
-      codec_bitrate);
-  RTC_LOG(LS_INFO) << "cmdtrain::ReportStatsAndGetBWE() produced BWE: " << estimation << " bps";
-
-  BweMessage bwe;
-  bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
-  bwe.timestamp_ms = clock_->TimeInMilliseconds();
-
-  // TODO: Remove dummy stats
-  // double pacing_rate = estimation;
-  // double padding_rate = estimation;
-  // auto res = stats_collect_.StatsCollect(
-  //     pacing_rate, padding_rate, header.payloadType,
-  //                             header.sequenceNumber, send_time_ms, header.ssrc,
-  //                             header.paddingLength, header.headerLength,
-  //                             arrival_time_ms, payload_size, 0);
-  // if (res != StatCollect::SCResult::SC_SUCCESS)
-  // {
-  //   RTC_LOG(LS_ERROR) << "Data collection failed";
-  // }
-  // std::string out_data = stats_collect_.DumpData();
-  // if (out_data.empty())
-  // {
-  //   RTC_LOG(LS_ERROR) << "Data saving failed";
-  // }
-  // RTC_LOG(LS_INFO) << out_data;
+  receiver_side_thp_ = cmdtrain::ComputeReceiverSideThroughput(payload_size);
+  RTC_LOG(LS_INFO) << "Computed receiver-side throughput (bps) " << receiver_side_thp_;
 }
 
 bool RemoteEstimatorProxy::LatestEstimate(std::vector<unsigned int>* ssrcs,
@@ -225,18 +183,6 @@ void RemoteEstimatorProxy::OnPacketArrival(
   }
 }
 
-bool RemoteEstimatorProxy::TimeToSendBweMessage() {
-  int64_t time_now = clock_->TimeInMilliseconds();
-  if (time_now - bwe_sendback_interval_ms_ > last_bwe_sendback_ms_) {
-    RTC_LOG(LS_INFO)
-      << "BWE sendback interval (ms) "
-      << bwe_sendback_interval_ms_;
-    last_bwe_sendback_ms_ = time_now;
-    return true;
-  }
-  return false;
-}
-
 void RemoteEstimatorProxy::SendPeriodicFeedbacks() {
   // |periodic_window_start_seq_| is the first sequence number to include in the
   // current feedback packet. Some older may still be in the map, in case a
@@ -259,6 +205,8 @@ void RemoteEstimatorProxy::SendPeriodicFeedbacks() {
        begin_iterator != packet_arrival_times_.cend();
        begin_iterator =
            packet_arrival_times_.lower_bound(*periodic_window_start_seq_)) {
+
+    // Send a periodic feedback (RTCP) packet.
     auto feedback_packet = std::make_unique<rtcp::TransportFeedback>();
     periodic_window_start_seq_ = BuildFeedbackPacket(
         feedback_packet_count_++, media_ssrc_, *periodic_window_start_seq_,
@@ -271,6 +219,15 @@ void RemoteEstimatorProxy::SendPeriodicFeedbacks() {
       packets.push_back(std::move(remote_estimate));
     }
     packets.push_back(std::move(feedback_packet));
+
+    // Send the latest receiver-side throughput via App (which is also an RTCP) packet.
+    auto app_packet = std::make_unique<rtcp::App>();
+    app_packet->SetSubType(kAppPacketSubType);
+    app_packet->SetName(kAppPacketName);
+    float receiver_side_thp = receiver_side_thp_;
+    app_packet->SetData(reinterpret_cast<const uint8_t*>(&receiver_side_thp), sizeof(receiver_side_thp));
+    packets.push_back(std::move(app_packet));
+    RTC_LOG(LS_INFO) << "Sent receiver-side throughput (bps) " << receiver_side_thp_;
 
     feedback_sender_->SendCombinedRtcpPacket(std::move(packets));
     // Note: Don't erase items from packet_arrival_times_ after sending, in case
@@ -305,17 +262,6 @@ void RemoteEstimatorProxy::SendFeedbackOnRequest(
   RTC_DCHECK(feedback_sender_ != nullptr);
   std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets;
   packets.push_back(std::move(feedback_packet));
-  feedback_sender_->SendCombinedRtcpPacket(std::move(packets));
-}
-
-void RemoteEstimatorProxy::SendbackBweEstimation(const BweMessage& bwe) {
-  auto app_packet = std::make_unique<rtcp::App>();
-  app_packet->SetSubType(kAppPacketSubType);
-  app_packet->SetName(kAppPacketName);
-
-  app_packet->SetData(reinterpret_cast<const uint8_t*>(&bwe), sizeof(bwe));
-  std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets;
-  packets.push_back(std::move(app_packet));
   feedback_sender_->SendCombinedRtcpPacket(std::move(packets));
 }
 

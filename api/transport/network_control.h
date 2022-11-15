@@ -99,10 +99,9 @@ class NetworkControllerInterface {
       ABSL_MUST_USE_RESULT = 0;
   // Called when received an application packet
 
-  // Currently, only alphaCC implements this,
-  // so provide a default implementation here
-  virtual NetworkControlUpdate OnReceiveBwe(
-      BweMessage) {
+  // AlphaCC: receiver-side throughput sent via App packet
+  virtual NetworkControlUpdate OnReceiverSideThroughput(
+      float receiver_side_thp) {
     return NetworkControlUpdate();
   }
 };

@@ -5,35 +5,16 @@
 #include <fstream>
 #include <unistd.h>
 
-float cmdtrain::ReportStatsAndGetBWE(
-    std::uint64_t sendTimeMs,
-    std::uint64_t receiveTimeMs,
-    std::size_t payloadSize,
-    std::uint8_t payloadType,
-    std::uint16_t sequenceNumber,
-    std::uint32_t ssrc,
-    std::size_t paddingLength,
-    std::size_t headerLength,
-    std::uint64_t remb,
-    std::uint64_t codecBitrate) {
+float cmdtrain::ComputeReceiverSideThroughput(std::size_t payloadSize) {
 
     nlohmann::json j;
-    j["send_time_ms"] = sendTimeMs;
-    j["arrival_time_ms"] = receiveTimeMs;
-    j["payload_type"] = payloadType;
-    j["sequence_number"] = sequenceNumber;
-    j["ssrc"] = ssrc;
-    j["padding_length"] = paddingLength;
-    j["header_length"] = headerLength;
     j["payload_size"] = payloadSize;
-    j["remb"] = remb;
-    j["codec_bitrate"] = codecBitrate;
 
-    // Receive packet statistics from WebRTC receiver
+    // Received payload info from the receiver
     std::cout << j.dump() << std::endl;
 
-    // Send BWE to the WebRTC receiver
-    std::uint64_t bwe = 0;
-    std::cin >> bwe;
-    return static_cast<float>(bwe);
+    // Send receiver-side throughput to the sender
+    std::uint64_t receiver_side_thp = 0;
+    std::cin >> receiver_side_thp;
+    return static_cast<float>(receiver_side_thp);
 }

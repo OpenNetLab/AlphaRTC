@@ -55,7 +55,7 @@ class GoogCcNetworkController : public NetworkControllerInterface {
       TransportPacketsFeedback msg) override;
   NetworkControlUpdate OnNetworkStateEstimate(
       NetworkStateEstimate msg) override;
-  NetworkControlUpdate OnReceiveBwe(BweMessage msg) override;
+  NetworkControlUpdate OnReceiverSideThroughput(float receiver_side_thp) override;
   NetworkControlUpdate GetNetworkState(Timestamp at_time) const;
   NetworkControlUpdate GetDefaultState(Timestamp at_time);
 

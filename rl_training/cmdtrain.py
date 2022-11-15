@@ -39,7 +39,8 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
         per_packet_stats = fetch_stats(line)
         if per_packet_stats:
             # Send per-packet stats to the RL agent and receive latest BWE
-            bwe = estimator.relay_packet_statistics(per_packet_stats)
+            # bwe = estimator.relay_packet_statistics(per_packet_stats)
+            bwe = 1e6
             report_states_cnt += 1
             if report_states_cnt % 500 == 0:
                 end_ts = time.time()
