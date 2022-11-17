@@ -16,10 +16,6 @@ def fetch_stats(line: str)->dict:
     except json.decoder.JSONDecodeError:
         return None
 
-# def find_estimator_class():
-#     import rl_training.BandwidthEstimator as BandwidthEstimator
-#     return BandwidthEstimator.Estimator
-
 # Rather an environment which provides real network statistics from end-to-end call
 def main(ifd = sys.stdin, ofd = sys.stdout):
     start_ts = time.time()
@@ -36,11 +32,11 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
         if isinstance(line, bytes):
             line = line.decode("utf-8")
 
-        per_packet_stats = fetch_stats(line)
-        if per_packet_stats:
+        stats = fetch_stats(line)
+        if stats:
             # Send per-packet stats to the RL agent and receive latest BWE
-            # bwe = estimator.relay_packet_statistics(per_packet_stats)
-            bwe = 1e6
+            bwe = estimator.relay_packet_statistics(stats)
+            print(f'cmdtrain: stats {stats} bwe {bwe}')
             report_states_cnt += 1
             if report_states_cnt % 500 == 0:
                 end_ts = time.time()
@@ -57,3 +53,4 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
 
 if __name__ == '__main__':
     main()
+

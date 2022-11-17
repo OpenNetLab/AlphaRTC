@@ -5,7 +5,9 @@
 #include <cstddef>
 
 namespace cmdtrain {
-    float ComputeReceiverSideThroughput(std::size_t payloadSize);
+    void SendRTT(int64_t rtt);
+    void SendLossRate(float loss_rate);
+    void SendReceiverSideThp(float receiver_side_thp);
 }
 
 #endif

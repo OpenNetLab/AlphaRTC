@@ -20,7 +20,6 @@
 #include "rtc_base/critical_section.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/numerics/sequence_number_util.h"
-#include "modules/third_party/statcollect/StatCollect.h"
 
 namespace webrtc {
 
@@ -46,6 +45,7 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
                       size_t payload_size,
                       const RTPHeader& header) override;
   void RemoveStream(uint32_t ssrc) override {}
+  void ComputeReceiverSideThroughput();
   bool LatestEstimate(std::vector<unsigned int>* ssrcs,
                       unsigned int* bitrate_bps) const override;
   void OnRttUpdate(int64_t avg_rtt_ms, int64_t max_rtt_ms) override {}
@@ -101,6 +101,10 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   TransportFeedbackSenderInterface* const feedback_sender_;
   const TransportWideFeedbackConfig send_config_;
   int64_t last_process_time_ms_;
+  int64_t last_comp_receiver_side_thp_time_ms_;
+  int64_t total_received_packets;
+  size_t aggregated_payload_size;
+  bool receiver_side_thp_updated;
 
   rtc::CriticalSection lock_;
   //  |network_state_estimator_| may be null.
@@ -114,15 +118,8 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   std::map<int64_t, int64_t> packet_arrival_times_ RTC_GUARDED_BY(&lock_);
   int64_t send_interval_ms_ RTC_GUARDED_BY(&lock_);
   bool send_periodic_feedback_ RTC_GUARDED_BY(&lock_);
-
-  // Estimated bandwidth produced by the RL agent
-  //   int64_t bwe_sendback_interval_ms_ RTC_GUARDED_BY(&lock_);
-  //   int64_t last_bwe_sendback_ms_ RTC_GUARDED_BY(&lock_);
-
   float receiver_side_thp_ RTC_GUARDED_BY(&lock_);
 
-  // StatCollect moudule
-  StatCollect::StatsCollectModule stats_collect_;
   int cycles_ RTC_GUARDED_BY(&lock_);
   uint32_t max_abs_send_time_ RTC_GUARDED_BY(&lock_);
 };

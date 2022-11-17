@@ -10,7 +10,6 @@
 
 
 #include "modules/remote_bitrate_estimator/remote_estimator_proxy.h"
-#include "modules/third_party/cmdtrain/cmdtrain.h"
 
 #include <algorithm>
 #include <limits>
@@ -44,12 +43,16 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       feedback_sender_(feedback_sender),
       send_config_(key_value_config),
       last_process_time_ms_(-1),
+      last_comp_receiver_side_thp_time_ms_(-1),
+      total_received_packets(0),
+      aggregated_payload_size(0),
+      receiver_side_thp_updated(false),
       network_state_estimator_(network_state_estimator),
       media_ssrc_(0),
       feedback_packet_count_(0),
       send_interval_ms_(send_config_.default_interval->ms()),
       send_periodic_feedback_(true),
-      stats_collect_(StatCollect::SC_TYPE_STRUCT),
+      receiver_side_thp_(0),
       cycles_(-1),
       max_abs_send_time_(0) {
 
@@ -71,9 +74,31 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   media_ssrc_ = header.ssrc;
   OnPacketArrival(header.extension.transportSequenceNumber, arrival_time_ms,
                   header.extension.feedback_request);
+  total_received_packets += 1;
+  if (last_comp_receiver_side_thp_time_ms_ == -1)
+    last_comp_receiver_side_thp_time_ms_ = clock_->TimeInMilliseconds();
+  aggregated_payload_size += payload_size;
+  // if (total_received_packets % 10 == 0)
+  ComputeReceiverSideThroughput();
+}
 
-  receiver_side_thp_ = cmdtrain::ComputeReceiverSideThroughput(payload_size);
-  RTC_LOG(LS_INFO) << "Computed receiver-side throughput (bps) " << receiver_side_thp_;
+void RemoteEstimatorProxy::ComputeReceiverSideThroughput() {
+  // With per-packet payload size collected on each IncomingPacket call,
+  // compute average receiver-side throughput since the call started:
+  // aggregated payload size / last_comp_receiver_side_thp_time_ms_ - now()
+  rtc::CritScope cs(&lock_);
+  int64_t now = clock_->TimeInMilliseconds();
+  float elapsed_ms = now - last_comp_receiver_side_thp_time_ms_;
+  receiver_side_thp_ = aggregated_payload_size / (elapsed_ms / 0.001);
+  RTC_LOG(LS_VERBOSE) << "Receiver-side thp (bps) over the last packet " << receiver_side_thp_
+  << " agg. payload_bits " << aggregated_payload_size
+  << " elapsed_ms " << elapsed_ms
+  << " total received packets " << total_received_packets;
+
+  // Reset aggregated payload and time record
+  aggregated_payload_size = 0;
+  last_comp_receiver_side_thp_time_ms_ = now;
+  receiver_side_thp_updated = true;
 }
 
 bool RemoteEstimatorProxy::LatestEstimate(std::vector<unsigned int>* ssrcs,
@@ -221,13 +246,16 @@ void RemoteEstimatorProxy::SendPeriodicFeedbacks() {
     packets.push_back(std::move(feedback_packet));
 
     // Send the latest receiver-side throughput via App (which is also an RTCP) packet.
-    auto app_packet = std::make_unique<rtcp::App>();
-    app_packet->SetSubType(kAppPacketSubType);
-    app_packet->SetName(kAppPacketName);
-    float receiver_side_thp = receiver_side_thp_;
-    app_packet->SetData(reinterpret_cast<const uint8_t*>(&receiver_side_thp), sizeof(receiver_side_thp));
-    packets.push_back(std::move(app_packet));
-    RTC_LOG(LS_INFO) << "Sent receiver-side throughput (bps) " << receiver_side_thp_;
+    if (receiver_side_thp_updated) {
+      // receiver_side_thp_updated = false;
+      auto app_packet = std::make_unique<rtcp::App>();
+      app_packet->SetSubType(kAppPacketSubType);
+      app_packet->SetName(kAppPacketName);
+      float receiver_side_thp_sent = receiver_side_thp_;
+      app_packet->SetData(reinterpret_cast<const uint8_t*>(&receiver_side_thp_sent), sizeof(receiver_side_thp_sent));
+      packets.push_back(std::move(app_packet));
+      RTC_LOG(LS_INFO) << "Sent receiver-side throughput (bps) " << receiver_side_thp_sent;
+    }
 
     feedback_sender_->SendCombinedRtcpPacket(std::move(packets));
     // Note: Don't erase items from packet_arrival_times_ after sending, in case

@@ -11,6 +11,7 @@ import time
 import rl_training.cmdtrain as cmdtrain
 
 # `peerconnection_serverless` python program for running e2e call without docker.
+# Run only on the sender side. Refer to `single_node_run_sender_wo_docker.sh`.
 
 def main():
     # `peerconnection_serverless.origin` is an e2e WebRTC app built by examples/BUILD.gn

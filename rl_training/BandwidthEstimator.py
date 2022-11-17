@@ -5,7 +5,6 @@ from rl_training.packet_info import PacketInfo
 # from rl_training.ppo_agent import PPO
 from stable_baselines3 import PPO, A2C, DQN, SAC
 from rl_training.rtc_env import GymEnv
-from rl_training.storage import Storage
 
 UNIT_M = 1000000
 MAX_BANDWIDTH_MBPS = 8      # Max: 8 Mbps
@@ -86,25 +85,17 @@ class Estimator(object):
 
 
     # states obtained by the latest action
-    def relay_packet_statistics(self, pkt: dict):
-        # Parse packet statistics
-        print(f'Received packet seqNo: {pkt["sequence_number"]}')
-        packet_info = PacketInfo()
-        packet_info.payload_type = pkt["payload_type"]
-        packet_info.ssrc = pkt["ssrc"]
-        packet_info.sequence_number = pkt["sequence_number"]
-        packet_info.send_timestamp = pkt["send_time_ms"]
-        packet_info.receive_timestamp = pkt["arrival_time_ms"]
-        packet_info.padding_length = pkt["padding_length"]
-        packet_info.header_length = pkt["header_length"]
-        packet_info.payload_size = pkt["payload_size"]
-        packet_info.bandwidth_prediction = 1e6
-
+    def relay_packet_statistics(self, pkt_stat: dict):
         # Add the statistics for this packet in env's data structure
-        self.env.packet_record.add_packet_stats(packet_info)
+        if 'receiver_side_thp' in pkt_stat:
+            self.env.packet_record.add_receiver_side_thp(pkt_stat['receiver_side_thp'])
+        elif 'rtt' in pkt_stat:
+            self.env.packet_record.add_rtt(pkt_stat['rtt'])
+        elif 'loss_rate' in pkt_stat:
+            self.env.packet_record.add_loss_rate(pkt_stat['loss_rate'])
 
-        # Train the RL agent
-        # This will call self.collect_rollouts() and self.train() in SB3 PPO.
+        # Train the RL policy.
+        # Calls self.collect_rollouts() and self.train() in SB3 PPO.
         # self.collect_rollouts():  for n_rollout_steps, call ppo.policy(obs) to get action
         #                           and call env.step(clipped_actions) to get new_obs, rewards, dones, infos
         # self.train():             policy update

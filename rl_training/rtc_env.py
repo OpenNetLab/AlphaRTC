@@ -66,10 +66,9 @@ class GymEnv:
         else: # continuous action space
             self.action_space = spaces.Box(low=0.0, high=1.0, shape=(1,), dtype=np.float64)
         self.observation_space = spaces.Box(
-            low=np.array([0.0, 0.0, 0.0, 0.0]),
-            high=np.array([1.0, 1.0, 1.0, 1.0]),
+            low=np.array([0.0, 0.0, 0.0]),
+            high=np.array([1.0, 1.0, 1.0]),
             dtype=np.float64)
-        self.packet_stats_q = Queue()
         self.latest_bwe = 1e6 # initial bwe
         # To calculate average reward per step in each episode
         self.accum_reward  = 0
@@ -90,38 +89,24 @@ class GymEnv:
     From this, calculate state and reward.
     '''
     def calculate_state_reward(self):
-        # Calculate state for the latest history_len number of packets
-        states = []
-        receiving_rate = self.packet_record.calculate_receiving_rate()
-        states.append(liner_to_log(receiving_rate))
-        delay = self.packet_record.calculate_average_delay()
-        states.append(min(delay/1000, 1))
-        loss_ratio = self.packet_record.calculate_loss_ratio()
-        states.append(loss_ratio)
-        latest_prediction = self.packet_record.calculate_latest_prediction()
-        states.append(liner_to_log(latest_prediction))
-
-        # if self.packet_stats_q.empty():
-        #     print(f'packet_stats_q empty in calculate_state_reward()')
-        #     states = [0, 0, 0, 0]
-        # else:
-        #     print(f'packet_stats_q size {self.packet_stats_q.qsize()} in calculate_state_reward()')
-        #     states = self.packet_stats_q.get()
-        print(f'receiving rate\t{states[0]}, avg delay\t{states[1]}, loss rate\t{states[2]}, latest bwe\t{states[3]}')
+        # Calculate state for the latest `self.packet_record.history_len` number of RTCP packets
+        states = self.packet_record.calculate_state()
 
         # Calculate reward.
-        # Incentivize increase in throughput, penalize increase in delay.
+        # Incentivize increase in throughput, penalize increase in RTT and loss rate.
         # TODO: Add normalizing coefficients
-        reward = states[0] - states[1]
+        reward = states[0] - states[1]/1000 - states[2]
+
+        print(f'State: receiver-side thp\t{states[0]}, rtt\t{states[1]}, loss rate\t{states[2]}')
+        print(f'Reward: {reward}')
 
         return states, reward, {}, {}
 
     def get_latest_bwe(self):
         return self.latest_bwe
 
-    # new_obs, rewards, dones, infos = env.step(clipped_actions)
-    # Send `action` to the cmdtrain
-    # and receive new_obs, rewards from BandwidthEstimator
+    # Returns `action` to the cmdtrain
+    # and calculate new_obs, rewards for latest history_len stats
     def step(self, action):
         # this latest_bwe is sent to cmdtrain
         # by BandwidthEstimator.relay_packet_statistics()

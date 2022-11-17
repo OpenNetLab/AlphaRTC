@@ -1,147 +1,45 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import numpy as np
+from statistics import mean
 
 
 class PacketRecord:
-    def __init__(self, base_delay_ms=0):
-        self.base_delay_ms = base_delay_ms
-        self.history_len = 10 # calculate a state based on the latest 10 packets
+    def __init__(self):
+        # Calculate a state with an average of stats from the latest 10 RTCP packets
+        self.history_len = 10
         self.reset()
 
     def reset(self):
-        self.packet_num = 0
-        self.packet_list = []   # ms
-        self.last_seqNo = {}
-        self.timer_delta = None # ms
-        self.min_seen_delay = self.base_delay_ms  # ms
+        self.packet_stats_dict = {}
+        self.packet_stats_dict['receiver_side_thp'] = []
+        self.packet_stats_dict['rtt'] = []
+        self.packet_stats_dict['loss_rate'] = []
 
-    def clear(self):
-        self.packet_num = 0
-        self.packet_list = []
+    def add_receiver_side_thp(self, receiver_side_thp):
+        self.packet_stats_dict['receiver_side_thp'].append(receiver_side_thp)
 
-    def add_packet_stats(self, packet_info):
-        assert (len(self.packet_list) == 0
-                or packet_info.receive_timestamp
-                >= self.packet_list[-1]['timestamp']), \
-            "The incoming packets receive_timestamp disordered"
+    def add_rtt(self, rtt):
+        self.packet_stats_dict['rtt'].append(rtt)
 
-        # Calculate the loss count
-        loss_count = 0
-        if packet_info.ssrc in self.last_seqNo:
-            loss_count = max(0,
-                packet_info.sequence_number - self.last_seqNo[packet_info.ssrc] - 1)
-        self.last_seqNo[packet_info.ssrc] = packet_info.sequence_number
+    def add_loss_rate(self, loss_rate):
+        self.packet_stats_dict['loss_rate'].append(loss_rate)
 
-        # Calculate packet delay
-        # if self.timer_delta is None:
-        #     # shift delay of the first packet to base delay
-        #     self.timer_delta = self.base_delay_ms - \
-        #         (packet_info.receive_timestamp - packet_info.send_timestamp)
-        # delay = self.timer_delta + \
-        #     (packet_info.receive_timestamp - packet_info.send_timestamp)
-        # self.min_seen_delay = min(delay, self.min_seen_delay)
-        delay = packet_info.receive_timestamp - packet_info.send_timestamp
-
-        # Record result in current packet
-        packet_result = {
-            'timestamp': packet_info.receive_timestamp,  # ms
-            'delay': delay,  # ms
-            'payload_byte': packet_info.payload_size,  # B
-            'loss_count': loss_count,  # p
-            'bandwidth_prediction': packet_info.bandwidth_prediction  # bps
-        }
-        print(f'Packet {packet_info.sequence_number} result {packet_result}')
-        self.packet_list.append(packet_result)
-        self.packet_num += 1
-
-
-    def _get_latest_history_len_number_of_packets(self, key):
+    def _get_latest_history_len_stats(self, key):
         assert self.history_len > 0
+        latest_history_len_stats = self.packet_stats_dict[key][:self.history_len]
+        print(f'latest {self.history_len} {key}: {latest_history_len_stats}')
+        return latest_history_len_stats if len(latest_history_len_stats) > 0 else [0]
 
-        if self.packet_num == 0:
-            return []
-
-        # start_time = self.packet_list[-1]['timestamp'] - self.history_len
-        index = self.packet_num - 1
-        history_len = 0
-        latest_history_len_number_of_packets = []
-
-        if key is None:
-            # result_list of at most history_len packets
-            while index >= 0 and history_len < self.history_len:
-                latest_history_len_number_of_packets.append(self.packet_list[index])
-                index -= 1
-                history_len += 1
-        else:
-            # result_list of at most history_len packets
-            while index >= 0 and history_len < self.history_len:
-                latest_history_len_number_of_packets.append(self.packet_list[index][key])
-                index -= 1
-                history_len += 1
-
-        return latest_history_len_number_of_packets
-
-    def calculate_receiving_rate(self):
+    def calculate_state(self):
         '''
-        Calulate the receiving rate in the last history_len number of packets.
-        return type: bps
+        Calulate average of latest history_len number of receiver-side throughputs (bps),
+        RTTs (ms) and loss rates (0-1).
         '''
-        assert self.history_len > 0
+        avg_receiver_side_thp = mean(self._get_latest_history_len_stats(key='receiver_side_thp'))
+        avg_rtt = mean(self._get_latest_history_len_stats(key='rtt'))
+        avg_loss_rate = mean(self._get_latest_history_len_stats(key='loss_rate'))
 
-        received_size_list = self._get_latest_history_len_number_of_packets(key='payload_byte')
-        received_list = self._get_latest_history_len_number_of_packets(key=None)
-        print(f'received_size_list {received_size_list}')
-        if received_size_list:
-            # aggregate payload of latest history_len number of packets
-            received_nbytes = np.sum(received_size_list)
-            start_time = received_list[0]['timestamp']
-            end_time = received_list[-1]['timestamp']
-            elapsed_ms = end_time - start_time
-            print(f'received_nbyptes {received_nbytes} elapsed_ms {elapsed_ms}')
-            return received_nbytes * 8 / elapsed_ms * 1000
-        else:
-            return 0
+        state = [avg_receiver_side_thp, avg_rtt, avg_loss_rate]
 
-    def calculate_average_delay(self):
-        '''
-        Calulate the average delay in the last history_len number of packets.
-        The unit of return value: ms
-        '''
-        assert self.history_len > 0
-
-        delay_list = self._get_latest_history_len_number_of_packets(key='delay')
-        print(f'delay_list {delay_list}')
-
-        if delay_list:
-            return np.mean(delay_list) - self.base_delay_ms
-        else:
-            return 0
-
-    def calculate_loss_ratio(self):
-        '''
-        Calulate the loss ratio in the last history_len number of packets.
-        returns: %
-        '''
-        assert self.history_len > 0
-
-        loss_list = self._get_latest_history_len_number_of_packets(key='loss_count')
-        if loss_list:
-            loss_num = np.sum(loss_list)
-            received_num = len(loss_list)
-            return loss_num / (loss_num + received_num)
-        else:
-            return 0
-
-
-    def calculate_latest_prediction(self):
-        '''
-        The unit of return value: bps
-        '''
-        assert self.history_len > 0
-
-        if self.packet_num > 0:
-            return self.packet_list[-1]['bandwidth_prediction']
-        else:
-            return 0
+        return state

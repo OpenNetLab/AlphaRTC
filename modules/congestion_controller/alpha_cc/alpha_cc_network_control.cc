@@ -9,6 +9,7 @@
  */
 
 #include "modules/congestion_controller/alpha_cc/alpha_cc_network_control.h"
+#include "modules/third_party/cmdtrain/cmdtrain.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -40,6 +41,8 @@ bool IsNotDisabled(const WebRtcKeyValueConfig* config, absl::string_view key) {
 }
 }  // namespace
 
+// TODO: Implement AlphaCC version of MaybeTriggerOnNetworkChanged
+// where target_rate is set as latest action of the RL policy
 GoogCcNetworkController::GoogCcNetworkController(NetworkControllerConfig config,
                                                  GoogCcConfig alpha_cc_config)
     : key_value_config_(config.key_value_config ? config.key_value_config
@@ -97,6 +100,7 @@ NetworkControlUpdate GoogCcNetworkController::OnRoundTripTimeUpdate(
     return NetworkControlUpdate();
   RTC_DCHECK(!msg.round_trip_time.IsZero());
   bandwidth_estimation_->UpdateRtt(msg.round_trip_time, msg.receive_time);
+  cmdtrain::SendRTT(msg.round_trip_time.ms());
   return NetworkControlUpdate();
 }
 
@@ -178,6 +182,7 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
 
 NetworkControlUpdate GoogCcNetworkController::OnReceiverSideThroughput(float receiver_side_thp) {
   RTC_LOG(LS_INFO) << "AlphaCC: OnReceiverSideThroughput called: " << receiver_side_thp;
+  cmdtrain::SendReceiverSideThp(receiver_side_thp);
   return NetworkControlUpdate();
 }
 
@@ -213,6 +218,7 @@ NetworkControlUpdate GoogCcNetworkController::OnTransportLossReport(
   << " (total_packets_delta " << total_packets_delta
   << " packets_received_delta " << msg.packets_received_delta
   << " packets_lost_delta " << msg.packets_lost_delta << ")";
+  cmdtrain::SendLossRate(loss_rate);
   return NetworkControlUpdate();
 }
 
