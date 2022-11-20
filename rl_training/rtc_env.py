@@ -51,6 +51,8 @@ class GymEnv:
         self.packet_record = PacketRecord()
         self.metadata = None
         self.action_space_type = action_space_type
+        # TODO: Make the range of actions consistent: 10Kbps to 10Mbps
+        # for both discrete/continuous action spaces
         if self.action_space_type == 'discrete':
             '''
             Adopting discrete action space in MobiCom'21 Loki:
@@ -69,7 +71,6 @@ class GymEnv:
             low=np.array([0.0, 0.0, 0.0]),
             high=np.array([1.0, 1.0, 1.0]),
             dtype=np.float64)
-        self.latest_bwe = 1e6 # initial bwe
         # To calculate average reward per step in each episode
         self.accum_reward  = 0
         self.avg_reward_per_step_list = []
@@ -85,7 +86,7 @@ class GymEnv:
         return obs
 
     '''
-    Received packet statistics are the result of running current self.latest_bwe.
+    Received packet statistics are the result of running the latest bwe.
     From this, calculate state and reward.
     '''
     def calculate_state_reward(self):
@@ -103,16 +104,19 @@ class GymEnv:
         return states, reward, {}, {}
 
     def get_latest_bwe(self):
-        return self.latest_bwe
+        bwe_l = self.packet_record.get_bwe()
+        # default target bitrate in GCC: 300000 bps = 300 kbps
+        return bwe_l[-1] if len(bwe_l) else 300000
 
     # Returns `action` to the cmdtrain
     # and calculate new_obs, rewards for latest history_len stats
     def step(self, action):
         # this latest_bwe is sent to cmdtrain
         # by BandwidthEstimator.relay_packet_statistics()
-        self.latest_bwe = log_to_linear(action)
+        latest_bwe = log_to_linear(action)
+        self.packet_record.add_bwe(latest_bwe)
         new_obs, rewards, dones, infos = self.calculate_state_reward()
-        print(f'Step {self.num_steps} sending action {self.latest_bwe} to the cmdtrain, new obs {new_obs}')
+        print(f'Step {self.num_steps} sending action {latest_bwe} to the cmdtrain, new obs {new_obs}')
         self.num_steps += 1
         return new_obs, rewards, dones, infos
 

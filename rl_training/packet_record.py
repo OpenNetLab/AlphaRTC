@@ -15,6 +15,7 @@ class PacketRecord:
         self.packet_stats_dict['receiver_side_thp'] = []
         self.packet_stats_dict['rtt'] = []
         self.packet_stats_dict['loss_rate'] = []
+        self.packet_action_dict['bwe'] = []
 
     def add_receiver_side_thp(self, receiver_side_thp):
         self.packet_stats_dict['receiver_side_thp'].append(receiver_side_thp)
@@ -24,6 +25,12 @@ class PacketRecord:
 
     def add_loss_rate(self, loss_rate):
         self.packet_stats_dict['loss_rate'].append(loss_rate)
+
+    def add_bwe(self, bwe):
+        self.packet_stats_dict['bwe'].append(bwe)
+
+    def get_bwe(self):
+        return self.packet_stats_dict['bwe']
 
     def _get_latest_history_len_stats(self, key):
         assert self.history_len > 0

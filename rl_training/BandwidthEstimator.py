@@ -1,7 +1,4 @@
 import numpy as np
-import os
-
-from rl_training.packet_info import PacketInfo
 # from rl_training.ppo_agent import PPO
 from stable_baselines3 import PPO, A2C, DQN, SAC
 from rl_training.rtc_env import GymEnv

@@ -84,8 +84,44 @@ NetworkControlUpdate GoogCcNetworkController::OnNetworkRouteChange(
 NetworkControlUpdate GoogCcNetworkController::OnProcessInterval(
     ProcessInterval msg) {
   RTC_LOG(LS_VERBOSE) << "AlphaCC: OnProcessInterval called";
+  DataRate bandwidth = DataRate::BitsPerSec(cmdtrain::GetBwe());
+  NetworkControlUpdate update;
+  update.target_rate = TargetTransferRate();
+  update.target_rate->network_estimate.at_time = msg.at_time;
+  update.target_rate->network_estimate.bandwidth = bandwidth;
+  update.target_rate->network_estimate.loss_rate_ratio =
+      bandwidth_estimation_->fraction_loss() / 255.0f;
+  update.target_rate->network_estimate.round_trip_time =
+      bandwidth_estimation_->round_trip_time();
+
+  // Following the default bwe_period in GCC's delay_based_bwe_
+  update.target_rate->network_estimate.bwe_period = TimeDelta::Seconds(3);
+  update.target_rate->at_time = msg.at_time;
+  update.target_rate->target_rate = bandwidth;
+  update.target_rate->stable_target_rate = bandwidth;
+  // TODO
+  update.pacer_config = GetPacingRates(msg.at_time);
+  update.congestion_window = current_data_window_;
+  return update;
   return NetworkControlUpdate();
 }
+
+PacerConfig GoogCcNetworkController::GetPacingRates(Timestamp at_time) const {
+  // Pacing rate is based on target rate before congestion window pushback,
+  // because we don't want to build queues in the pacer when pushback occurs.
+  DataRate pacing_rate =
+      std::max(min_total_allocated_bitrate_, last_loss_based_target_rate_) *
+      pacing_factor_;
+  DataRate padding_rate =
+      std::min(max_padding_rate_, last_pushback_target_rate_);
+  PacerConfig msg;
+  msg.at_time = at_time;
+  msg.time_window = TimeDelta::Seconds(1);
+  msg.data_window = pacing_rate * msg.time_window;
+  msg.pad_window = padding_rate * msg.time_window;
+  return msg;
+}
+
 
 NetworkControlUpdate GoogCcNetworkController::OnRemoteBitrateReport(
     RemoteBitrateReport msg) {
@@ -132,19 +168,19 @@ NetworkControlUpdate GoogCcNetworkController::OnTargetRateConstraints(
 NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
     Timestamp at_time) {
     RTC_LOG(LS_VERBOSE) << "AlphaCC: GetDefaultState called";
-  //*-----Set target_rate-----*//
-  constexpr int32_t default_bitrate_bps = 300000;  // default: 300000 bps = 300 kbps
-  DataRate bandwidth = DataRate::BitsPerSec(default_bitrate_bps);
-  TimeDelta rtt = TimeDelta::Millis(last_estimated_rtt_ms_);
+
+  DataRate bandwidth = DataRate::BitsPerSec(cmdtrain::GetBwe());
   NetworkControlUpdate update;
   update.target_rate = TargetTransferRate();
   update.target_rate->network_estimate.at_time = at_time;
   update.target_rate->network_estimate.bandwidth = bandwidth;
   update.target_rate->network_estimate.loss_rate_ratio =
-      last_estimated_fraction_loss_ / 255.0;
-  update.target_rate->network_estimate.round_trip_time = rtt;
+      bandwidth_estimation_->fraction_loss() / 255.0f;
+  update.target_rate->network_estimate.round_trip_time =
+      bandwidth_estimation_->round_trip_time();
 
-  TimeDelta default_bwe_period = TimeDelta::Seconds(3);  // the default is 3sec
+  // Following the default bwe_period in GCC's delay_based_bwe_
+  TimeDelta default_bwe_period = TimeDelta::Seconds(3);
   update.target_rate->network_estimate.bwe_period = default_bwe_period;
   update.target_rate->at_time = at_time;
   update.target_rate->target_rate = bandwidth;
@@ -175,8 +211,6 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
       max_data_rate_.bps_or(-1), at_time.ms());
   */
 
-  // MSRA:SetBitrates:32000,300000,-1,139444174
-  // 0,-1,-1,139861040
   return update;
 }
 
