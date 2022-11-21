@@ -1,7 +1,12 @@
-echo -e "Removing webrtc logs from the previous run\n\n"
-rm *.log
-echo -e "\n\nCompiling (make all)...\n\n"
-make all
+#!/bin/bash
+
+echo -e "Removing logs and intermediate files from the previous run\n"
+rm -rf *.log bwe.txt
+
+echo -e "Compiling (without docker)\n"
+gn gen out/Default --args='is_debug=false'
+ninja -C out/Default peerconnection_serverless
+
 echo -e "\n\nRunning the receiver...\n\n"
 # Executing the C++ WebRTC app directly, 
 # as the receiver doesn't need a python program to interact with OpenAI Baselines. 

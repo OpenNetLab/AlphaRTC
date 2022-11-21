@@ -55,8 +55,11 @@ GoogCcNetworkController::GoogCcNetworkController(NetworkControllerConfig config,
       bandwidth_estimation_(
           std::make_unique<SendSideBandwidthEstimation>(event_log_)),
       initial_config_(config),
+      last_estimated_bitrate_bps_(DataRate::KilobitsPerSec(300)), // 300Kbps
       pacing_factor_(config.stream_based_config.pacing_factor.value_or(
           kDefaultPaceMultiplier)),
+      max_padding_rate_(config.stream_based_config.max_padding_rate.value_or(
+          DataRate::Zero())),
       min_total_allocated_bitrate_(
           config.stream_based_config.min_total_allocated_bitrate.value_or(
               DataRate::Zero())) {
@@ -64,7 +67,10 @@ GoogCcNetworkController::GoogCcNetworkController(NetworkControllerConfig config,
   ParseFieldTrial(
       {&safe_reset_on_route_change_, &safe_reset_acknowledged_rate_},
       key_value_config_->Lookup("WebRTC-Bwe-SafeResetOnRouteChange"));
-  RTC_LOG(LS_INFO) << "Using AlphaCC";
+  RTC_LOG(LS_VERBOSE) << "Using AlphaCC:"
+  << " pacing_factor_ init as " << pacing_factor_
+  << " min_total_allocated_bitrate_ init as (kbps) " << min_total_allocated_bitrate_.kbps()
+  << " max_padding_rate_ init as (kbps) " << max_padding_rate_.kbps();
 }
 
 GoogCcNetworkController::~GoogCcNetworkController() {}
@@ -81,14 +87,39 @@ NetworkControlUpdate GoogCcNetworkController::OnNetworkRouteChange(
   return NetworkControlUpdate();
 }
 
+// Called in OnRoundTripTimeUpdate, OnTransportLossRate and OnReceiverSideThroughput.
+// Call cmdtrain::SendState only when all three of them are updated.
+void GoogCcNetworkController::MaybeSendState() {
+  if (avg_receiver_side_thp_updated && rtt_updated && loss_rate_updated) {
+    CompAverageReceiverSideThroughput();
+    RTC_LOG(LS_INFO) << "AlphaCC: MaybeSendState: Sending"
+    << " avg receiver side thp " << last_avg_receiver_side_thp_
+    << " RTT " << last_rtt_ms_
+    << " loss rate " << last_loss_rate_;
+    cmdtrain::SendState(last_avg_receiver_side_thp_, last_rtt_ms_, last_loss_rate_, &estimated_bitrate_bps_updated);
+
+    // Reset the flags
+    avg_receiver_side_thp_updated = false;
+    rtt_updated = false;
+    loss_rate_updated = false;
+    // With the state received from cmdtrain::SendState,
+    // cmdtrain.py produces latest estimated bitrate on bwe.txt.
+    // estimated_bitrate_bps_updated = true;
+  } else {
+    // estimated_bitrate_bps_updated = false;
+  }
+}
+
 NetworkControlUpdate GoogCcNetworkController::OnProcessInterval(
     ProcessInterval msg) {
   RTC_LOG(LS_VERBOSE) << "AlphaCC: OnProcessInterval called";
-  DataRate bandwidth = DataRate::BitsPerSec(cmdtrain::GetBwe());
+  // Check the file that contains latest bwe only after it is updated
+  if (estimated_bitrate_bps_updated)
+    last_estimated_bitrate_bps_ = DataRate::BitsPerSec(cmdtrain::GetBwe(&estimated_bitrate_bps_updated));
   NetworkControlUpdate update;
   update.target_rate = TargetTransferRate();
   update.target_rate->network_estimate.at_time = msg.at_time;
-  update.target_rate->network_estimate.bandwidth = bandwidth;
+  update.target_rate->network_estimate.bandwidth = last_estimated_bitrate_bps_;
   update.target_rate->network_estimate.loss_rate_ratio =
       bandwidth_estimation_->fraction_loss() / 255.0f;
   update.target_rate->network_estimate.round_trip_time =
@@ -97,10 +128,10 @@ NetworkControlUpdate GoogCcNetworkController::OnProcessInterval(
   // Following the default bwe_period in GCC's delay_based_bwe_
   update.target_rate->network_estimate.bwe_period = TimeDelta::Seconds(3);
   update.target_rate->at_time = msg.at_time;
-  update.target_rate->target_rate = bandwidth;
-  update.target_rate->stable_target_rate = bandwidth;
-  // TODO
+  update.target_rate->target_rate = last_estimated_bitrate_bps_;
+  update.target_rate->stable_target_rate = last_estimated_bitrate_bps_;
   update.pacer_config = GetPacingRates(msg.at_time);
+  // Not used (since we don't use a congestion window pushback controller)
   update.congestion_window = current_data_window_;
   return update;
   return NetworkControlUpdate();
@@ -110,10 +141,14 @@ PacerConfig GoogCcNetworkController::GetPacingRates(Timestamp at_time) const {
   // Pacing rate is based on target rate before congestion window pushback,
   // because we don't want to build queues in the pacer when pushback occurs.
   DataRate pacing_rate =
-      std::max(min_total_allocated_bitrate_, last_loss_based_target_rate_) *
+      std::max(min_total_allocated_bitrate_, last_estimated_bitrate_bps_) *
       pacing_factor_;
   DataRate padding_rate =
-      std::min(max_padding_rate_, last_pushback_target_rate_);
+      std::min(max_padding_rate_, last_estimated_bitrate_bps_);
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: GetPacingRates called: "
+  << " min_total_allocated_bitrate_ (kbps) " << min_total_allocated_bitrate_.kbps()
+  << " last_estimated_bitrate_bps_ (kbps) " << last_estimated_bitrate_bps_.kbps()
+  << " max_padding_rate_ (kbps) " << max_padding_rate_.kbps();
   PacerConfig msg;
   msg.at_time = at_time;
   msg.time_window = TimeDelta::Seconds(1);
@@ -136,7 +171,9 @@ NetworkControlUpdate GoogCcNetworkController::OnRoundTripTimeUpdate(
     return NetworkControlUpdate();
   RTC_DCHECK(!msg.round_trip_time.IsZero());
   bandwidth_estimation_->UpdateRtt(msg.round_trip_time, msg.receive_time);
-  cmdtrain::SendRTT(msg.round_trip_time.ms());
+  last_rtt_ms_ = msg.round_trip_time.ms();
+  rtt_updated = true;
+  MaybeSendState();
   return NetworkControlUpdate();
 }
 
@@ -168,12 +205,10 @@ NetworkControlUpdate GoogCcNetworkController::OnTargetRateConstraints(
 NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
     Timestamp at_time) {
     RTC_LOG(LS_VERBOSE) << "AlphaCC: GetDefaultState called";
-
-  DataRate bandwidth = DataRate::BitsPerSec(cmdtrain::GetBwe());
   NetworkControlUpdate update;
   update.target_rate = TargetTransferRate();
   update.target_rate->network_estimate.at_time = at_time;
-  update.target_rate->network_estimate.bandwidth = bandwidth;
+  update.target_rate->network_estimate.bandwidth = last_estimated_bitrate_bps_;
   update.target_rate->network_estimate.loss_rate_ratio =
       bandwidth_estimation_->fraction_loss() / 255.0f;
   update.target_rate->network_estimate.round_trip_time =
@@ -183,7 +218,7 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
   TimeDelta default_bwe_period = TimeDelta::Seconds(3);
   update.target_rate->network_estimate.bwe_period = default_bwe_period;
   update.target_rate->at_time = at_time;
-  update.target_rate->target_rate = bandwidth;
+  update.target_rate->target_rate = last_estimated_bitrate_bps_;
 
   //*-----Set pacing & padding_rate-----*//
   int32_t default_pacing_rate = 300000;   // default:300000;=> 750000 bps = 750 kbps
@@ -214,9 +249,26 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
   return update;
 }
 
+void GoogCcNetworkController::CompAverageReceiverSideThroughput(void) {
+  int size = receiver_side_thp_v.size();
+  float sum = 0;
+  for (float i : receiver_side_thp_v) {
+    RTC_LOG(LS_VERBOSE) << "AlphaCC: CompAverageReceiverSideThroughput: item " << i;
+    sum = sum + i;
+  }
+
+  last_avg_receiver_side_thp_ = sum / size;
+  RTC_LOG(LS_INFO) << "AlphaCC: CompAverageReceiverSideThroughput:"
+  << " last_avg_receiver_side_thp_ " << last_avg_receiver_side_thp_
+  << " size " << size;
+  receiver_side_thp_v.clear();
+}
+
 NetworkControlUpdate GoogCcNetworkController::OnReceiverSideThroughput(float receiver_side_thp) {
   RTC_LOG(LS_INFO) << "AlphaCC: OnReceiverSideThroughput called: " << receiver_side_thp;
-  cmdtrain::SendReceiverSideThp(receiver_side_thp);
+  receiver_side_thp_v.push_back(receiver_side_thp);
+  avg_receiver_side_thp_updated = true;
+  MaybeSendState();
   return NetworkControlUpdate();
 }
 
@@ -246,13 +298,15 @@ NetworkControlUpdate GoogCcNetworkController::OnTransportLossReport(
   bandwidth_estimation_->UpdatePacketsLost(
       msg.packets_lost_delta, total_packets_delta, msg.receive_time);
   uint8_t fraction_loss = bandwidth_estimation_->fraction_loss();
-  auto loss_rate = (fraction_loss * 100) / 256;
+  auto loss_rate = (fraction_loss * 100) / 255.0f;
   RTC_LOG(LS_INFO) << "AlphaCC: OnTransportLossReport called: "
   << " loss rate (%) " << loss_rate
   << " (total_packets_delta " << total_packets_delta
   << " packets_received_delta " << msg.packets_received_delta
   << " packets_lost_delta " << msg.packets_lost_delta << ")";
-  cmdtrain::SendLossRate(loss_rate);
+  last_loss_rate_ = loss_rate;
+  loss_rate_updated = true;
+  MaybeSendState();
   return NetworkControlUpdate();
 }
 

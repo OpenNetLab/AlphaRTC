@@ -43,9 +43,9 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       feedback_sender_(feedback_sender),
       send_config_(key_value_config),
       last_process_time_ms_(-1),
-      last_comp_receiver_side_thp_time_ms_(-1),
+      last_comp_receiver_side_thp_time_us_(-1),
       total_received_packets(0),
-      aggregated_payload_size(0),
+      payload_size_(0),
       receiver_side_thp_updated(false),
       network_state_estimator_(network_state_estimator),
       media_ssrc_(0),
@@ -75,9 +75,9 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   OnPacketArrival(header.extension.transportSequenceNumber, arrival_time_ms,
                   header.extension.feedback_request);
   total_received_packets += 1;
-  if (last_comp_receiver_side_thp_time_ms_ == -1)
-    last_comp_receiver_side_thp_time_ms_ = clock_->TimeInMilliseconds();
-  aggregated_payload_size += payload_size;
+  if (last_comp_receiver_side_thp_time_us_ == -1)
+    last_comp_receiver_side_thp_time_us_ = clock_->TimeInMicroseconds();
+  payload_size_ = payload_size;
   // if (total_received_packets % 10 == 0)
   ComputeReceiverSideThroughput();
 }
@@ -85,19 +85,18 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
 void RemoteEstimatorProxy::ComputeReceiverSideThroughput() {
   // With per-packet payload size collected on each IncomingPacket call,
   // compute average receiver-side throughput since the call started:
-  // aggregated payload size / last_comp_receiver_side_thp_time_ms_ - now()
+  // aggregated payload size / last_comp_receiver_side_thp_time_us_ - now()
   rtc::CritScope cs(&lock_);
-  int64_t now = clock_->TimeInMilliseconds();
-  float elapsed_ms = now - last_comp_receiver_side_thp_time_ms_;
-  receiver_side_thp_ = aggregated_payload_size / (elapsed_ms / 0.001);
-  RTC_LOG(LS_VERBOSE) << "Receiver-side thp (bps) over the last packet " << receiver_side_thp_
-  << " agg. payload_bits " << aggregated_payload_size
-  << " elapsed_ms " << elapsed_ms
+  int64_t now = clock_->TimeInMicroseconds();
+  float elapsed_us = now - last_comp_receiver_side_thp_time_us_;
+  receiver_side_thp_ = payload_size_ / (elapsed_us / 0.000001);
+  RTC_LOG(LS_INFO) << "Receiver-side thp (bps) over the last packet " << receiver_side_thp_
+  << " payload_bits " << payload_size_
+  << " elapsed_us " << elapsed_us
   << " total received packets " << total_received_packets;
 
-  // Reset aggregated payload and time record
-  aggregated_payload_size = 0;
-  last_comp_receiver_side_thp_time_ms_ = now;
+  // Reset time record
+  last_comp_receiver_side_thp_time_us_ = now;
   receiver_side_thp_updated = true;
 }
 

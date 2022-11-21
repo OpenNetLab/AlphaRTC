@@ -15,9 +15,13 @@ class PacketRecord:
         self.packet_stats_dict['receiver_side_thp'] = []
         self.packet_stats_dict['rtt'] = []
         self.packet_stats_dict['loss_rate'] = []
-        self.packet_action_dict['bwe'] = []
+        self.packet_stats_dict['bwe'] = []
 
     def add_receiver_side_thp(self, receiver_side_thp):
+        # if receiver_side_thp is None:
+        #     print(f'Warning: receiver_side_thp is None')
+        #     self.packet_stats_dict['receiver_side_thp'].append(0.125)
+        # else:
         self.packet_stats_dict['receiver_side_thp'].append(receiver_side_thp)
 
     def add_rtt(self, rtt):

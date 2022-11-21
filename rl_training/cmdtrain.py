@@ -41,10 +41,9 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
                 step_time = end_ts - start_ts
                 print(f'start_ts {start_ts} end_ts {end_ts} report_states_cnt {report_states_cnt}\taggregate step time (s, 500 steps) : {step_time}')
                 start_ts = end_ts
-            # TODO: dict to json
-            # and append-write it to a file
-            ofd.write("{}\n".format(int(bwe)).encode("utf-8"))
-            ofd.flush()
+            # truncate-then-write the bwe
+            with open('bwe.txt', mode='w') as f:
+                f.write(f'{bwe}')
             continue
 
         sys.stdout.write(line)

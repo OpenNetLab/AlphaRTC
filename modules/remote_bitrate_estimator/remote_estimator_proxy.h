@@ -101,9 +101,9 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   TransportFeedbackSenderInterface* const feedback_sender_;
   const TransportWideFeedbackConfig send_config_;
   int64_t last_process_time_ms_;
-  int64_t last_comp_receiver_side_thp_time_ms_;
+  int64_t last_comp_receiver_side_thp_time_us_;
   int64_t total_received_packets;
-  size_t aggregated_payload_size;
+  size_t payload_size_;
   bool receiver_side_thp_updated;
 
   rtc::CriticalSection lock_;

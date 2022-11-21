@@ -5,17 +5,13 @@
 #include <cstddef>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <unistd.h>
 #include "modules/third_party/statcollect/json.hpp"
 
-using namespace std;
-using namespace nlohmann;
-
 namespace cmdtrain {
-    void SendRTT(int64_t rtt);
-    void SendLossRate(float loss_rate);
-    void SendReceiverSideThp(float receiver_side_thp);
-    int32_t GetBwe(void);
+    void SendState(float avg_receiver_side_thp, int64_t rtt, float loss_rate, bool* estimated_bitrate_bps_updated);
+    int32_t GetBwe(bool* estimated_bitrate_bps_updated);
 }
 
 #endif

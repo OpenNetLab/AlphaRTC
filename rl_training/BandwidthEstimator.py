@@ -82,14 +82,11 @@ class Estimator(object):
 
 
     # states obtained by the latest action
-    def relay_packet_statistics(self, pkt_stat: dict):
+    def relay_packet_statistics(self, state: dict):
         # Add the statistics for this packet in env's data structure
-        if 'receiver_side_thp' in pkt_stat:
-            self.env.packet_record.add_receiver_side_thp(pkt_stat['receiver_side_thp'])
-        elif 'rtt' in pkt_stat:
-            self.env.packet_record.add_rtt(pkt_stat['rtt'])
-        elif 'loss_rate' in pkt_stat:
-            self.env.packet_record.add_loss_rate(pkt_stat['loss_rate'])
+        self.env.packet_record.add_receiver_side_thp(state['receiver_side_thp'])
+        self.env.packet_record.add_rtt(state['rtt'])
+        self.env.packet_record.add_loss_rate(state['loss_rate'])
 
         # Train the RL policy.
         # Calls self.collect_rollouts() and self.train() in SB3 PPO.

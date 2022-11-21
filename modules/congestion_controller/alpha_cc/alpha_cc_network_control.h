@@ -55,6 +55,8 @@ class GoogCcNetworkController : public NetworkControllerInterface {
       TransportPacketsFeedback msg) override;
   NetworkControlUpdate OnNetworkStateEstimate(
       NetworkStateEstimate msg) override;
+  void CompAverageReceiverSideThroughput(void);
+  void MaybeSendState(void);
   NetworkControlUpdate OnReceiverSideThroughput(float receiver_side_thp) override;
   NetworkControlUpdate GetNetworkState(Timestamp at_time) const;
   NetworkControlUpdate GetDefaultState(Timestamp at_time);
@@ -90,13 +92,20 @@ class GoogCcNetworkController : public NetworkControllerInterface {
   int lost_packets_since_last_loss_update_ = 0;
   int expected_packets_since_last_loss_update_ = 0;
 
-  std::deque<int64_t> feedback_max_rtts_;
-
-  int32_t last_estimated_bitrate_bps_ = 0;
-  uint8_t last_estimated_fraction_loss_ = 0;
-  int64_t last_estimated_rtt_ms_ = 0;
+  DataRate last_estimated_bitrate_bps_;
+  // Lastest values of avg receiver side thp, RTT, loss rate
+  float last_avg_receiver_side_thp_ = 0;
+  uint8_t last_loss_rate_ = 0;
+  int64_t last_rtt_ms_ = 0;
+  std::vector<float> receiver_side_thp_v;
+  // Flags for sending state to SB3
+  bool estimated_bitrate_bps_updated = false;
+  bool avg_receiver_side_thp_updated = false;
+  bool rtt_updated = false;
+  bool loss_rate_updated = false;
 
   double pacing_factor_;
+  DataRate max_padding_rate_;
   DataRate min_total_allocated_bitrate_;
   bool previously_in_alr = false;
 

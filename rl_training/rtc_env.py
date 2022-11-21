@@ -3,14 +3,12 @@
 
 import sys
 import os
-from queue import Queue
 import random
 import numpy as np
 
 from gym import spaces
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "gym"))
-from rl_training.packet_info import PacketInfo
 from rl_training.packet_record import PacketRecord
 
 UNIT_M = 1000000
@@ -113,7 +111,7 @@ class GymEnv:
     def step(self, action):
         # this latest_bwe is sent to cmdtrain
         # by BandwidthEstimator.relay_packet_statistics()
-        latest_bwe = log_to_linear(action)
+        latest_bwe = log_to_linear(action)[0]
         self.packet_record.add_bwe(latest_bwe)
         new_obs, rewards, dones, infos = self.calculate_state_reward()
         print(f'Step {self.num_steps} sending action {latest_bwe} to the cmdtrain, new obs {new_obs}')
