@@ -90,7 +90,7 @@ NetworkControlUpdate GoogCcNetworkController::OnNetworkRouteChange(
 // Called in OnRoundTripTimeUpdate, OnTransportLossRate and OnReceiverSideThroughput.
 // Call cmdtrain::SendState only when all three of them are updated.
 void GoogCcNetworkController::MaybeSendState() {
-  if (avg_receiver_side_thp_updated && rtt_updated && loss_rate_updated) {
+  if (receiver_side_thp_v.size() > 0) {
     CompAverageReceiverSideThroughput();
     RTC_LOG(LS_INFO) << "AlphaCC: MaybeSendState: Sending"
     << " avg receiver side thp " << last_avg_receiver_side_thp_
@@ -104,9 +104,6 @@ void GoogCcNetworkController::MaybeSendState() {
     loss_rate_updated = false;
     // With the state received from cmdtrain::SendState,
     // cmdtrain.py produces latest estimated bitrate on bwe.txt.
-    // estimated_bitrate_bps_updated = true;
-  } else {
-    // estimated_bitrate_bps_updated = false;
   }
 }
 
@@ -265,7 +262,7 @@ void GoogCcNetworkController::CompAverageReceiverSideThroughput(void) {
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnReceiverSideThroughput(float receiver_side_thp) {
-  RTC_LOG(LS_INFO) << "AlphaCC: OnReceiverSideThroughput called: " << receiver_side_thp;
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnReceiverSideThroughput called: " << receiver_side_thp;
   receiver_side_thp_v.push_back(receiver_side_thp);
   avg_receiver_side_thp_updated = true;
   MaybeSendState();

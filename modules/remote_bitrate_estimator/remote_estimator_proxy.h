@@ -45,7 +45,7 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
                       size_t payload_size,
                       const RTPHeader& header) override;
   void RemoveStream(uint32_t ssrc) override {}
-  void ComputeReceiverSideThroughput();
+  float ComputeReceiverSideThroughput();
   bool LatestEstimate(std::vector<unsigned int>* ssrcs,
                       unsigned int* bitrate_bps) const override;
   void OnRttUpdate(int64_t avg_rtt_ms, int64_t max_rtt_ms) override {}
@@ -102,9 +102,8 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   const TransportWideFeedbackConfig send_config_;
   int64_t last_process_time_ms_;
   int64_t last_comp_receiver_side_thp_time_us_;
-  int64_t total_received_packets;
-  size_t payload_size_;
-  bool receiver_side_thp_updated;
+  int64_t received_packets;
+  size_t aggregated_payload_size;
 
   rtc::CriticalSection lock_;
   //  |network_state_estimator_| may be null.
@@ -118,7 +117,6 @@ class RemoteEstimatorProxy : public RemoteBitrateEstimator {
   std::map<int64_t, int64_t> packet_arrival_times_ RTC_GUARDED_BY(&lock_);
   int64_t send_interval_ms_ RTC_GUARDED_BY(&lock_);
   bool send_periodic_feedback_ RTC_GUARDED_BY(&lock_);
-  float receiver_side_thp_ RTC_GUARDED_BY(&lock_);
 
   int cycles_ RTC_GUARDED_BY(&lock_);
   uint32_t max_abs_send_time_ RTC_GUARDED_BY(&lock_);
