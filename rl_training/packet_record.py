@@ -71,7 +71,7 @@ class PacketRecord:
 
     def _get_latest_history_len_stats(self, key):
         assert self.history_len > 0
-        latest_history_len_stats = self.packet_stats_dict[key][:self.history_len]
+        latest_history_len_stats = self.packet_stats_dict[key][-self.history_len:]
         print(f'latest {self.history_len} {key}: {latest_history_len_stats}')
         return latest_history_len_stats if len(latest_history_len_stats) > 0 else [0]
 

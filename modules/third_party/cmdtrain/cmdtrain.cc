@@ -9,6 +9,14 @@ void cmdtrain::SendState(float avg_receiver_side_thp, int64_t rtt, float loss_ra
     j["rtt"] = rtt;
     j["loss_rate"] = loss_rate;
 
+    // std::string name = "state.txt";
+    // std::ifstream f(name.c_str());
+    // std::string line;
+
+    // std::ofstream StateFile("state.txt");
+    // StateFile << j.dump() << endl;
+    // StateFile.close();
+
     cout << j.dump() << endl;
 
     *estimated_bitrate_bps_updated = true;
