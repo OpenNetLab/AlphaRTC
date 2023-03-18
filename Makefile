@@ -69,5 +69,5 @@ docker-app:
 	cp $(output_dir)/peerconnection_serverless $(target_bin_dir)/peerconnection_serverless.origin
 	cp examples/peerconnection/serverless/peerconnection_serverless $(target_bin_dir)
 	mkdir -p $(target_pylib_dir)
-	cp modules/third_party/cmdtrain/*.py $(target_pylib_dir)/
+	cp modules/third_party/rl_agent/*.py $(target_pylib_dir)/
 

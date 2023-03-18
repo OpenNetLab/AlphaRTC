@@ -63,7 +63,7 @@ rtc_library("remote_bitrate_estimator") {
     "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/types:optional",
     "//modules/third_party/statcollect:stat_collect",
-    "//modules/third_party/cmdtrain:cmdtrain"
+    "//modules/third_party/rl_agent:rl_agent"
   ]
 }
 

@@ -1,9 +1,0 @@
-static_library("cmdtrain") {
-  deps = [
-    "//modules/third_party/statcollect:stat_collect",
-  ]
-  sources = [
-    "cmdtrain.h",
-    "cmdtrain.cc",
-  ]
-}

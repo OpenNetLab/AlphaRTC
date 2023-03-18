@@ -9,7 +9,7 @@
  */
 
 #include "modules/congestion_controller/alpha_cc/alpha_cc_network_control.h"
-#include "modules/third_party/cmdtrain/cmdtrain.h"
+#include "modules/third_party/rl_agent/rl_agent.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -88,7 +88,7 @@ NetworkControlUpdate GoogCcNetworkController::OnNetworkRouteChange(
 }
 
 // Called in OnRoundTripTimeUpdate, OnTransportLossRate and OnReceiverSideThroughput.
-// Call cmdtrain::SendState only when all three of them are updated.
+// Call rl_agent::SendState only when all three of them are updated.
 void GoogCcNetworkController::MaybeSendState() {
   if (receiver_side_thp_v.size() > 0) {
     CompAverageReceiverSideThroughput();
@@ -96,14 +96,14 @@ void GoogCcNetworkController::MaybeSendState() {
     << " avg receiver side thp " << last_avg_receiver_side_thp_
     << " RTT " << last_rtt_ms_
     << " loss rate " << last_loss_rate_;
-    cmdtrain::SendState(last_avg_receiver_side_thp_, last_rtt_ms_, last_loss_rate_, &estimated_bitrate_bps_updated);
+    rl_agent::SendState(last_avg_receiver_side_thp_, last_rtt_ms_, last_loss_rate_, &estimated_bitrate_bps_updated);
 
     // Reset the flags
     avg_receiver_side_thp_updated = false;
     rtt_updated = false;
     loss_rate_updated = false;
-    // With the state received from cmdtrain::SendState,
-    // cmdtrain.py produces latest estimated bitrate on bwe.txt.
+    // With the state received from rl_agent::SendState,
+    // rl_agent.py produces latest estimated bitrate on bwe.txt.
   }
 }
 
@@ -112,7 +112,7 @@ NetworkControlUpdate GoogCcNetworkController::OnProcessInterval(
   RTC_LOG(LS_VERBOSE) << "AlphaCC: OnProcessInterval called";
   // Check the file that contains latest bwe only after it is updated
   if (estimated_bitrate_bps_updated)
-    last_estimated_bitrate_bps_ = DataRate::BitsPerSec(cmdtrain::GetBwe(&estimated_bitrate_bps_updated));
+    last_estimated_bitrate_bps_ = DataRate::BitsPerSec(rl_agent::GetBwe(&estimated_bitrate_bps_updated));
   NetworkControlUpdate update;
   update.target_rate = TargetTransferRate();
   update.target_rate->network_estimate.at_time = msg.at_time;
