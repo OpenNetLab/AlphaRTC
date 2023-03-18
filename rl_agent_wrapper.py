@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import subprocess
@@ -10,15 +11,15 @@ import rl_training.rl_agent as rl_agent
 
 def main():
     e2e_app = os.path.join(os.path.dirname(__file__), 'peerconnection_serverless.origin')
-    args = 'sender_pyinfer.json'
+    config_file = 'sender_pyinfer.json'
     app = subprocess.Popen(
-        [e2e_app] + [args],
+        [e2e_app] + [config_file],
         bufsize=1,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT)
     try:
-        print('Starting the training loop (rl_agent.main)')
+        print(f'Starting the training loop (rl_agent.main)')
         # start = time.time()
         rl_agent.main(app.stdout, app.stdin)
         print('Finished the training loop (rl_agent.main)')
@@ -33,7 +34,6 @@ def main():
         sys.stderr.write(error_message)
         if len(sys.argv[1:]) == 0:
             return
-        config_file = sys.argv[1]
         config_file = json.load(open(config_file, "r"))
         if "logging" not in config_file:
             return

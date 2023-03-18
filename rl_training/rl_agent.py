@@ -85,7 +85,7 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
     num_steps = 0
 
     # Instantiate RL agent to train:
-    rl_algo = 'PPO'
+    rl_algo = 'A2C'
     print(f'RL algorithm used: {rl_algo}')
 
     # Path to save model ckpt
@@ -125,8 +125,9 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
 
             # return latest action (bwe) produced by the policy network
             bwe = env.get_latest_bwe()
+            # For debugging purposes only (remove the file I/O for actual training)
             with open('rl_agent_stats_action.log', mode='a+') as f:
-                f.write(f'rl_agent: stats {stats} bwe {bwe}\n')
+                f.write(f'rl_agent ({rl_algo}): stats {stats} bwe {bwe}\n')
             num_steps += 1
 
             # if num_steps % 500 == 0:
