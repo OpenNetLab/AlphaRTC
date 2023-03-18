@@ -67,7 +67,7 @@ docker-app:
 	mkdir -p $(target_lib_dir)
 	mkdir -p $(target_bin_dir)
 	cp $(output_dir)/peerconnection_serverless $(target_bin_dir)/peerconnection_serverless.origin
-	cp examples/peerconnection/serverless/peerconnection_serverless $(target_bin_dir)
+	cp $(output_dir)/peerconnection_serverless peerconnection_serverless.origin
 	mkdir -p $(target_pylib_dir)
 	cp modules/third_party/rl_agent/*.py $(target_pylib_dir)/
 

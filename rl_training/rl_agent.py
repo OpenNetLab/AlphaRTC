@@ -125,7 +125,8 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
 
             # return latest action (bwe) produced by the policy network
             bwe = env.get_latest_bwe()
-            print(f'rl_agent: stats {stats} bwe {bwe}')
+            with open('rl_agent_stats_action.log', mode='a+') as f:
+                f.write(f'rl_agent: stats {stats} bwe {bwe}\n')
             num_steps += 1
 
             # if num_steps % 500 == 0:
