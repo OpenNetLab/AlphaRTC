@@ -59,9 +59,9 @@ void PeerConnectionClient::StartListen(const std::string& ip, int port) {
   listen_socket_.reset(CreateClientSocket(listening_addr.ipaddr().family()));
 
   int err = listen_socket_->Bind(listening_addr);
-  if (err == SOCKET_ERROR) {
+  if (err < 0) {
     listen_socket_->Close();
-    RTC_LOG(LS_ERROR) << "Failed to bind listen socket to port " << port;
+    RTC_LOG(LS_ERROR) << "Failed to bind listen socket with error " << listen_socket_->GetError();
     RTC_NOTREACHED();
   }
   listen_socket_->Listen(1);
@@ -77,7 +77,7 @@ void PeerConnectionClient::StartConnect(const std::string& ip, int port) {
   int err = message_socket_->Connect(send_to_addr);
   if (err == SOCKET_ERROR) {
     message_socket_->Close();
-    RTC_LOG(LS_ERROR) << "Failed to connect to receiver";
+    RTC_LOG(LS_ERROR) << "Failed to connect to receiver, error " << err;
     RTC_NOTREACHED();
   } else {
     callback_->ConnectToPeer();
