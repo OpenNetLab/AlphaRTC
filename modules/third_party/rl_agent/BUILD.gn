@@ -1,0 +1,9 @@
+static_library("rl_agent") {
+  deps = [
+    "//modules/third_party/statcollect:stat_collect",
+  ]
+  sources = [
+    "rl_agent.h",
+    "rl_agent.cc",
+  ]
+}
