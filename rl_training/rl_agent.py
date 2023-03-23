@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import sys
+import glob
 import json
 import numpy as np
 import os
+import sys
+import time
 from stable_baselines3 import PPO, A2C, DQN, DDPG, SAC
 from rl_training.rtc_env import GymEnv
 
@@ -30,51 +32,61 @@ def fetch_stats(line: str) -> dict:
     except json.decoder.JSONDecodeError:
         return None
 
-def create_or_load_policy(rl_algo, ckpt_file):
+def load_checkpoint(rl_algo, ckpt_dir):
+    # Load the most recent checkpoint of the RL algorithm
+    ckpt_files = glob.glob(f'{ckpt_dir}/{rl_algo}*')
+    if (len(ckpt_files) == 0):
+        with open("ckpt_loading.log", "a+") as out:
+            out.write(f'No checkpoint for {rl_algo} yet\n')
+        return None
+    else:
+        ckpt_file = max(ckpt_files)
+        with open("ckpt_loading.log", "a+") as out:
+            out.write(f'Loading checkpoint {ckpt_file} (the most recent one among {ckpt_files})\n')
+        return ckpt_file
+
+def create_or_load_policy(rl_algo, ckpt_dir):
+
+    ckpt_file = load_checkpoint(rl_algo, ckpt_dir)
+
     # Instantiate gym environment
     if rl_algo == 'PPO':
         env = GymEnv()
-        if os.path.isfile(ckpt_file):
-            print(f'Loading checkpoint file {ckpt_file}')
-            policy = PPO.load(path=ckpt_file, env=env, device='cpu', verbose=1)
-        else:
+        if (ckpt_file is None):
             policy = PPO("MlpPolicy", env, n_steps=1, device='cpu', verbose=1)
+        else:
+            policy = PPO.load(path=ckpt_file, env=env, device='cpu', verbose=1)
+
     elif rl_algo == 'A2C':
         env = GymEnv()
-        if os.path.isfile(ckpt_file):
-            print(f'Loading checkpoint file {ckpt_file}')
-            policy = A2C.load(path=ckpt_file, env=env, device='cpu', verbose=1)
-        else:
+        if (ckpt_file is None):
             policy = A2C("MlpPolicy", env, n_steps=1, device='cpu', verbose=1)
+        else:
+            policy = A2C.load(path=ckpt_file, env=env, device='cpu', verbose=1)
+
     elif rl_algo == 'DQN':
         env = GymEnv(action_space_type='discrete')
-        if os.path.isfile(ckpt_file):
-            print(f'Loading checkpoint file {ckpt_file}')
+        if (ckpt_file is None):
+            policy = DQN("MlpPolicy", env, device='cpu', verbose=1)
+        else:
             policy = DQN.load(path=ckpt_file, env=env, device='cpu', verbose=1)
-        else:
-            policy = DQN("MlpPolicy", env, device='cpu', verbose=1)
+
     elif rl_algo == 'DDPG':
-        env = GymEnv(action_space_type='discrete')
-        if os.path.isfile(ckpt_file):
-            print(f'Loading checkpoint file {ckpt_file}')
-            policy = DDPG.load(path=ckpt_file, env=env, device='cpu', verbose=1)
+        env = GymEnv()
+        if (ckpt_file is None):
+            policy = DDPG("MlpPolicy", env, device='cpu', verbose=1)
         else:
-            policy = DQN("MlpPolicy", env, device='cpu', verbose=1)
+            policy = DDPG.load(path=ckpt_file, env=env, device='cpu', verbose=1)
+
     elif rl_algo == 'SAC':
         env = GymEnv()
-        if os.path.isfile(ckpt_file):
-            print(f'Loading checkpoint file {ckpt_file}')
-            policy = SAC.load(path=ckpt_file, env=env, device='cpu', verbose=1)
-        else:
+        if (ckpt_file is None):
             policy = SAC("MlpPolicy", env, device='cpu', verbose=1)
-    else:
-        print(f'Unsupported algorithm {rl_algo}. Using PPO by default')
-        env = GymEnv()
-        if os.path.isfile(ckpt_file):
-            print(f'Loading checkpoint file {ckpt_file}')
-            policy = PPO.load(path=ckpt_file, env=env, device='cpu', verbose=1)
         else:
-            policy = PPO("MlpPolicy", env, n_steps=1, device='cpu', verbose=1)
+            policy = SAC.load(path=ckpt_file, env=env, device='cpu', verbose=1)
+
+    else:
+        raise Exception(f'Unsupported RL algorithm {rl_algo}')
 
     return env, policy
 
@@ -85,21 +97,19 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
     num_steps = 0
 
     # Instantiate RL agent to train:
-    rl_algo = 'A2C'
-    print(f'RL algorithm used: {rl_algo}')
+    rl_algo = 'SAC'
 
     # Path to save model ckpt
     ckpt_dir = './rl_model/ckpt'
     if not os.path.exists(ckpt_dir):
         os.makedirs(ckpt_dir)
-    ckpt_file = f'{ckpt_dir}/{rl_algo}.pth'
 
     # Path to save reward curve
     reward_curve_dir = './rl_model/reward_curves/'
     if not os.path.exists(reward_curve_dir):
         os.makedirs(reward_curve_dir)
 
-    env, policy = create_or_load_policy(rl_algo, ckpt_file)
+    env, policy = create_or_load_policy(rl_algo, ckpt_dir)
 
     while True:
         # Read a line from app.stdout, which is packet statistics
@@ -144,7 +154,9 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
         sys.stdout.write(line)
         sys.stdout.flush()
 
-    # ckpt_file = f'{ckpt_dir}/{rl_algo}_{time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())}.pth'
+    # the checkpoint file will be saved & and loaded as a .zip file
+    # (its prefix is determined as .zip by the SB3 APIs)
+    ckpt_file = f'{ckpt_dir}/{rl_algo}_{time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())}'
     print(f'Saving checkpoint file {ckpt_file}')
     policy.save(ckpt_file)
 

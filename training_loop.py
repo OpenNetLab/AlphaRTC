@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import emoji
 import glob
 import os
 import random
@@ -30,7 +29,7 @@ def record_call_result(receiver_app, sender_app, ith_call):
 Generate a random free tcp6 port.
 Goal: dynamically binding an unused port for e2e call
 '''
-def random_port_generator():
+def generate_random_port():
     MIN_PORT = 1024
     MAX_PORT = 65535
 
@@ -66,16 +65,15 @@ def main():
     # Run this e2e app on separate processes in parallel
     # with AlphaCC config file as an argument (e.g. receiver_pyinfer.json)
     receiver_cmd = f"$ALPHARTC_HOME/peerconnection_serverless.origin receiver_pyinfer.json"
-    # sender_cmd = f"sleep 5; mm-loss uplink 0.2 mm-link 12mbps 12mbps $ALPHARTC_HOME/peerconnection_serverless.origin sender_pyinfer.json"
     # encapsulate `peerconnection_serverless.origin sender_pyinfer.json` with a python training code
     sender_cmd = f"sleep 5; mm-loss uplink 0.2 mm-link traces/12mbps traces/12mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
-    num_calls = 5
+    num_calls = 2
 
     cleanup_logs()
 
     for i in range(0, num_calls):
         # Randomly assign different port per e2e call
-        random_port_generator()
+        generate_random_port()
 
         # Run an e2e call
         receiver_app = subprocess.Popen(receiver_cmd, shell=True)
@@ -85,8 +83,6 @@ def main():
         sender_app.wait()
 
         record_call_result(receiver_app, sender_app, i)
-
-        time.sleep(5)
 
 
 
