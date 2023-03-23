@@ -10,6 +10,8 @@
 
 #include "examples/peerconnection/serverless/peer_connection_client.h"
 
+#include <iostream>
+#include <fstream>
 #include <thread>
 #include "examples/peerconnection/serverless/defaults.h"
 #include "rtc_base/checks.h"
@@ -61,7 +63,11 @@ void PeerConnectionClient::StartListen(const std::string& ip, int port) {
   int err = listen_socket_->Bind(listening_addr);
   if (err < 0) {
     listen_socket_->Close();
-    RTC_LOG(LS_ERROR) << "Failed to bind listen socket with error " << listen_socket_->GetError();
+    std::ofstream ofs;
+    ofs.open("port_assignment.log", std::fstream::out | std::fstream::app);
+    ofs << "Failed to bind listen socket with error " << listen_socket_->GetError() << " IP:port " << ip << ":" << port << std::endl;
+    ofs.close();
+    RTC_LOG(LS_ERROR) << "Failed to bind listen socket with error " << listen_socket_->GetError() << " IP:port " << ip << ":" << port;
     RTC_NOTREACHED();
   }
   listen_socket_->Listen(1);

@@ -1,4 +1,5 @@
 {
+    "type": "training",
     "serverless_connection": {
         "autoclose": 20,
         "sender": {

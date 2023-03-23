@@ -37,6 +37,9 @@ bool ParseAlphaCCConfig(const std::string& file_path) {
 
   RETURN_ON_FAIL(reader.parse(is, top));
 
+  RETURN_ON_FAIL(
+    GetString(top, "type", &config->type));
+
   if (GetValue(top, "server_connection", &second)) {
     RETURN_ON_FAIL(GetString(second, "ip", &config->conn_server_ip));
     RETURN_ON_FAIL(GetInt(second, "port", &config->conn_server_port));
