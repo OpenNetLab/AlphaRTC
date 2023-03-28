@@ -7,7 +7,7 @@ import numpy as np
 import os
 import sys
 import time
-from stable_baselines3 import PPO, A2C, DQN, DDPG, SAC
+from stable_baselines3 import PPO, A2C, DQN, TD3, SAC
 from rl_training.rtc_env import GymEnv
 
 UNIT_M = 1000000
@@ -71,12 +71,12 @@ def create_or_load_policy(rl_algo, ckpt_dir):
         else:
             policy = DQN.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
-    elif rl_algo == 'DDPG':
+    elif rl_algo == 'TD3':
         env = GymEnv()
         if (ckpt_file is None):
-            policy = DDPG("MlpPolicy", env, device='cpu', verbose=1)
+            policy = TD3("MlpPolicy", env, device='cpu', verbose=1)
         else:
-            policy = DDPG.load(path=ckpt_file, env=env, device='cpu', verbose=1)
+            policy = TD3.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
     elif rl_algo == 'SAC':
         env = GymEnv()
@@ -96,18 +96,12 @@ def create_or_load_policy(rl_algo, ckpt_dir):
 def main(ifd = sys.stdin, ofd = sys.stdout):
     num_steps = 0
 
-    # Instantiate RL agent to train:
     rl_algo = 'SAC'
 
     # Path to save model ckpt
     ckpt_dir = './rl_model/ckpt'
     if not os.path.exists(ckpt_dir):
         os.makedirs(ckpt_dir)
-
-    # Path to save reward curve
-    reward_curve_dir = './rl_model/reward_curves/'
-    if not os.path.exists(reward_curve_dir):
-        os.makedirs(reward_curve_dir)
 
     env, policy = create_or_load_policy(rl_algo, ckpt_dir)
 
@@ -159,6 +153,11 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
     ckpt_file = f'{ckpt_dir}/{rl_algo}_{time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())}'
     print(f'Saving checkpoint file {ckpt_file}')
     policy.save(ckpt_file)
+
+    # Path to save reward curves
+    # reward_curve_dir = './rl_model/reward_curves/'
+    # if not os.path.exists(reward_curve_dir):
+    #     os.makedirs(reward_curve_dir)
 
     # plt.plot(range(len(record_episode_reward)), record_episode_reward)
     # plt.plot(record_episode_reward, c = '#bbbcb8') # gray

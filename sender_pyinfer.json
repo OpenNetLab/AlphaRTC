@@ -1,7 +1,7 @@
 {
     "type": "training",
     "serverless_connection": {
-        "autoclose": 20,
+        "autoclose": 200,
         "sender": {
             "enabled": true,
             "dest_ip": "147.46.15.25",

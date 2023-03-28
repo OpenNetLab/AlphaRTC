@@ -1,7 +1,7 @@
 {
     "type": "training",
     "serverless_connection": {
-        "autoclose": 20,
+        "autoclose": 200,
         "sender": {
             "enabled": false
         },
@@ -21,8 +21,8 @@
         },
         "video_file": {
             "enabled": false,
-            "height": 240,
             "width": 320,
+            "height": 240,
             "fps": 10,
             "file_path": "testmedia/test.yuv"
         }

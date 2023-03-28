@@ -50,7 +50,6 @@ def generate_random_port():
     while(ret_port < 0 or ret_port in used_ports):
         ret_port = random.randint(MIN_PORT, MAX_PORT)
 
-    print(f'Free port found: {ret_port}')
     # Write the free port as a file
     with open("free_port", "w") as out:
         out.write(str(ret_port))
@@ -66,8 +65,31 @@ def main():
     # with AlphaCC config file as an argument (e.g. receiver_pyinfer.json)
     receiver_cmd = f"$ALPHARTC_HOME/peerconnection_serverless.origin receiver_pyinfer.json"
     # encapsulate `peerconnection_serverless.origin sender_pyinfer.json` with a python training code
-    sender_cmd = f"sleep 5; mm-loss uplink 0.2 mm-link traces/12mbps traces/12mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
-    num_calls = 2
+    # sender_cmd = f"sleep 5; mm-loss uplink 0.2 mm-link traces/1mbps traces/1mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    sender_cmd = f"sleep 5; mm-link traces/12mbps traces/12mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+
+    # Training environments
+    # [1, 4, 10] Mbps x [10, 20, 30] ms = 9 environments
+    # sender_cmd = f"sleep 5; mm-delay 10 mm-link traces/1mbps traces/1mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    # sender_cmd = f"sleep 5; mm-delay 10 mm-link traces/4mbps traces/4mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    # sender_cmd = f"sleep 5; mm-delay 10 mm-link traces/12mbps traces/12mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    # sender_cmd = f"sleep 5; mm-delay 20 mm-link traces/1mbps traces/1mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    # sender_cmd = f"sleep 5; mm-delay 20 mm-link traces/4mbps traces/4mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    # sender_cmd = f"sleep 5; mm-delay 20 mm-link traces/12mbps traces/12mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    # sender_cmd = f"sleep 5; mm-delay 30 mm-link traces/1mbps traces/1mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    # sender_cmd = f"sleep 5; mm-delay 30 mm-link traces/4mbps traces/4mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    # sender_cmd = f"sleep 5; mm-delay 30 mm-link traces/12mbps traces/12mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+
+    # Testing environments
+    # [2, 3, 6] Mbps x [15, 25] ms = 6 environments
+    # sender_cmd = f"sleep 5; mm-delay 15 mm-link traces/2mbps traces/2mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    # sender_cmd = f"sleep 5; mm-delay 15 mm-link traces/3mbps traces/3mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    # sender_cmd = f"sleep 5; mm-delay 15 mm-link traces/6mbps traces/6mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    # sender_cmd = f"sleep 5; mm-delay 25 mm-link traces/2mbps traces/2mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    # sender_cmd = f"sleep 5; mm-delay 25 mm-link traces/3mbps traces/3mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    # sender_cmd = f"sleep 5; mm-delay 25 mm-link traces/6mbps traces/6mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+
+    num_calls = 1
 
     cleanup_logs()
 

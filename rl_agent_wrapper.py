@@ -11,7 +11,8 @@ import rl_training.rl_agent as rl_agent
 
 def main():
     e2e_app = os.path.join(os.path.dirname(__file__), 'peerconnection_serverless.origin')
-    config_file = 'sender_pyinfer.json'
+    # config_file = 'sender_pyinfer-30sec-480x270.json'
+    config_file = 'sender_pyinfer-orig.json'
     app = subprocess.Popen(
         [e2e_app] + [config_file],
         bufsize=1,
@@ -20,11 +21,8 @@ def main():
         stderr=subprocess.STDOUT)
     try:
         print(f'Starting the training loop (rl_agent.main)')
-        # start = time.time()
         rl_agent.main(app.stdout, app.stdin)
         print('Finished the training loop (rl_agent.main)')
-        # end = time.time()
-        # print(f'Completion time: {end - start} sec')
         app.wait()
     except:
         app.terminate()

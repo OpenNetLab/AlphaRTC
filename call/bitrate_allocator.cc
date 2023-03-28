@@ -40,7 +40,7 @@ const int kDefaultBitrateBps = 300000;
 const double kToggleFactor = 0.1;
 const uint32_t kMinToggleBitrateBps = 20000;
 
-const int64_t kBweLogIntervalMs = 5000;
+const int64_t kBweLogIntervalMs = 100;
 
 double MediaRatio(uint32_t allocated_bitrate, uint32_t protection_bitrate) {
   RTC_DCHECK_GT(allocated_bitrate, 0);
