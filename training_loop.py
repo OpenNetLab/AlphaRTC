@@ -8,9 +8,10 @@ import subprocess
 import time
 
 
-def cleanup_logs():
+def cleanup():
     for f in glob.glob("*.log"):
         os.remove(f)
+    os.remove('free_port')
 
 def record_call_result(receiver_app, sender_app, ith_call):
     # Log whether the call ended successfully
@@ -91,7 +92,7 @@ def main():
 
     num_calls = 1
 
-    cleanup_logs()
+    cleanup()
 
     for i in range(0, num_calls):
         # Randomly assign different port per e2e call
