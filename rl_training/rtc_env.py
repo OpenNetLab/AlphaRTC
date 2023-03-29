@@ -20,7 +20,7 @@ class DiscreteSpace(spaces.discrete.Discrete):
 
     def sample(self):
         ret = random.choice(self.space)
-        print(f'{ret} sampled from the discrete action space')
+        # print(f'{ret} sampled from the discrete action space')
         return ret
 
 
@@ -84,8 +84,8 @@ class GymEnv:
         # - loss rate: 0-1
         state = [normalized_receiver_side_thp, normalized_rtt, loss_rate]
         reward = normalized_receiver_side_thp - normalized_rtt - loss_rate
-        print(f'State: receiver-side thp\t{normalized_receiver_side_thp}, rtt\t{normalized_rtt}, loss rate\t{loss_rate}')
-        print(f'Reward: {reward}')
+        # print(f'State: receiver-side thp\t{normalized_receiver_side_thp}, rtt\t{normalized_rtt}, loss rate\t{loss_rate}')
+        # print(f'Reward: {reward}')
 
         return state, reward, {}, {}
 

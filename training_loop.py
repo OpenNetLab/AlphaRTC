@@ -5,7 +5,6 @@ import glob
 import os
 import random
 import subprocess
-import time
 
 
 def cleanup():
@@ -89,22 +88,20 @@ def main():
     # sender_cmd = f"sleep 5; mm-delay 25 mm-link traces/3mbps traces/3mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
     # sender_cmd = f"sleep 5; mm-delay 25 mm-link traces/6mbps traces/6mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
 
-    num_calls = 1
 
     cleanup()
 
-    for i in range(0, num_calls):
-        # Randomly assign different port per e2e call
-        generate_random_port()
+    # Randomly assign different port per e2e call
+    generate_random_port()
 
-        # Run an e2e call
-        receiver_app = subprocess.Popen(receiver_cmd, shell=True)
-        sender_app = subprocess.Popen(sender_cmd, shell=True)
+    # Run an e2e call
+    receiver_app = subprocess.Popen(receiver_cmd, shell=True)
+    sender_app = subprocess.Popen(sender_cmd, shell=True)
 
-        receiver_app.wait()
-        sender_app.wait()
+    receiver_app.wait()
+    sender_app.wait()
 
-        record_call_result(receiver_app, sender_app, i)
+    record_call_result(receiver_app, sender_app, i)
 
 
 

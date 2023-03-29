@@ -51,13 +51,13 @@ class PacketRecord:
     # Add normalized throughput (10Kbps-10Mbps to 0-1)
     def add_receiver_side_thp(self, receiver_side_thp):
         normalized_thp = self.normalize_bps(receiver_side_thp)
-        print(f'Receiver-side thp {receiver_side_thp} normalized to {normalized_thp}')
+        # print(f'Receiver-side thp {receiver_side_thp} normalized to {normalized_thp}')
         self.packet_stats_dict['receiver_side_thp'].append(normalized_thp)
 
     # Add normalized rtt (1-1000ms to 0-1)
     def add_rtt(self, rtt):
         normalized_rtt = self.normalize_rtt(rtt)
-        print(f'RTT {rtt} normalized to {normalized_rtt}')
+        # print(f'RTT {rtt} normalized to {normalized_rtt}')
         self.packet_stats_dict['rtt'].append(normalized_rtt)
 
     def add_loss_rate(self, loss_rate):
@@ -72,7 +72,7 @@ class PacketRecord:
     def _get_latest_history_len_stats(self, key):
         assert self.history_len > 0
         latest_history_len_stats = self.packet_stats_dict[key][-self.history_len:]
-        print(f'latest {self.history_len} {key}: {latest_history_len_stats}')
+        # print(f'latest {self.history_len} {key}: {latest_history_len_stats}')
         return latest_history_len_stats if len(latest_history_len_stats) > 0 else [0]
 
     def calculate_state(self):
