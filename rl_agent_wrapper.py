@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 import subprocess
@@ -12,7 +11,7 @@ import rl_training.rl_agent as rl_agent
 def main():
     e2e_app = os.path.join(os.path.dirname(__file__), 'peerconnection_serverless.origin')
     # config_file = 'sender_pyinfer-30sec-480x270.json'
-    config_file = 'sender_pyinfer-orig.json'
+    config_file = 'sender_pyinfer.json'
     app = subprocess.Popen(
         [e2e_app] + [config_file],
         bufsize=1,

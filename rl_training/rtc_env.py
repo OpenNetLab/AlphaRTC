@@ -49,6 +49,10 @@ class GymEnv:
             Using 10Kbps ~ 10Mbps as the range of action space
             '''
             self.action_space = spaces.Box(low=1e4, high=1e7, shape=(1,), dtype=np.float64)
+        self.observation_space = spaces.Box(
+            low=np.array([0.0, 0.0, 0.0]),
+            high=np.array([1.0, 1.0, 1.0]),
+            dtype=np.float64)
 
         # To calculate average reward per step in each episode
         self.accum_reward  = 0
