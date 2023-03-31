@@ -89,10 +89,10 @@ NetworkControlUpdate GoogCcNetworkController::OnNetworkRouteChange(
 
 // Called in OnRoundTripTimeUpdate, OnTransportLossRate and OnReceiverSideThroughput.
 // Call rl_agent::SendState only when all three of them are updated.
-void GoogCcNetworkController::MaybeSendState() {
+void GoogCcNetworkController::SendState() {
   if (receiver_side_thp_v.size() > 0) {
     CompAverageReceiverSideThroughput();
-    RTC_LOG(LS_INFO) << "AlphaCC: MaybeSendState: Sending"
+    RTC_LOG(LS_INFO) << "AlphaCC: SendState: Sending"
     << " avg receiver side thp " << last_avg_receiver_side_thp_
     << " RTT " << last_rtt_ms_
     << " loss rate " << last_loss_rate_;
@@ -170,7 +170,6 @@ NetworkControlUpdate GoogCcNetworkController::OnRoundTripTimeUpdate(
   bandwidth_estimation_->UpdateRtt(msg.round_trip_time, msg.receive_time);
   last_rtt_ms_ = msg.round_trip_time.ms();
   rtt_updated = true;
-  MaybeSendState();
   return NetworkControlUpdate();
 }
 
@@ -265,7 +264,7 @@ NetworkControlUpdate GoogCcNetworkController::OnReceiverSideThroughput(float rec
   RTC_LOG(LS_VERBOSE) << "AlphaCC: OnReceiverSideThroughput called: " << receiver_side_thp;
   receiver_side_thp_v.push_back(receiver_side_thp);
   avg_receiver_side_thp_updated = true;
-  MaybeSendState();
+  SendState();
   return NetworkControlUpdate();
 }
 
@@ -303,7 +302,6 @@ NetworkControlUpdate GoogCcNetworkController::OnTransportLossReport(
   << " packets_lost_delta " << msg.packets_lost_delta << ")";
   last_loss_rate_ = loss_rate;
   loss_rate_updated = true;
-  MaybeSendState();
   return NetworkControlUpdate();
 }
 

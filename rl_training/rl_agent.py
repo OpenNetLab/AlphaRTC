@@ -16,6 +16,9 @@ MIN_BANDWIDTH_MBPS = 0.01   # Min: 10 Kbps
 LOG_MAX_BANDWIDTH_MBPS = np.log(MAX_BANDWIDTH_MBPS)
 LOG_MIN_BANDWIDTH_MBPS = np.log(MIN_BANDWIDTH_MBPS)
 
+RL_ALGO='SAC'
+LINK_BW='1mbps'
+
 def log_to_linear(value):
     # from 0~1 to 10kbps to 8Mbps
     value = value.detach().numpy()
@@ -32,12 +35,12 @@ def fetch_stats(line: str) -> dict:
     except json.decoder.JSONDecodeError:
         return None
 
-def load_checkpoint(rl_algo, ckpt_dir):
+def load_checkpoint(ckpt_dir):
     # Load the most recent checkpoint of the RL algorithm
-    ckpt_files = glob.glob(f'{ckpt_dir}/{rl_algo}*')
+    ckpt_files = glob.glob(f'{ckpt_dir}/{RL_ALGO}*')
     if (len(ckpt_files) == 0):
         with open("ckpt_loading.log", "a+") as out:
-            out.write(f'No checkpoint for {rl_algo} yet\n')
+            out.write(f'No checkpoint for {RL_ALGO} yet\n')
         return None
     else:
         ckpt_file = max(ckpt_files)
@@ -45,48 +48,48 @@ def load_checkpoint(rl_algo, ckpt_dir):
             out.write(f'Loading checkpoint {ckpt_file} (the most recent one among {ckpt_files})\n')
         return ckpt_file
 
-def create_or_load_policy(rl_algo, ckpt_dir):
+def create_or_load_policy(ckpt_dir):
 
-    ckpt_file = load_checkpoint(rl_algo, ckpt_dir)
+    ckpt_file = load_checkpoint(ckpt_dir)
 
     # Instantiate gym environment
-    if rl_algo == 'PPO':
-        env = GymEnv()
+    if RL_ALGO == 'PPO':
+        env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
         if (ckpt_file is None):
             policy = PPO("MlpPolicy", env, n_steps=1, device='cpu', verbose=1)
         else:
             policy = PPO.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
-    elif rl_algo == 'A2C':
-        env = GymEnv()
+    elif RL_ALGO == 'A2C':
+        env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
         if (ckpt_file is None):
             policy = A2C("MlpPolicy", env, n_steps=1, device='cpu', verbose=1)
         else:
             policy = A2C.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
-    elif rl_algo == 'DQN':
-        env = GymEnv(action_space_type='discrete')
+    elif RL_ALGO == 'DQN':
+        env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW, action_space_type='discrete')
         if (ckpt_file is None):
             policy = DQN("MlpPolicy", env, device='cpu', verbose=1)
         else:
             policy = DQN.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
-    elif rl_algo == 'TD3':
-        env = GymEnv()
+    elif RL_ALGO == 'TD3':
+        env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
         if (ckpt_file is None):
             policy = TD3("MlpPolicy", env, device='cpu', verbose=1)
         else:
             policy = TD3.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
-    elif rl_algo == 'SAC':
-        env = GymEnv()
+    elif RL_ALGO == 'SAC':
+        env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
         if (ckpt_file is None):
             policy = SAC("MlpPolicy", env, device='cpu', verbose=1)
         else:
             policy = SAC.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
     else:
-        raise Exception(f'Unsupported RL algorithm {rl_algo}')
+        raise Exception(f'Unsupported RL algorithm {RL_ALGO}')
 
     return env, policy
 
@@ -94,17 +97,13 @@ def create_or_load_policy(rl_algo, ckpt_dir):
 
 # Rather an environment which provides real network statistics from end-to-end call
 def main(ifd = sys.stdin, ofd = sys.stdout):
-    num_steps = 0
-
-    rl_algo = 'SAC'
-
-    # Path to save model ckpt
     ckpt_dir = './rl_model/ckpt'
     if not os.path.exists(ckpt_dir):
         os.makedirs(ckpt_dir)
 
-    env, policy = create_or_load_policy(rl_algo, ckpt_dir)
+    env, policy = create_or_load_policy(ckpt_dir)
 
+    num_steps = 0
     while True:
         # Read a line from app.stdout, which is packet statistics
         line = ifd.readline()
@@ -123,34 +122,23 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
             # Train the RL policy with the state.
             # Calls collect_rollouts() and train() in SB3.
             # - collect_rollouts():    For n_rollout_steps, call ppo.policy(obs) to get action
-            #                               and call env.step(clipped_actions) to get new_obs, rewards, dones, infos
+            #                          and call env.step(clipped_actions) to get new_obs, rewards, dones, infos
             # - train():               Update the policy.
             policy.learn(total_timesteps=1)
 
-            # return latest action (bwe) produced by the policy network
             bwe = env.get_latest_bwe()
-            # For debugging purposes only (remove the file I/O for actual training)
-            with open('rl_agent_stats_action.log', mode='a+') as f:
-                f.write(f'rl_agent ({rl_algo}): stats {stats} bwe {bwe}\n')
-            num_steps += 1
-
-            # if num_steps % 500 == 0:
-            #     end_ts = time.time()
-            #     step_time = end_ts - start_ts
-            #     print(f'start_ts {start_ts} end_ts {end_ts} num_steps {num_steps}\taggregate step time (s, 500 steps) : {step_time}')
-            #     start_ts = end_ts
-
             # truncate-then-write the bwe
             with open('bwe.txt', mode='w') as f:
                 f.write(f'{bwe}')
             continue
+            num_steps += 1
 
         sys.stdout.write(line)
         sys.stdout.flush()
 
     # the checkpoint file will be saved & and loaded as a .zip file
     # (its prefix is determined as .zip by the SB3 APIs)
-    ckpt_file = f'{ckpt_dir}/{rl_algo}_{time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())}'
+    ckpt_file = f'{ckpt_dir}/{RL_ALGO}_{time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())}'
     print(f'Saving checkpoint file {ckpt_file}')
     policy.save(ckpt_file)
 

@@ -996,6 +996,8 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
   // to OnNetworkChanged.
   if (packet_information.packet_type_flags & kRtcpTmmbr) {
     // Might trigger a OnReceivedBandwidthEstimateUpdate.
+    RTC_LOG(LS_INFO)
+          << "Incoming RTCP packet: Notify Tmmbr Updated";
     NotifyTmmbrUpdated();
   }
   uint32_t local_ssrc;
@@ -1026,17 +1028,19 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
     if ((packet_information.packet_type_flags & kRtcpPli) ||
         (packet_information.packet_type_flags & kRtcpFir)) {
       if (packet_information.packet_type_flags & kRtcpPli) {
-        RTC_LOG(LS_VERBOSE)
-            << "Incoming PLI from SSRC " << packet_information.remote_ssrc;
+        RTC_LOG(LS_INFO)
+            << "Incoming RTCP packet: PLI from SSRC " << packet_information.remote_ssrc;
       } else {
-        RTC_LOG(LS_VERBOSE)
-            << "Incoming FIR from SSRC " << packet_information.remote_ssrc;
+        RTC_LOG(LS_INFO)
+            << "Incoming RTCP packet: FIR from SSRC " << packet_information.remote_ssrc;
       }
       rtcp_intra_frame_observer_->OnReceivedIntraFrameRequest(local_ssrc);
     }
   }
   if (rtcp_loss_notification_observer_ &&
       (packet_information.packet_type_flags & kRtcpLossNotification)) {
+    RTC_LOG(LS_INFO)
+          << "Incoming RTCP packet: kRtcpLossNotification";
     rtcp::LossNotification* loss_notification =
         packet_information.loss_notification.get();
     RTC_DCHECK(loss_notification);
@@ -1050,14 +1054,16 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
   if (rtcp_bandwidth_observer_) {
     RTC_DCHECK(!receiver_only_);
     if (packet_information.packet_type_flags & kRtcpRemb) {
-      RTC_LOG(LS_VERBOSE)
-          << "Incoming REMB: "
+      RTC_LOG(LS_INFO)
+          << "Incoming RTCP packet: rtcp_bandwidth_observer_: Incoming REMB: "
           << packet_information.receiver_estimated_max_bitrate_bps;
       rtcp_bandwidth_observer_->OnReceivedEstimatedBitrate(
           packet_information.receiver_estimated_max_bitrate_bps);
     }
     if ((packet_information.packet_type_flags & kRtcpSr) ||
         (packet_information.packet_type_flags & kRtcpRr)) {
+      RTC_LOG(LS_INFO)
+          << "Incoming RTCP packet: rtcp_bandwidth_observer_: OnReceivedRtcpReceiverReport";
       int64_t now_ms = clock_->TimeInMilliseconds();
       rtcp_bandwidth_observer_->OnReceivedRtcpReceiverReport(
           packet_information.report_blocks, packet_information.rtt_ms, now_ms);
@@ -1070,6 +1076,8 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
 
   if (transport_feedback_observer_ &&
       (packet_information.packet_type_flags & kRtcpTransportFeedback)) {
+    RTC_LOG(LS_INFO)
+          << "Incoming RTCP packet: kRtcpTransportFeedback";
     uint32_t media_source_ssrc =
         packet_information.transport_feedback->media_ssrc();
     if (media_source_ssrc == local_ssrc ||
@@ -1081,18 +1089,24 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
 
   if (transport_feedback_observer_ &&
       (packet_information.packet_type_flags & kRtcpApp)) {
+      RTC_LOG(LS_VERBOSE)
+          << "Incoming RTCP packet: kRtcpApp";
       transport_feedback_observer_->OnApplicationPacket(
           *packet_information.application);
   }
 
   if (network_state_estimate_observer_ &&
       packet_information.network_state_estimate) {
+    RTC_LOG(LS_INFO)
+          << "Incoming RTCP packet: OnRemoteNetworkEstimate";
     network_state_estimate_observer_->OnRemoteNetworkEstimate(
         *packet_information.network_state_estimate);
   }
 
   if (bitrate_allocation_observer_ &&
       packet_information.target_bitrate_allocation) {
+    RTC_LOG(LS_INFO)
+          << "Incoming RTCP packet: OnBitrateAllocationUpdated";
     bitrate_allocation_observer_->OnBitrateAllocationUpdated(
         *packet_information.target_bitrate_allocation);
   }

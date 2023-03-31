@@ -427,6 +427,7 @@ NetworkControlUpdate GoogCcNetworkController::OnTransportPacketsFeedback(
   for (const auto& feedback : feedbacks)
     max_recv_time = std::max(max_recv_time, feedback.receive_time);
 
+  // Update feedback and propagation RTT
   for (const auto& feedback : feedbacks) {
     TimeDelta feedback_rtt =
         report.feedback_time - feedback.sent_packet.send_time;
@@ -436,6 +437,7 @@ NetworkControlUpdate GoogCcNetworkController::OnTransportPacketsFeedback(
     min_propagation_rtt = std::min(min_propagation_rtt, propagation_rtt);
   }
 
+  // Update feedback and propagation RTT on sender-side bwe
   if (max_feedback_rtt.IsFinite()) {
     feedback_max_rtts_.push_back(max_feedback_rtt.ms());
     const size_t kMaxFeedbackRttWindow = 32;
@@ -481,6 +483,7 @@ NetworkControlUpdate GoogCcNetworkController::OnTransportPacketsFeedback(
       lost_packets_since_last_loss_update_ = 0;
     }
   }
+  // ALR-related updates
   absl::optional<int64_t> alr_start_time =
       alr_detector_->GetApplicationLimitedRegionStartTime();
 
@@ -515,6 +518,7 @@ NetworkControlUpdate GoogCcNetworkController::OnTransportPacketsFeedback(
           estimate_->link_capacity_lower, estimate_->link_capacity_upper));
     }
   }
+  // Update probe bitrate
   absl::optional<DataRate> probe_bitrate =
       probe_bitrate_estimator_->FetchAndResetLastEstimatedBitrate();
   if (ignore_probes_lower_than_network_estimate_ && probe_bitrate &&
@@ -541,6 +545,7 @@ NetworkControlUpdate GoogCcNetworkController::OnTransportPacketsFeedback(
   bool recovered_from_overuse = false;
   bool backoff_in_alr = false;
 
+  // Update delay-based BWE
   DelayBasedBwe::Result result;
   result = delay_based_bwe_->IncomingPacketFeedbackVector(
       report, acknowledged_bitrate, probe_bitrate, estimate_,

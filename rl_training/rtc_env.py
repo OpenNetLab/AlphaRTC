@@ -25,7 +25,9 @@ class DiscreteSpace(spaces.discrete.Discrete):
 
 
 class GymEnv:
-    def __init__(self, action_space_type='continuous'):
+    def __init__(self, rl_algo, link_bw, action_space_type='continuous'):
+        self.rl_algo = rl_algo
+        self.link_bw = link_bw
         self.num_steps = 0
         self.packet_record = PacketRecord()
         self.metadata = None
@@ -79,13 +81,11 @@ class GymEnv:
         # Calculate reward.
         # Incentivize increase in throughput, penalize increase in RTT and loss rate.
         # TODO: Tune normalizing coefficients
-        # - receiver-side thp: 10Kbps~100Kbps (empirically) -> 0-1
+        # - receiver-side thp: 1Kbps~200Kbps (empirically) -> 0-1
         # - RTT: 1-100ms -> 0-1
         # - loss rate: 0-1
         state = [normalized_receiver_side_thp, normalized_rtt, loss_rate]
-        reward = normalized_receiver_side_thp - normalized_rtt - loss_rate
-        # print(f'State: receiver-side thp\t{normalized_receiver_side_thp}, rtt\t{normalized_rtt}, loss rate\t{loss_rate}')
-        # print(f'Reward: {reward}')
+        reward = 30 * normalized_receiver_side_thp - 5 * normalized_rtt - 50 * loss_rate
 
         return state, reward, {}, {}
 
@@ -96,11 +96,9 @@ class GymEnv:
         # return 1e6
         return bwe_l[-1] if len(bwe_l) else 300000
 
-    # Returns `action` to the cmdtrain
+    # Sends `action` to the rl_agent
     # and calculate new_obs, rewards for latest history_len stats
     def step(self, action):
-        # this latest_bwe is sent to cmdtrain
-        # by BandwidthEstimator.relay_packet_statistics()
         if type(action) is list or isinstance(action, np.ndarray):
             latest_bwe = action[0]
         elif type(action) is None:
@@ -110,9 +108,9 @@ class GymEnv:
 
         self.packet_record.add_bwe(latest_bwe)
         new_obs, rewards, dones, infos = self.calculate_state_reward()
-        print(f'Step {self.num_steps} policy produced action {latest_bwe} from the new obs {new_obs}')
+
+        with open(f'state_reward_action_{self.rl_algo}_{self.link_bw}', mode='a+') as f:
+            f.write(f'{self.rl_algo} step {self.num_steps} state {new_obs} reward {rewards} action {latest_bwe}\n')
         self.num_steps += 1
 
         return new_obs, rewards, dones, infos
-
-

@@ -16,7 +16,7 @@ def main():
 
     # # run receiver inside Mahimahi shells
     # "mm-delay 10 mm-link traces/12mbps traces/12mbps -- sh -c 'iperf3 -c $MAHIMAHI_BASE -p 12345 -t 10'""
-    receiver_cmd = ("mm-link traces/400kbps traces/400kbps -- sh -c " "'iperf3 -c $MAHIMAHI_BASE -p 12345 -t 10'")
+    receiver_cmd = ("mm-link traces/600kbps traces/600kbps -- sh -c " "'iperf3 -c $MAHIMAHI_BASE -p 12345 -t 10'")
     receiver_proc = subprocess.Popen(receiver_cmd, shell=True, preexec_fn=os.setsid)
     print(f'Running: {receiver_cmd}')
     # run 10 seconds

@@ -191,9 +191,9 @@ int main(int argc, char* argv[]) {
     ofs.close();
     // std::cout << "type=training, using port " << free_port_int << std::endl;
     if (config->is_receiver) {
-      client.StartListen(config->listening_ip, 8000);
+      client.StartListen(config->listening_ip, free_port_int);
     } else if (config->is_sender) {
-      client.StartConnect(config->dest_ip, 8000);
+      client.StartConnect(config->dest_ip, free_port_int);
     }
   } else {
     std::cout << "e2e call type is neither training nor evaluation!" << std::endl;

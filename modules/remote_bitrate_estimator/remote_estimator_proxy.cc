@@ -211,6 +211,7 @@ void RemoteEstimatorProxy::SendPeriodicFeedbacks() {
     return;
 
   std::unique_ptr<rtcp::RemoteEstimate> remote_estimate;
+  // not called
   if (network_state_estimator_) {
     absl::optional<NetworkStateEstimate> state_estimate =
         network_state_estimator_->GetCurrentEstimate();
@@ -247,7 +248,7 @@ void RemoteEstimatorProxy::SendPeriodicFeedbacks() {
     float receiver_side_thp_ = ComputeReceiverSideThroughput();
     app_packet->SetData(reinterpret_cast<const uint8_t*>(&receiver_side_thp_), sizeof(receiver_side_thp_));
     packets.push_back(std::move(app_packet));
-    RTC_LOG(LS_VERBOSE) << "Sent receiver-side throughput (bps) " << receiver_side_thp_;
+    RTC_LOG(LS_VERBOSE) << "Sent receiver-side throughput (bps) " << receiver_side_thp_ << " (send interval " << send_interval_ms_ << "ms)";
 
     feedback_sender_->SendCombinedRtcpPacket(std::move(packets));
     // Note: Don't erase items from packet_arrival_times_ after sending, in case

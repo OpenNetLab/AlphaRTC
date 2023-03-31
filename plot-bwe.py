@@ -6,24 +6,21 @@ import numpy as np
 
 def parse_log():
     bwe_l = []
-    with open('webrtc_sender.log', 'r') as f:
+    with open('webrtc-sender.log', 'r') as f:
         for line in f:
             line = line.rstrip()
             if 'Current BWE' in line:
                 l = line.split()
-                bwe_l.append(l[3])
+                bwe_l.append(float(l[3])/1000000) # Mbps
 
     return bwe_l
 
 def main():
-    bwe_l_bps = parse_log()
-    bwe_l = []
-    for line in bwe_l_bps:
-        bwe_l.append(float(line.rstrip())/1000000) # Mbps
+    bwe_l = parse_log()
 
-    os.remove('gcc-bwe-file')
+    os.remove('rl-bwe-file')
     for line in bwe_l:
-        with open('gcc-bwe-file', 'a') as f:
+        with open('rl-bwe-file', 'a') as f:
             f.write(str(line)+'\n')
 
     a = np.array(bwe_l)
@@ -37,7 +34,7 @@ def main():
     x_axis = []
     len_bwe_l = len(bwe_l)
     for i in range(0, len_bwe_l):
-        # bwe logged at every 100ms
+        # bwe is logged at every 100ms
         x_axis.append(i * 100)
     y_axis = bwe_l
 

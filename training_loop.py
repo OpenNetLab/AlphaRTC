@@ -5,19 +5,66 @@ import glob
 import os
 import random
 import subprocess
+from statistics import mean, median
+import matplotlib.pyplot as plt
+import numpy as np
+
+RL_ALGO='SAC'
+LINK_BW='1mbps'
+
+def plot_recv_thp():
+    recv_thp_l = []
+    with open(f'webrtc-sender-{RL_ALGO}-{LINK_BW}', 'r') as f:
+        for line in f:
+            if 'Sending avg receiver side thp' in line:
+                l = line.split()
+                recv_thp_l.append(float(l[8]))
+
+    a = np.array(recv_thp_l)
+    average = "{:.2f}".format(mean(recv_thp_l))
+    med = "{:.2f}".format(median(recv_thp_l))
+    p90 = "{:.2f}".format(np.percentile(a, 90)) # 90th percentile
+    p99 = "{:.2f}".format(np.percentile(a, 99)) # 99th percentile
+
+    title = f'Receiver-side thp: avg {average} med {med} p90 {p90} p99 {p99} bps'
+
+    plt.ylim(0, 300000)
+    plt.plot(recv_thp_l)
+    plt.title(title)
+    plt.xlabel('Time')
+    plt.ylabel('Receiver-side throughput (bps)')
+    plt.savefig(f'recv-thp-{RL_ALGO}-{LINK_BW}.pdf')
+
+
+def plot_learning_curve():
+    rewards = []
+    with open(f'state_reward_action_{RL_ALGO}_{LINK_BW}', 'r') as f:
+        for line in f:
+            line = line.rstrip()
+            l = line.split()
+            rewards.append(float(l[8]))
+
+    title = f'RL-based CC ({RL_ALGO})'
+    y_axis = rewards
+    plt.ylim(0, max(rewards))
+    plt.plot(y_axis)
+    plt.title(title)
+    plt.xlabel('Step')
+    plt.ylabel('Training Reward')
+    plt.savefig(f'learning-curve-{RL_ALGO}-{LINK_BW}.pdf')
 
 
 def cleanup():
     for f in glob.glob("*.log"):
         os.remove(f)
 
-def record_call_result(receiver_app, sender_app, ith_call):
+def record_call_result(receiver_app, sender_app):
     # Log whether the call ended successfully
     call_result = ''
     if receiver_app.returncode == 0 and sender_app.returncode == 0:
-        call_result = f'Call {ith_call} finished successfully! :smile:\n'
+        call_result = f'Call finished successfully!\n'
     else:
-        call_result = f'Call {ith_call} finished with errors! :sob: \
+        call_result = f'Call finished with errors! \
             receiver\'s return code {receiver_app.returncode} \
             sender\'s return code {sender_app.returncode}\n'
 
@@ -65,7 +112,7 @@ def main():
     receiver_cmd = f"$ALPHARTC_HOME/peerconnection_serverless.origin receiver_pyinfer.json"
     # encapsulate `peerconnection_serverless.origin sender_pyinfer.json` with a python training code
     # sender_cmd = f"sleep 5; mm-loss uplink 0.2 mm-link traces/1mbps traces/1mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
-    sender_cmd = f"sleep 5; mm-link traces/12mbps traces/12mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    sender_cmd = f"sleep 5; mm-link traces/{LINK_BW} traces/{LINK_BW} python $ALPHARTC_HOME/rl_agent_wrapper.py"
 
     # Training environments
     # [1, 4, 10] Mbps x [10, 20, 30] ms = 9 environments
@@ -101,7 +148,11 @@ def main():
     receiver_app.wait()
     sender_app.wait()
 
-    record_call_result(receiver_app, sender_app, i)
+    record_call_result(receiver_app, sender_app)
+
+    plot_recv_thp()
+    plot_learning_curve()
+
 
 
 
