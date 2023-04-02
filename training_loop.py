@@ -14,7 +14,8 @@ LINK_BW='1mbps'
 
 def plot_recv_thp():
     recv_thp_l = []
-    with open(f'webrtc-sender-{RL_ALGO}-{LINK_BW}', 'r') as f:
+    sender_log = os.environ["ALPHARTC_HOME"] + f'{RL_ALGO}/sender-logs/webrtc-sender-{RL_ALGO}-{LINK_BW}'
+    with open(sender_log, 'r') as f:
         for line in f:
             if 'Sending avg receiver side thp' in line:
                 l = line.split()
@@ -26,17 +27,16 @@ def plot_recv_thp():
     p90 = "{:.2f}".format(np.percentile(a, 90)) # 90th percentile
     p99 = "{:.2f}".format(np.percentile(a, 99)) # 99th percentile
 
-    title = f'Receiver-side thp: avg {average} med {med} p90 {p90} p99 {p99} bps'
-
     plt.ylim(0, 300000)
     plt.plot(recv_thp_l)
-    plt.title(title)
+    plt.title(f'Recv-Thp: Avg {average} Med {med} P90 {p90} P99 {p99} bps')
     plt.xlabel('Time')
     plt.ylabel('Receiver-side throughput (bps)')
-    plt.savefig(f'recv-thp-{RL_ALGO}-{LINK_BW}.pdf')
+    recv_thp_file = os.environ["ALPHARTC_HOME"] + f'{RL_ALGO}/recv-thp/recv-thp-{RL_ALGO}-{LINK_BW}.pdf'
+    plt.savefig(recv_thp_file)
 
-
-def plot_learning_curve():
+# Deprecated
+def plot_training_curve():
     rewards = []
     with open(f'state_reward_action_{RL_ALGO}_{LINK_BW}', 'r') as f:
         for line in f:
@@ -44,21 +44,29 @@ def plot_learning_curve():
             l = line.split()
             rewards.append(float(l[8]))
 
-    title = f'RL-based CC ({RL_ALGO})'
-    y_axis = rewards
     plt.ylim(0, max(rewards))
-    plt.plot(y_axis)
-    plt.title(title)
+    plt.plot(rewards)
+    plt.title(f'RL-based CC ({RL_ALGO})')
     plt.xlabel('Step')
     plt.ylabel('Training Reward')
     plt.savefig(f'learning-curve-{RL_ALGO}-{LINK_BW}.pdf')
 
+def save_webrtc_logs():
+    # Path of sender, receiver WebRTC internal logs
+    sender_log_name = os.environ["ALPHARTC_HOME"] + 'webrtc-sender-log'
+    receiver_log_name = os.environ["ALPHARTC_HOME"] + 'webrtc-receiver-log'
+    sender_log_rename = os.environ["ALPHARTC_HOME"] + f'{RL_ALGO}/sender-logs/webrtc-sender-{RL_ALGO}-{LINK_BW}'
+    receiver_log_rename = os.environ["ALPHARTC_HOME"] + f'{RL_ALGO}/receiver-logs/webrtc-receiver-{RL_ALGO}-{LINK_BW}'
+
+    # Rename log files
+    os.rename(sender_log_name, sender_log_rename)
+    os.rename(receiver_log_name, receiver_log_rename)
 
 def cleanup():
     for f in glob.glob("*.log"):
         os.remove(f)
 
-def record_call_result(receiver_app, sender_app):
+def check_call_result(receiver_app, sender_app):
     # Log whether the call ended successfully
     call_result = ''
     if receiver_app.returncode == 0 and sender_app.returncode == 0:
@@ -103,8 +111,7 @@ def generate_random_port():
     with open("port_assignment.log", "a+") as out:
         out.write(str(ret_port)+"\n")
 
-# TODO: Training until convergence
-# (train sufficiently long, and measure the test rewards to see whether it converged)
+
 def main():
     # `peerconnection_serverless.origin` is an e2e WebRTC app built by examples/BUILD.gn
     # Run this e2e app on separate processes in parallel
@@ -148,12 +155,12 @@ def main():
     receiver_app.wait()
     sender_app.wait()
 
-    record_call_result(receiver_app, sender_app)
+    check_call_result(receiver_app, sender_app)
 
+    # Save WebRTC logs and plot results
+    save_webrtc_logs()
     plot_recv_thp()
-    plot_learning_curve()
-
-
+    plot_training_curve()
 
 
 if __name__ == "__main__":

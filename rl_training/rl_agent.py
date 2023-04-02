@@ -3,11 +3,12 @@
 
 import glob
 import json
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import sys
-import time
 from stable_baselines3 import PPO, A2C, DQN, TD3, SAC
+from stable_baselines.common.env_checker import check_env
 from rl_training.rtc_env import GymEnv
 
 UNIT_M = 1000000
@@ -19,13 +20,6 @@ LOG_MIN_BANDWIDTH_MBPS = np.log(MIN_BANDWIDTH_MBPS)
 RL_ALGO='SAC'
 LINK_BW='1mbps'
 
-def log_to_linear(value):
-    # from 0~1 to 10kbps to 8Mbps
-    value = value.detach().numpy()
-    value = np.clip(value, 0, 1)
-    log_bwe = value * (LOG_MAX_BANDWIDTH_MBPS - LOG_MIN_BANDWIDTH_MBPS) + LOG_MIN_BANDWIDTH_MBPS
-    return np.exp(log_bwe) * UNIT_M
-
 
 def fetch_stats(line: str) -> dict:
     line = line.strip()
@@ -34,6 +28,18 @@ def fetch_stats(line: str) -> dict:
         return stats
     except json.decoder.JSONDecodeError:
         return None
+
+def plot_training_curve(num_episodes, rewards):
+    training_curve_dir = './rl_model/training_curves/'
+    if not os.path.exists(training_curve_dir):
+        os.makedirs(training_curve_dir)
+
+    plt.ylim(0, max(rewards))
+    plt.plot(rewards, c = '#bbbcb8') # gray
+    plt.title(f'RL-based CC ({RL_ALGO})')
+    plt.xlabel('Step')
+    plt.ylabel('Average Training Reward')
+    plt.savefig(f'{training_curve_dir}/training-curve-{RL_ALGO}-{LINK_BW}-{num_episodes}episodes.pdf')
 
 def load_checkpoint(ckpt_dir):
     # Load the most recent checkpoint of the RL algorithm
@@ -49,12 +55,14 @@ def load_checkpoint(ckpt_dir):
         return ckpt_file
 
 def create_or_load_policy(ckpt_dir):
-
-    ckpt_file = load_checkpoint(ckpt_dir)
+    # ckpt_file = load_checkpoint(ckpt_dir)
+    ckpt_file = None
 
     # Instantiate gym environment
     if RL_ALGO == 'PPO':
         env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
+        # It will check your custom environment and output additional warnings if needed
+        check_env(env, warn=True)
         if (ckpt_file is None):
             policy = PPO("MlpPolicy", env, n_steps=1, device='cpu', verbose=1)
         else:
@@ -62,6 +70,8 @@ def create_or_load_policy(ckpt_dir):
 
     elif RL_ALGO == 'A2C':
         env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
+        # It will check your custom environment and output additional warnings if needed
+        check_env(env, warn=True)
         if (ckpt_file is None):
             policy = A2C("MlpPolicy", env, n_steps=1, device='cpu', verbose=1)
         else:
@@ -69,6 +79,8 @@ def create_or_load_policy(ckpt_dir):
 
     elif RL_ALGO == 'DQN':
         env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW, action_space_type='discrete')
+        # It will check your custom environment and output additional warnings if needed
+        check_env(env, warn=True)
         if (ckpt_file is None):
             policy = DQN("MlpPolicy", env, device='cpu', verbose=1)
         else:
@@ -76,6 +88,8 @@ def create_or_load_policy(ckpt_dir):
 
     elif RL_ALGO == 'TD3':
         env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
+        # It will check your custom environment and output additional warnings if needed
+        check_env(env, warn=True)
         if (ckpt_file is None):
             policy = TD3("MlpPolicy", env, device='cpu', verbose=1)
         else:
@@ -83,6 +97,8 @@ def create_or_load_policy(ckpt_dir):
 
     elif RL_ALGO == 'SAC':
         env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
+        # It will check your custom environment and output additional warnings if needed
+        check_env(env, warn=True)
         if (ckpt_file is None):
             policy = SAC("MlpPolicy", env, device='cpu', verbose=1)
         else:
@@ -93,9 +109,18 @@ def create_or_load_policy(ckpt_dir):
 
     return env, policy
 
+def random_action():
+    # Quickly trying a random agent on the custom GymEnv
+    env = GymEnv()
+    obs = env.reset()
+    n_steps = 10
+    for _ in range(n_steps):
+        # Random action
+        action = env.action_space.sample()
+        obs, reward, done, info = env.step(action)
+        print(f'Random action: obs {obs} reward {reward} produced by using action {action}')
 
 
-# Rather an environment which provides real network statistics from end-to-end call
 def main(ifd = sys.stdin, ofd = sys.stdout):
     ckpt_dir = './rl_model/ckpt'
     if not os.path.exists(ckpt_dir):
@@ -103,7 +128,6 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
 
     env, policy = create_or_load_policy(ckpt_dir)
 
-    num_steps = 0
     while True:
         # Read a line from app.stdout, which is packet statistics
         line = ifd.readline()
@@ -124,36 +148,24 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
             # - collect_rollouts():    For n_rollout_steps, call ppo.policy(obs) to get action
             #                          and call env.step(clipped_actions) to get new_obs, rewards, dones, infos
             # - train():               Update the policy.
-            policy.learn(total_timesteps=1)
+
+            # 1 episode = 600 timesteps
+            # Let's start with 10 episodes (i.e. 5 min)
+            policy.learn(total_timesteps=6000)
 
             bwe = env.get_latest_bwe()
             # truncate-then-write the bwe
             with open('bwe.txt', mode='w') as f:
                 f.write(f'{bwe}')
             continue
-            num_steps += 1
 
         sys.stdout.write(line)
         sys.stdout.flush()
 
-    # the checkpoint file will be saved & and loaded as a .zip file
-    # (its prefix is determined as .zip by the SB3 APIs)
-    ckpt_file = f'{ckpt_dir}/{RL_ALGO}_{time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())}'
-    print(f'Saving checkpoint file {ckpt_file}')
-    policy.save(ckpt_file)
-
-    # Path to save reward curves
-    # reward_curve_dir = './rl_model/reward_curves/'
-    # if not os.path.exists(reward_curve_dir):
-    #     os.makedirs(reward_curve_dir)
-
-    # plt.plot(range(len(record_episode_reward)), record_episode_reward)
-    # plt.plot(record_episode_reward, c = '#bbbcb8') # gray
-    # plt.xlabel('Steps')
-    # plt.ylabel('Averaged Training Reward')
-    # plt.savefig(f'{reward_curve_dir}/training_reward_curve_steps{num_steps}.pdf')
-
-    return num_steps
+    # Checkpoint file will be saved and loaded as a .zip file by the SB3
+    # ckpt_file = f'{ckpt_dir}/{RL_ALGO}_{time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())}'
+    # print(f'Saving checkpoint file {ckpt_file}')
+    # policy.save(ckpt_file)
 
 
 if __name__ == '__main__':

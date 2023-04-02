@@ -996,8 +996,6 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
   // to OnNetworkChanged.
   if (packet_information.packet_type_flags & kRtcpTmmbr) {
     // Might trigger a OnReceivedBandwidthEstimateUpdate.
-    RTC_LOG(LS_INFO)
-          << "Incoming RTCP packet: Notify Tmmbr Updated";
     NotifyTmmbrUpdated();
   }
   uint32_t local_ssrc;
@@ -1028,10 +1026,10 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
     if ((packet_information.packet_type_flags & kRtcpPli) ||
         (packet_information.packet_type_flags & kRtcpFir)) {
       if (packet_information.packet_type_flags & kRtcpPli) {
-        RTC_LOG(LS_INFO)
+        RTC_LOG(LS_VERBOSE)
             << "Incoming RTCP packet: PLI from SSRC " << packet_information.remote_ssrc;
       } else {
-        RTC_LOG(LS_INFO)
+        RTC_LOG(LS_VERBOSE)
             << "Incoming RTCP packet: FIR from SSRC " << packet_information.remote_ssrc;
       }
       rtcp_intra_frame_observer_->OnReceivedIntraFrameRequest(local_ssrc);
@@ -1076,7 +1074,7 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
 
   if (transport_feedback_observer_ &&
       (packet_information.packet_type_flags & kRtcpTransportFeedback)) {
-    RTC_LOG(LS_INFO)
+    RTC_LOG(LS_VERBOSE)
           << "Incoming RTCP packet: kRtcpTransportFeedback";
     uint32_t media_source_ssrc =
         packet_information.transport_feedback->media_ssrc();

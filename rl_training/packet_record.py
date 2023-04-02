@@ -26,8 +26,10 @@ class PacketRecord:
     def reset(self):
         self.packet_stats_dict = {}
         self.packet_stats_dict['receiver_side_thp'] = []
-        self.packet_stats_dict['rtt'] = []
+        self.packet_stats_dict['receiver_side_thp_fluct'] = []
+        self.packet_stats_dict['receiver_side_thp_actual'] = [] # for debugging
         self.packet_stats_dict['loss_rate'] = []
+        self.packet_stats_dict['rtt'] = []
         self.packet_stats_dict['bwe'] = []
 
     def normalize_recv_thp(self, value):
@@ -46,13 +48,28 @@ class PacketRecord:
         norm_value = (log_value - LOG_MIN_RTT_US) / (LOG_MAX_RTT_US - LOG_MIN_RTT_US)
         return norm_value
 
-    # Add normalized throughput (1Kbps-200Kbps to 0-1)
+    # Add normalized receiver-side throughput.
+    # 1Kbps-200Kbps (empirically) to 0-1
     def add_receiver_side_thp(self, receiver_side_thp):
-        normalized_thp = self.normalize_recv_thp(receiver_side_thp)
-        # print(f'Receiver-side thp {receiver_side_thp} normalized to {normalized_thp}')
-        self.packet_stats_dict['receiver_side_thp'].append(normalized_thp)
+        # Calculate fluctuation in receiver-side throughput
+        latest_norm_recv_thp = self.packet_stats_dict['receiver_side_thp'][-1]
+        this_norm_recv_thp = self.normalize_recv_thp(receiver_side_thp)
+        self.packet_stats_dict['receiver_side_thp_fluct'].append(abs(this_norm_recv_thp - latest_norm_recv_thp))
 
-    # Add normalized rtt (1-100ms to 0-1)
+        # For debugging fluctuation in receiver-side throughput
+        latest_recv_thp = self.packet_stats_dict['receiver_side_thp_actual'][-1]
+        actual_recv_thp_fluct = abs(receiver_side_thp - latest_recv_thp)
+        norm_recv_thp_fluct = self.packet_stats_dict['receiver_side_thp_fluct'][-1]
+        print(f'recv thp fluct: Actual {actual_recv_thp_fluct} Normalized {norm_recv_thp_fluct}')
+        self.packet_stats_dict['receiver_side_thp_actual'].append(receiver_side_thp)
+
+        # Calculate normalized receiver-side throughput
+        # print(f'Receiver-side thp {receiver_side_thp} normalized to {normalized_thp}')
+        self.packet_stats_dict['receiver_side_thp'].append(this_norm_recv_thp)
+
+
+    # Add normalized RTT.
+    # 1-100ms to 0-1
     def add_rtt(self, rtt):
         normalized_rtt = self.normalize_rtt(rtt)
         # print(f'RTT {rtt} normalized to {normalized_rtt}')
@@ -74,13 +91,14 @@ class PacketRecord:
         # print(f'latest {self.history_len} {key}: {latest_history_len_stats}')
         return latest_history_len_stats if len(latest_history_len_stats) > 0 else [0]
 
-    def calculate_state(self):
+    def calculate_statistics(self):
         '''
         Calulate average of latest history_len number of receiver-side throughputs (bps),
         RTTs (ms) and loss rates (0-1).
         '''
         avg_receiver_side_thp = mean(self._get_latest_history_len_stats(key='receiver_side_thp'))
-        avg_rtt = mean(self._get_latest_history_len_stats(key='rtt'))
         avg_loss_rate = mean(self._get_latest_history_len_stats(key='loss_rate'))
+        avg_rtt = mean(self._get_latest_history_len_stats(key='rtt'))
+        avg_receiver_side_thp_fluct = mean(self._get_latest_history_len_stats(key='receiver_side_thp_fluct'))
 
-        return avg_receiver_side_thp, avg_rtt, avg_loss_rate
+        return avg_receiver_side_thp, avg_loss_rate, avg_rtt, avg_receiver_side_thp_fluct
