@@ -33,11 +33,11 @@ Custom Environment that follows OpenAI gym interface.
 Must inherit from OpenAI Gym Class
 and implement the following methods: step(), reset(), render(), close()
 """
-class GymEnv(Env):
+class RTCEnv(Env):
     metadata = {'render.modes': ['human']}
 
     def __init__(self, rl_algo, link_bw, action_space_type='continuous'):
-        super(GymEnv, self).__init__()
+        super(RTCEnv, self).__init__()
         self.metadata = None
         self.action_space_type = action_space_type
         self.info = {'episode': 600} # Dict[str, Any]

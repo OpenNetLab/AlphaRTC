@@ -9,7 +9,7 @@ import os
 import sys
 from stable_baselines3 import PPO, A2C, DQN, TD3, SAC
 # from stable_baselines.common.env_checker import check_env
-from rl_training.rtc_env import GymEnv
+from rl_training.rtc_env import RTCEnv
 import logging
 logging.basicConfig(filename='step_obs_reward_action.log', encoding='utf-8', level=logging.INFO)
 
@@ -64,7 +64,7 @@ def create_or_load_policy(ckpt_dir):
 
     # Instantiate gym environment
     if RL_ALGO == 'PPO':
-        env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
+        env = RTCEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
         # It will check your custom environment and output additional warnings if needed
         # check_env(env, warn=True)
         if (ckpt_file is None):
@@ -73,7 +73,7 @@ def create_or_load_policy(ckpt_dir):
             policy = PPO.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
     elif RL_ALGO == 'A2C':
-        env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
+        env = RTCEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
         # It will check your custom environment and output additional warnings if needed
         # check_env(env, warn=True)
         if (ckpt_file is None):
@@ -82,7 +82,7 @@ def create_or_load_policy(ckpt_dir):
             policy = A2C.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
     elif RL_ALGO == 'DQN':
-        env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW, action_space_type='discrete')
+        env = RTCEnv(rl_algo=RL_ALGO, link_bw=LINK_BW, action_space_type='discrete')
         # It will check your custom environment and output additional warnings if needed
         # check_env(env, warn=True)
         if (ckpt_file is None):
@@ -91,7 +91,7 @@ def create_or_load_policy(ckpt_dir):
             policy = DQN.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
     elif RL_ALGO == 'TD3':
-        env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
+        env = RTCEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
         # It will check your custom environment and output additional warnings if needed
         # check_env(env, warn=True)
         if (ckpt_file is None):
@@ -100,7 +100,7 @@ def create_or_load_policy(ckpt_dir):
             policy = TD3.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
     elif RL_ALGO == 'SAC':
-        env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
+        env = RTCEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
         # It will check your custom environment and output additional warnings if needed
         # check_env(env, warn=True)
         if (ckpt_file is None):
@@ -114,8 +114,8 @@ def create_or_load_policy(ckpt_dir):
     return env, policy
 
 def random_action():
-    # Quickly trying a random agent on the custom GymEnv
-    env = GymEnv()
+    # Quickly trying a random agent on the custom environment
+    env = RTCEnv()
     obs = env.reset()
     n_steps = 10
     for _ in range(n_steps):
