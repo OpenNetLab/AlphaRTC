@@ -40,7 +40,7 @@ class GymEnv(Env):
         super(GymEnv, self).__init__()
         self.metadata = None
         self.action_space_type = action_space_type
-        self.episode_len = 600
+        self.info = {'episode': 600} # Dict[str, Any]
 
         # Define an action space (must be gym.spaces objects)
         if self.action_space_type == 'discrete':
@@ -122,12 +122,14 @@ class GymEnv(Env):
         Action (1Kbps-1Mbps) {self.get_latest_bwe()} action (-1~1) {action_val}''')
 
         self.num_steps += 1
-        if self.num_steps > self.episode_len:
+        # TODO: Check whether it's okay to decide 'done' here
+        # and not inside SB3 RL algorithms, e.g. OffPolicyAlgorithm
+        if self.num_steps > self.info['episode']:
             done = True
         else:
             done = False
 
-        return obs, reward, done, None
+        return obs, reward, done, self.info
 
     '''
     Resets the environment to an initial state and returns an initial observation.

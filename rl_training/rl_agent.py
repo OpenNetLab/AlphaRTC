@@ -10,6 +10,9 @@ import sys
 from stable_baselines3 import PPO, A2C, DQN, TD3, SAC
 # from stable_baselines.common.env_checker import check_env
 from rl_training.rtc_env import GymEnv
+import logging
+logging.basicConfig(filename='step_obs_reward_action.log', encoding='utf-8', level=logging.INFO)
+
 
 UNIT_M = 1000000
 MAX_BANDWIDTH_MBPS = 8      # Max: 8 Mbps
@@ -122,7 +125,7 @@ def random_action():
         print(f'Random action: obs {obs} reward {reward} produced by using action {action}')
 
 
-def main(ifd = sys.stdin, ofd = sys.stdout):
+def main(ifd, ofd):
     ckpt_dir = './rl_model/ckpt'
     if not os.path.exists(ckpt_dir):
         os.makedirs(ckpt_dir)
@@ -131,14 +134,20 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
 
     while True:
         # Read a line from app.stdout, which is packet statistics
-        line = ifd.readline()
-        if not line:
-            break
-        if isinstance(line, bytes):
-            line = line.decode("utf-8")
+        # line = ifd.readline()
+        # if not line:
+        #     break
+        # if isinstance(line, bytes):
+        #     line = line.decode("utf-8")
 
-        stats = fetch_stats(line)
-        if stats:
+        # stats = fetch_stats(line)
+        # logging.info(f'SendState stats {line}')
+        # if stats:
+
+        with open('packet_stats.json', 'r') as packet_stats_json:
+            # Opening JSON file
+            stats = json.loads(packet_stats_json)
+
             # Send per-packet stats to the RL agent and receive latest BWE
             env.packet_record.add_loss_rate(stats['loss_rate'])
             env.packet_record.add_rtt(stats['rtt'])
@@ -153,7 +162,7 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
 
             # 1 episode = 600 timesteps
             # Let's start with 10 episodes (i.e. 5 min)
-            policy.learn(total_timesteps=6000)
+            policy.learn(total_timesteps=600)
 
             bwe = env.get_latest_bwe()
             # truncate-then-write the bwe

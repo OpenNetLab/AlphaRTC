@@ -14,7 +14,7 @@ LOG_MAX_KBPS = np.log(MAX_KBPS)
 LOG_MIN_KBPS = np.log(MIN_KBPS)
 
 # For RTT (ms)
-MAX_RTT_MS = 100   # 100ms
+MAX_RTT_MS = 100    # 100ms
 MIN_RTT_MS = 1      # 1ms
 LOG_MAX_RTT_MS = np.log(MAX_RTT_MS)
 LOG_MIN_RTT_MS = np.log(MIN_RTT_MS)
@@ -42,6 +42,12 @@ class PacketRecord:
         self.packet_stats_dict['bwe'] = [300000]
         logging.info(f'PacketRecord reset done: internal state init for a new episode')
 
+    def print_packet_stats_dict(self):
+        logging.info(f'''PacketRecord internal states:
+        loss_rate {self.packet_stats_dict['loss_rate']}
+        rtt {self.packet_stats_dict['rtt']}
+        recv thp {self.packet_stats_dict['receiver_side_thp']}
+        bwe {self.packet_stats_dict['bwe']}''')
 
     def normalize_obs_bps(self, bps):
         # from 1Kbps-1Mbps to 0~1
@@ -95,7 +101,8 @@ class PacketRecord:
         # Normalized receiver-side throughput (for observation)
         recv_side_thp_norm = self.normalize_obs_bps(receiver_side_thp)
         self.packet_stats_dict['receiver_side_thp_norm'].append(recv_side_thp_norm)
-        logging.info(f'Added recv thp (1Kbps-1Mbps) {receiver_side_thp} Recv thp (0-1) {recv_side_thp_norm} Recv thp fluct (1Kbps-1Mbps) {recv_side_thp_fluct}')
+        logging.info(f'Added recv thp (1Kbps-1Mbps) {receiver_side_thp} recv thp (0-1) {recv_side_thp_norm} recv thp fluct (1Kbps-1Mbps) {recv_side_thp_fluct}')
+        self.print_packet_stats_dict()
 
     # Add normalized RTT.
     # 1-100ms to 0-1
@@ -103,12 +110,14 @@ class PacketRecord:
         # TODO: measure delay interval instead of diff in consecutive RTTs
         self.packet_stats_dict['rtt'].append(rtt)
         norm_rtt = self.normalize_obs_ms(rtt)
-        logging.info(f'Added RTT (ms) {rtt} RTT (0-1) {norm_rtt}')
         self.packet_stats_dict['rtt_norm'].append(norm_rtt)
+        logging.info(f'Added RTT (ms) {rtt} RTT (0-1) {norm_rtt}')
+        self.print_packet_stats_dict()
 
     def add_loss_rate(self, loss_rate):
         self.packet_stats_dict['loss_rate'].append(loss_rate)
-        logging.info(f'Added Loss rate {loss_rate}')
+        logging.info(f'Added loss rate {loss_rate}')
+        self.print_packet_stats_dict()
 
     # TODO: measure delay interval instead of diff in consecutive RTTs
     def add_delay_interval(self):
@@ -117,11 +126,13 @@ class PacketRecord:
         norm_delay_interval = abs(self.normalize_obs_ms(self.packet_stats_dict['rtt'][-1]) \
             - self.normalize_obs_ms(self.packet_stats_dict['rtt'][-2]))
         self.packet_stats_dict['delay_interval_norm'].append(norm_delay_interval)
-        logging.info(f'Added Delay interval (ms) {delay_interval} Delay interval (0-1) {norm_delay_interval}')
+        logging.info(f'Added delay interval (ms) {delay_interval} delay interval (0-1) {norm_delay_interval}')
+        self.print_packet_stats_dict()
 
     def add_bwe(self, bwe):
         logging.info(f'Added action {bwe}')
         self.packet_stats_dict['bwe'].append(bwe)
+        self.print_packet_stats_dict()
 
     def get_bwe(self):
         return self.packet_stats_dict['bwe']
@@ -162,6 +173,3 @@ class PacketRecord:
         reward = 50 * recv_thp - 50 * loss_rate - 10 * rtt - 30 * recv_thp_fluct
 
         return reward, recv_thp, loss_rate, rtt, recv_thp_fluct
-
-
-

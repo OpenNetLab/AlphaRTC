@@ -165,7 +165,7 @@ NetworkControlUpdate GoogCcNetworkController::OnRoundTripTimeUpdate(
   RTC_DCHECK(!msg.round_trip_time.IsZero());
   bandwidth_estimation_->UpdateRtt(msg.round_trip_time, msg.receive_time);
   last_rtt_ms_ = msg.round_trip_time.ms();
-  // SendState();
+  SendState();
   return NetworkControlUpdate();
 }
 
