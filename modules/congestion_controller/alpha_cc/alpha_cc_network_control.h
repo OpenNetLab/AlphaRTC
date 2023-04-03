@@ -97,12 +97,8 @@ class GoogCcNetworkController : public NetworkControllerInterface {
   float last_avg_receiver_side_thp_ = 0;
   uint8_t last_loss_rate_ = 0;
   int64_t last_rtt_ms_ = 0;
+  int64_t last_delay_interval_ms_ = 0;
   std::vector<float> receiver_side_thp_v;
-  // Flags for sending state to SB3
-  bool estimated_bitrate_bps_updated = false;
-  bool avg_receiver_side_thp_updated = false;
-  bool rtt_updated = false;
-  bool loss_rate_updated = false;
 
   double pacing_factor_;
   DataRate max_padding_rate_;

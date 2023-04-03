@@ -1074,7 +1074,7 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
 
   if (transport_feedback_observer_ &&
       (packet_information.packet_type_flags & kRtcpTransportFeedback)) {
-    RTC_LOG(LS_VERBOSE)
+    RTC_LOG(LS_INFO)
           << "Incoming RTCP packet: kRtcpTransportFeedback";
     uint32_t media_source_ssrc =
         packet_information.transport_feedback->media_ssrc();

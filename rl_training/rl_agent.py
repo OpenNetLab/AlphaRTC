@@ -8,7 +8,7 @@ import numpy as np
 import os
 import sys
 from stable_baselines3 import PPO, A2C, DQN, TD3, SAC
-from stable_baselines.common.env_checker import check_env
+# from stable_baselines.common.env_checker import check_env
 from rl_training.rtc_env import GymEnv
 
 UNIT_M = 1000000
@@ -19,6 +19,7 @@ LOG_MIN_BANDWIDTH_MBPS = np.log(MIN_BANDWIDTH_MBPS)
 
 RL_ALGO='SAC'
 LINK_BW='1mbps'
+EPISODE_LEN=600
 
 
 def fetch_stats(line: str) -> dict:
@@ -62,43 +63,43 @@ def create_or_load_policy(ckpt_dir):
     if RL_ALGO == 'PPO':
         env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
         # It will check your custom environment and output additional warnings if needed
-        check_env(env, warn=True)
+        # check_env(env, warn=True)
         if (ckpt_file is None):
-            policy = PPO("MlpPolicy", env, n_steps=1, device='cpu', verbose=1)
+            policy = PPO("MlpPolicy", env, n_steps=EPISODE_LEN, device='cpu', verbose=1)
         else:
             policy = PPO.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
     elif RL_ALGO == 'A2C':
         env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
         # It will check your custom environment and output additional warnings if needed
-        check_env(env, warn=True)
+        # check_env(env, warn=True)
         if (ckpt_file is None):
-            policy = A2C("MlpPolicy", env, n_steps=1, device='cpu', verbose=1)
+            policy = A2C("MlpPolicy", env, n_steps=EPISODE_LEN, device='cpu', verbose=1)
         else:
             policy = A2C.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
     elif RL_ALGO == 'DQN':
         env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW, action_space_type='discrete')
         # It will check your custom environment and output additional warnings if needed
-        check_env(env, warn=True)
+        # check_env(env, warn=True)
         if (ckpt_file is None):
-            policy = DQN("MlpPolicy", env, device='cpu', verbose=1)
+            policy = DQN("MlpPolicy", env, n_steps=EPISODE_LEN, device='cpu', verbose=1)
         else:
             policy = DQN.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
     elif RL_ALGO == 'TD3':
         env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
         # It will check your custom environment and output additional warnings if needed
-        check_env(env, warn=True)
+        # check_env(env, warn=True)
         if (ckpt_file is None):
-            policy = TD3("MlpPolicy", env, device='cpu', verbose=1)
+            policy = TD3("MlpPolicy", env, n_steps=EPISODE_LEN, device='cpu', verbose=1)
         else:
             policy = TD3.load(path=ckpt_file, env=env, device='cpu', verbose=1)
 
     elif RL_ALGO == 'SAC':
         env = GymEnv(rl_algo=RL_ALGO, link_bw=LINK_BW)
         # It will check your custom environment and output additional warnings if needed
-        check_env(env, warn=True)
+        # check_env(env, warn=True)
         if (ckpt_file is None):
             policy = SAC("MlpPolicy", env, device='cpu', verbose=1)
         else:
@@ -139,9 +140,10 @@ def main(ifd = sys.stdin, ofd = sys.stdout):
         stats = fetch_stats(line)
         if stats:
             # Send per-packet stats to the RL agent and receive latest BWE
-            env.packet_record.add_receiver_side_thp(stats['receiver_side_thp'])
-            env.packet_record.add_rtt(stats['rtt'])
             env.packet_record.add_loss_rate(stats['loss_rate'])
+            env.packet_record.add_rtt(stats['rtt'])
+            env.packet_record.add_delay_interval()
+            env.packet_record.add_receiver_side_thp(stats['receiver_side_thp'])
 
             # Train the RL policy with the state.
             # Calls collect_rollouts() and train() in SB3.

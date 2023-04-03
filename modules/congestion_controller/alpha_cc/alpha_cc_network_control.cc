@@ -87,32 +87,28 @@ NetworkControlUpdate GoogCcNetworkController::OnNetworkRouteChange(
   return NetworkControlUpdate();
 }
 
-// Called in OnRoundTripTimeUpdate, OnTransportLossRate and OnReceiverSideThroughput.
-// Call rl_agent::SendState only when all three of them are updated.
 void GoogCcNetworkController::SendState() {
   if (receiver_side_thp_v.size() > 0) {
     CompAverageReceiverSideThroughput();
-    RTC_LOG(LS_INFO) << "AlphaCC: SendState: Sending"
-    << " avg receiver side thp " << last_avg_receiver_side_thp_
-    << " RTT " << last_rtt_ms_
-    << " loss rate " << last_loss_rate_;
-    rl_agent::SendState(last_avg_receiver_side_thp_, last_rtt_ms_, last_loss_rate_, &estimated_bitrate_bps_updated);
-
-    // Reset the flags
-    avg_receiver_side_thp_updated = false;
-    rtt_updated = false;
-    loss_rate_updated = false;
-    // With the state received from rl_agent::SendState,
-    // rl_agent.py produces latest estimated bitrate on bwe.txt.
   }
+
+  RTC_LOG(LS_INFO) << "AlphaCC: SendState: "
+  << " loss rate " << last_loss_rate_
+  << " RTT (ms) " << last_rtt_ms_
+  << " delay interval (ms) " << last_delay_interval_ms_
+  << " avg receiver-side thp (bps) " << last_avg_receiver_side_thp_;
+  rl_agent::SendState(last_loss_rate_, last_rtt_ms_, last_delay_interval_ms_, last_avg_receiver_side_thp_);
+
+  // With the state received from rl_agent::SendState,
+  // rl_agent.py produces latest estimated bitrate on bwe.txt.
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnProcessInterval(
     ProcessInterval msg) {
   RTC_LOG(LS_VERBOSE) << "AlphaCC: OnProcessInterval called";
   // Check the file that contains latest bwe only after it is updated
-  if (estimated_bitrate_bps_updated)
-    last_estimated_bitrate_bps_ = DataRate::BitsPerSec(rl_agent::GetBwe(&estimated_bitrate_bps_updated));
+
+  last_estimated_bitrate_bps_ = DataRate::BitsPerSec(rl_agent::GetBwe());
   NetworkControlUpdate update;
   update.target_rate = TargetTransferRate();
   update.target_rate->network_estimate.at_time = msg.at_time;
@@ -169,7 +165,7 @@ NetworkControlUpdate GoogCcNetworkController::OnRoundTripTimeUpdate(
   RTC_DCHECK(!msg.round_trip_time.IsZero());
   bandwidth_estimation_->UpdateRtt(msg.round_trip_time, msg.receive_time);
   last_rtt_ms_ = msg.round_trip_time.ms();
-  rtt_updated = true;
+  // SendState();
   return NetworkControlUpdate();
 }
 
@@ -263,8 +259,6 @@ void GoogCcNetworkController::CompAverageReceiverSideThroughput(void) {
 NetworkControlUpdate GoogCcNetworkController::OnReceiverSideThroughput(float receiver_side_thp) {
   RTC_LOG(LS_VERBOSE) << "AlphaCC: OnReceiverSideThroughput called: " << receiver_side_thp;
   receiver_side_thp_v.push_back(receiver_side_thp);
-  avg_receiver_side_thp_updated = true;
-  SendState();
   return NetworkControlUpdate();
 }
 
@@ -301,13 +295,15 @@ NetworkControlUpdate GoogCcNetworkController::OnTransportLossReport(
   << " packets_received_delta " << msg.packets_received_delta
   << " packets_lost_delta " << msg.packets_lost_delta << ")";
   last_loss_rate_ = loss_rate;
-  loss_rate_updated = true;
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnTransportPacketsFeedback(
     TransportPacketsFeedback report) {
-  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnTransportPacketsFeedback called";
+  RTC_LOG(LS_INFO) << "AlphaCC: OnTransportPacketsFeedback called";
+  // TODO: calculate delay interval
+  last_delay_interval_ms_ = 0;
+  SendState();
   return NetworkControlUpdate();
 }
 

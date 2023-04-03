@@ -96,6 +96,24 @@ float RemoteEstimatorProxy::ComputeReceiverSideThroughput() {
   return receiver_side_thp_;
 }
 
+// float RemoteEstimatorProxy::ComputeReceiverSideArrivalInterval() {
+//   rtc::CritScope cs(&lock_);
+//   int64_t now = clock_->TimeInMicroseconds();
+//   float elapsed_s = (now - last_comp_receiver_side_thp_time_us_) * 0.000001;
+//   float receiver_side_thp_ = aggregated_payload_size / elapsed_s;
+//   RTC_LOG(LS_INFO) << "Receiver-side thp (bps) " << receiver_side_thp_
+//   << " agg. payload bits " << aggregated_payload_size
+//   << " elapsed_s " << elapsed_s
+//   << " for " << received_packets << " received packets ";
+
+//   // Reset time record
+//   last_comp_receiver_side_thp_time_us_ = now;
+//   aggregated_payload_size = 0;
+//   received_packets = 0;
+
+//   return receiver_side_thp_;
+// }
+
 bool RemoteEstimatorProxy::LatestEstimate(std::vector<unsigned int>* ssrcs,
                                           unsigned int* bitrate_bps) const {
   return false;
@@ -241,7 +259,8 @@ void RemoteEstimatorProxy::SendPeriodicFeedbacks() {
     }
     packets.push_back(std::move(feedback_packet));
 
-    // Send the latest receiver-side throughput via App (which is also an RTCP) packet.
+    // Observation for RL-based CC: send 1), 2) via App (which is also an RTCP) packet.
+    // 1) receiver-side throughput
     auto app_packet = std::make_unique<rtcp::App>();
     app_packet->SetSubType(kAppPacketSubType);
     app_packet->SetName(kAppPacketName);
@@ -249,6 +268,14 @@ void RemoteEstimatorProxy::SendPeriodicFeedbacks() {
     app_packet->SetData(reinterpret_cast<const uint8_t*>(&receiver_side_thp_), sizeof(receiver_side_thp_));
     packets.push_back(std::move(app_packet));
     RTC_LOG(LS_VERBOSE) << "Sent receiver-side throughput (bps) " << receiver_side_thp_ << " (send interval " << send_interval_ms_ << "ms)";
+
+    // 2) diff between the arriving interval of two consecutive RTP packets at the receiver side
+    // auto app_packet2 = std::make_unique<rtcp::App>();
+    // app_packet2->SetSubType(kAppPacketSubType);
+    // app_packet2->SetName(kAppPacketName);
+    // float receiver_side_arrival_interval = ComputeReceiverSideArrivalInterval();
+    // app_packet->SetData(reinterpret_cast<const uint8_t*>(&receiver_side_thp_), sizeof(receiver_side_thp_));
+    // packets.push_back(std::move(app_packet));
 
     feedback_sender_->SendCombinedRtcpPacket(std::move(packets));
     // Note: Don't erase items from packet_arrival_times_ after sending, in case

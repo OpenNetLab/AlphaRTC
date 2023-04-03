@@ -5,7 +5,10 @@ import sys
 import os
 import random
 import numpy as np
+import logging
+logging.basicConfig(filename='step_obs_reward_action.log', encoding='utf-8', level=logging.INFO)
 
+from gym import Env
 from gym import spaces
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "gym"))
 
@@ -30,7 +33,7 @@ Custom Environment that follows OpenAI gym interface.
 Must inherit from OpenAI Gym Class
 and implement the following methods: step(), reset(), render(), close()
 """
-class GymEnv(gym.Env):
+class GymEnv(Env):
     metadata = {'render.modes': ['human']}
 
     def __init__(self, rl_algo, link_bw, action_space_type='continuous'):
@@ -66,8 +69,8 @@ class GymEnv(gym.Env):
         # self.observation_space = spaces.Box(low=0, high=255,
         #                                 shape=(HEIGHT, WIDTH, N_CHANNELS), dtype=np.uint8)
         self.observation_space = spaces.Box(
-            low=np.array([0.0, 0.0, 0.0]),
-            high=np.array([1.0, 1.0, 1.0]),
+            low=np.array([0.0, 0.0, 0.0, 0.0]),
+            high=np.array([1.0, 1.0, 1.0, 1.0]),
             dtype=np.float64)
 
         # Custom
@@ -77,30 +80,8 @@ class GymEnv(gym.Env):
         self.num_steps = 0
         self.episode_reward  = []
 
-    '''
-    Received packet statistics are the result of running the latest action.
-    From this, calculate state and reward.
-    '''
-    def calculate_state_reward(self):
-        # Calculate state for the latest `self.packet_record.history_len`
-        norm_recv_thp, norm_rtt, loss_rate = self.packet_record.calculate_state()
-
-        # Calculate reward.
-        # Incentivize increase in throughput, penalize increase in RTT and loss rate.
-        # TODO: Tune normalizing coefficients
-        # - receiver-side thp: 1Kbps~200Kbps (empirically) -> 0-1
-        # - RTT: 1-100ms -> 0-1
-        # - loss rate: 0-1
-        state = [norm_recv_thp, norm_rtt, loss_rate]
-        reward = 30 * norm_recv_thp - 5 * norm_rtt - 50 * loss_rate
-
-        return state, reward, {}, {}
-
     def get_latest_bwe(self):
         bwe_l = self.packet_record.get_bwe()
-        # print(f'bwe_l {bwe_l}')
-        # default target bitrate in GCC: 300000 bps = 300 kbps
-        # return 1e6
         return bwe_l[-1] if len(bwe_l) else 300000
 
     '''
@@ -119,29 +100,26 @@ class GymEnv(gym.Env):
     '''
     def step(self, action):
         if type(action) is list or isinstance(action, np.ndarray):
-            latest_bwe = action[0]
+            action_val = action[0]
         elif type(action) is None:
-            300000 # default 300Kbps
+            action_val = -0.40140140140140135 # default BWE = 300Kbps
         else:
-            latest_bwe = action
+            action_val = action
 
-        self.packet_record.add_bwe(latest_bwe)
+        # norm_action = self.packet_record.normalize_action(action_val)
+        self.packet_record.add_bwe(self.packet_record.rescale_action(action_val))
 
-        # Packet-level statistics for the latest `self.packet_record.history_len`
-        norm_recv_thp, loss_rate, norm_rtt, norm_recv_thp_fluct = self.packet_record.calculate_statistics()
-
-        # State.
-        # TODO: add delay interval
-        obs = [norm_recv_thp, norm_rtt, loss_rate]
+        # Observation.
+        # TODO: correct delay interval
+        obs = self.packet_record.calculate_obs()
 
         # Reward.
-        # Incentivize increase in receiver-side thp,
-        # penalize increase in loss, RTT, and thp fluctuation.
-        # TODO: Check whether to use normalized values or actual values
-        reward = 50 * norm_recv_thp - 50 * loss_rate - 10 * norm_rtt - 30 * norm_recv_thp_fluct
+        reward, recv_thp, loss_rate, rtt, recv_thp_fluct = self.packet_record.calculate_reward()
 
-        with open(f'state_reward_action_{self.rl_algo}_{self.link_bw}', mode='a+') as f:
-            f.write(f'{self.rl_algo} step {self.num_steps} state {obs} reward {reward} action {latest_bwe}\n')
+        logging.info(f'''\n[{self.rl_algo}] Step {self.num_steps}:
+        Obs {obs} ([loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp])
+        Reward {reward} (50 * {recv_thp} - 50 * {loss_rate} - 10 * {rtt} - 30 * {recv_thp_fluct})
+        Action (1Kbps-1Mbps) {self.get_latest_bwe()} action (-1~1) {action_val}''')
 
         self.num_steps += 1
         if self.num_steps > self.episode_len:
@@ -165,14 +143,14 @@ class GymEnv(gym.Env):
     '''
     def reset(self):
         # Reset internal states of the environment
-        self.packet_record = PacketRecord()
+        self.packet_record.reset()
         self.num_steps = 0
         self.episode_reward = []
 
         # Produce initial observation
-        action = 300000 # default BWE = 300Kbps
+        action = -0.40140140140140135 # default BWE = 300Kbps
         obs, _, _, _ = self.step(action)
-        print(f'env reset done: an environment for a new episode is set')
+        logging.info(f'env reset done: an environment for a new episode is set')
         return obs
 
     '''

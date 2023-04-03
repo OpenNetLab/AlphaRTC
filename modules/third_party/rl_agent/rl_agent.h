@@ -10,8 +10,8 @@
 #include "modules/third_party/statcollect/json.hpp"
 
 namespace rl_agent {
-    void SendState(float avg_receiver_side_thp, int64_t rtt, float loss_rate, bool* estimated_bitrate_bps_updated);
-    int32_t GetBwe(bool* estimated_bitrate_bps_updated);
+    void SendState(float loss_rate, int64_t rtt, int64_t delay_interval, float avg_receiver_side_thp);
+    int32_t GetBwe();
 }
 
 #endif
