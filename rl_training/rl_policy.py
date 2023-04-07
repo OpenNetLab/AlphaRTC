@@ -1,16 +1,18 @@
 import glob
-from stable_baselines3 import PPO, A2C, DQN, TD3, SAC
-# from stable_baselines.common.env_checker import check_env
-from rl_training.rtc_env import RTCEnv
 import time
 import logging
 logging.basicConfig(filename='step_obs_reward_action.log', encoding='utf-8', level=logging.INFO)
 
+from stable_baselines3 import PPO, A2C, DQN, TD3, SAC
+from rl_training.rtc_env import RTCEnv
+
 
 class Policy:
-    def __init__(self, rl_algo, episode_len):
+    def __init__(self, rl_algo, action_space_type, episode_len):
         self.rl_algo = rl_algo
+        self.action_space_type = action_space_type
         self.episode_len = episode_len
+        self.env = RTCEnv(rl_algo=self.rl_algo, action_space_type=self.action_space_type)
         self.policy = None
 
     def save_checkpoint(self, ckpt_dir):
@@ -33,30 +35,25 @@ class Policy:
             return ckpt_file
 
     def _create_a2c_policy(self):
-        env = RTCEnv(rl_algo=self.rl_algo)
         # It will check your custom environment and output additional warnings if needed
-        # check_env(env, warn=True)
-        self.policy = A2C("MlpPolicy", env, n_steps=self.episode_len, device='cpu', verbose=1)
+        # check_env(self.env, warn=True)
+        self.policy = A2C("MlpPolicy", self.env, n_steps=self.episode_len, device='cpu', verbose=1)
 
     def _create_ppo_policy(self):
-        env = RTCEnv(rl_algo=self.rl_algo)
-        # check_env(env, warn=True)
-        self.policy = PPO("MlpPolicy", env, n_steps=self.episode_len, device='cpu', verbose=1)
+        # check_env(self.env, warn=True)
+        self.policy = PPO("MlpPolicy", self.env, n_steps=self.episode_len, device='cpu', verbose=1)
 
     def _create_dqn_policy(self):
-        env = RTCEnv(rl_algo=self.rl_algo, action_space_type='discrete')
-        # check_env(env, warn=True)
-        self.policy = DQN("MlpPolicy", env, device='cpu', verbose=1)
+        # check_env(self.env, warn=True)
+        self.policy = DQN("MlpPolicy", self.env, device='cpu', verbose=1)
 
     def _create_td3_policy(self):
-        env = RTCEnv(rl_algo=self.rl_algo)
-        # check_env(env, warn=True)
-        self.policy = TD3("MlpPolicy", env, device='cpu', verbose=1)
+        # check_env(self.env, warn=True)
+        self.policy = TD3("MlpPolicy", self.env, device='cpu', verbose=1)
 
     def _create_sac_policy(self):
-        env = RTCEnv(rl_algo=self.rl_algo)
-        # check_env(env, warn=True)
-        self.policy = SAC("MlpPolicy", env, device='cpu', verbose=1)
+        # check_env(self.env, warn=True)
+        self.policy = SAC("MlpPolicy", self.env, device='cpu', verbose=1)
 
     # Factory method that returns a requested RL algorithm-based policy
     def _create_policy(self, rl_algo='PPO'):

@@ -98,9 +98,6 @@ void GoogCcNetworkController::SendState() {
   << ",DelayInterval " << last_delay_interval_ms_
   << ",RecvThp " << last_avg_receiver_side_thp_;
   rl_agent::SendState(last_loss_rate_, last_rtt_ms_, last_delay_interval_ms_, last_avg_receiver_side_thp_);
-
-  // With the state received from rl_agent::SendState,
-  // rl_agent.py produces latest estimated bitrate on bwe.txt.
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnProcessInterval(

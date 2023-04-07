@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import glob
 import os
 import random
@@ -12,7 +9,6 @@ import logging
 logging.basicConfig(filename='step_obs_reward_action.log', encoding='utf-8', level=logging.INFO)
 
 from rl_training.rl_policy import Policy
-
 
 RL_ALGO='SAC'
 LINK_BW='1mbps'
@@ -106,12 +102,12 @@ def generate_random_port():
         out.write(str(ret_port)+"\n")
 
 
-def run_env(link_bandwidth=LINK_BW, delay=0):
+def run_call(link_bandwidth=LINK_BW, delay=0):
     # `peerconnection_serverless.origin` is an e2e WebRTC app built by examples/BUILD.gn
     # Run this e2e app on separate processes in parallel
     # with AlphaCC config file as an argument (e.g. receiver_pyinfer.json)
     receiver_cmd = f"$ALPHARTC_HOME/peerconnection_serverless.origin receiver_pyinfer.json"
-    sender_cmd = f"sleep 5; mm-link traces/{link_bandwidth} traces/{link_bandwidth} python $ALPHARTC_HOME/rl_training/rtc_env_wrapper.py"
+    sender_cmd = f"sleep 5; mm-link traces/{link_bandwidth} traces/{link_bandwidth} python $ALPHARTC_HOME/sender_wrapper.py"
 
     # Randomly assign different port for this video call
     generate_random_port()
@@ -152,18 +148,15 @@ def main():
 
     cleanup()
 
-    iter = 10
-    # 1 episode = 1 video call (30 sec) = 600 timesteps
     policy = Policy(rl_algo='PPO', episode_len=600)
 
-    for i in range(0, iter):
-        # Run three envs in parallel to collect three rollouts
-        run_env('300kbps', 0)
-        run_env('600kbps', 0)
-        run_env('1mbps', 0)
+    # Run three envs in parallel to collect three rollouts
+    run_call('300kbps', 0)
+    # run_call('600kbps', 0)
+    # run_call('1mbps', 0)
 
-        # Update the model using all three rollouts (synchronous training)
-        policy.learn(total_timesteps=6000)
+    # Update the model using all three rollouts (synchronous training)
+    policy.learn(total_timesteps=6000)
 
     # Save WebRTC logs and plot results
     save_webrtc_logs()

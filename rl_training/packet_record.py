@@ -42,13 +42,6 @@ class PacketRecord:
         self.packet_stats_dict['bwe'] = [300000]
         logging.info(f'PacketRecord reset done: internal state init for a new episode')
 
-    def print_packet_stats_dict(self):
-        logging.info(f'''PacketRecord internal states:
-        loss_rate {self.packet_stats_dict['loss_rate']}
-        rtt {self.packet_stats_dict['rtt']}
-        recv thp {self.packet_stats_dict['receiver_side_thp']}
-        bwe {self.packet_stats_dict['bwe']}''')
-
     def normalize_obs_bps(self, bps):
         # from 1Kbps-1Mbps to 0~1
         clipped_kbps = np.clip(bps/UNIT_K, MIN_KBPS, MAX_KBPS)
@@ -57,7 +50,6 @@ class PacketRecord:
         # norm_value = (log_value - LOG_MIN_KBPS) / (LOG_MAX_KBPS - LOG_MIN_KBPS)
         norm_kbps = (clipped_kbps - MIN_KBPS) / (MAX_KBPS - MIN_KBPS)
         logging.info(f'bps (1Kbps-1Mbps) {bps} clipped kbps (1Kbps-1Mbps) {clipped_kbps} norm kbps (0-1) {norm_kbps}')
-
         return norm_kbps
 
     def normalize_obs_ms(self, ms):
@@ -68,7 +60,6 @@ class PacketRecord:
         # norm_value = (log_value - LOG_MIN_RTT_US) / (LOG_MAX_RTT_US - LOG_MIN_RTT_US)
         norm_ms = (clipped_ms - MIN_RTT_MS) / (MAX_RTT_MS - MIN_RTT_MS)
         logging.debug(f'RTT (1-100ms) {ms} clipped RTT (1-100ms) {clipped_ms} norm RTT (0-1) {norm_ms}')
-
         return norm_ms
 
     # Referred to https://stats.stackexchange.com/questions/178626/how-to-normalize-data-between-1-and-1
@@ -77,7 +68,6 @@ class PacketRecord:
         # from 1Kbps~1Mbps to -1~1
         norm_action_kbps = 2 * (action_bps/UNIT_K - MIN_KBPS) / (MAX_KBPS - MIN_KBPS) - 1
         logging.info(f'Action: (1Kbps-1Mbps) {action_bps} to (-1~1) {norm_action_kbps}')
-
         return norm_action_kbps
 
     # Referred to https://stats.stackexchange.com/questions/178626/how-to-normalize-data-between-1-and-1
@@ -86,8 +76,11 @@ class PacketRecord:
         # from -1~1 to 1Kbps~1Mbps
         rescaled_action_bps = ((MAX_KBPS - MIN_KBPS) * (norm_action_kbps + 1) / 2 + MIN_KBPS) * UNIT_K
         logging.info(f'Action: (-1~1) {norm_action_kbps} to (1Kbps-1Mbps) {rescaled_action_bps}')
-
         return rescaled_action_bps
+
+    def get_packet_stats(self):
+        # get packet stats from zeromq
+        pass
 
     # Add normalized receiver-side throughput.
     # 1Kbps-1Mbps (empirically) to 0-1
@@ -102,7 +95,6 @@ class PacketRecord:
         recv_side_thp_norm = self.normalize_obs_bps(receiver_side_thp)
         self.packet_stats_dict['receiver_side_thp_norm'].append(recv_side_thp_norm)
         logging.info(f'Added recv thp (1Kbps-1Mbps) {receiver_side_thp} recv thp (0-1) {recv_side_thp_norm} recv thp fluct (1Kbps-1Mbps) {recv_side_thp_fluct}')
-        self.print_packet_stats_dict()
 
     # Add normalized RTT.
     # 1-100ms to 0-1
@@ -112,12 +104,10 @@ class PacketRecord:
         norm_rtt = self.normalize_obs_ms(rtt)
         self.packet_stats_dict['rtt_norm'].append(norm_rtt)
         logging.info(f'Added RTT (ms) {rtt} RTT (0-1) {norm_rtt}')
-        self.print_packet_stats_dict()
 
     def add_loss_rate(self, loss_rate):
         self.packet_stats_dict['loss_rate'].append(loss_rate)
         logging.info(f'Added loss rate {loss_rate}')
-        self.print_packet_stats_dict()
 
     # TODO: measure delay interval instead of diff in consecutive RTTs
     def add_delay_interval(self):
@@ -127,24 +117,13 @@ class PacketRecord:
             - self.normalize_obs_ms(self.packet_stats_dict['rtt'][-2]))
         self.packet_stats_dict['delay_interval_norm'].append(norm_delay_interval)
         logging.info(f'Added delay interval (ms) {delay_interval} delay interval (0-1) {norm_delay_interval}')
-        self.print_packet_stats_dict()
-
-    def add_bwe(self, bwe):
-        logging.info(f'Added action {bwe}')
-        self.packet_stats_dict['bwe'].append(bwe)
-        self.print_packet_stats_dict()
-
-    def get_bwe(self):
-        return self.packet_stats_dict['bwe']
 
     # TODO: dequeue the items when using them
     def _get_latest_history_len_stats(self, key):
         assert self.history_len > 0
         latest_history_len_stats = self.packet_stats_dict[key][-self.history_len:]
         logging.info(f'latest {self.history_len} {key}: {latest_history_len_stats}')
-
         return latest_history_len_stats if len(latest_history_len_stats) > 0 else [0]
-
 
     '''
     Calulate average of latest history_len number of receiver-side throughputs (bps),
@@ -155,7 +134,6 @@ class PacketRecord:
         norm_rtt = mean(self._get_latest_history_len_stats(key='rtt_norm'))
         norm_delay_interval = mean(self._get_latest_history_len_stats(key='delay_interval_norm'))
         norm_recv_thp = mean(self._get_latest_history_len_stats(key='receiver_side_thp_norm'))
-
         return [loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp]
 
     '''
@@ -171,5 +149,4 @@ class PacketRecord:
 
         # 50 * norm_recv_thp - 50 * loss_rate - 10 * norm_rtt - 30 * norm_recv_thp_fluct
         reward = 50 * recv_thp - 50 * loss_rate - 10 * rtt - 30 * recv_thp_fluct
-
         return reward, recv_thp, loss_rate, rtt, recv_thp_fluct

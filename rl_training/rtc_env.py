@@ -79,10 +79,6 @@ class RTCEnv(Env):
         self.num_steps = 0
         self.episode_reward  = []
 
-    def get_latest_bwe(self):
-        bwe_l = self.packet_record.get_bwe()
-        return bwe_l[-1] if len(bwe_l) else 300000
-
     '''
     Run one timestep of the environment's dynamics.
     When end of episode is reached, you are responsible for calling `reset()`
@@ -105,8 +101,10 @@ class RTCEnv(Env):
         else:
             action_val = action
 
-        # norm_action = self.packet_record.normalize_action(action_val)
-        self.packet_record.add_bwe(self.packet_record.rescale_action(action_val))
+        bwe = self.packet_record.rescale_action(action_val)
+        # truncate-then-write the bwe
+        with open('bwe.txt', mode='w') as f:
+            f.write(f'{bwe}')
 
         # Observation.
         # TODO: correct delay interval
@@ -118,11 +116,9 @@ class RTCEnv(Env):
         logging.info(f'''\n[{self.rl_algo}] Step {self.num_steps}:
         Obs {obs} ([loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp])
         Reward {reward} (50 * {recv_thp} - 50 * {loss_rate} - 10 * {rtt} - 30 * {recv_thp_fluct})
-        Action (1Kbps-1Mbps) {self.get_latest_bwe()} action (-1~1) {action_val}''')
+        Action (1Kbps-1Mbps) {bwe} action (-1~1) {action_val}''')
 
         self.num_steps += 1
-        # TODO: Check whether it's okay to decide 'done' here
-        # and not inside SB3 RL algorithms, e.g. OffPolicyAlgorithm
         # if self.num_steps > self.info['episode']:
         #     done = True
         # else:
