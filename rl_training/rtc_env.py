@@ -161,6 +161,7 @@ class RTCEnv(Env):
     Perform any necessary cleanup.
     Environments will automatically close() themselves
     when garbage collected or the program exits.
+    Nothing to do.
     '''
     def close (self):
         pass

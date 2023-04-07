@@ -7,12 +7,10 @@ from stable_baselines3 import PPO, A2C, DQN, TD3, SAC
 from rl_training.rtc_env import RTCEnv
 
 
-class Policy:
-    def __init__(self, rl_algo, action_space_type, episode_len):
-        self.rl_algo = rl_algo
-        self.action_space_type = action_space_type
+class PolicyFactory:
+    def __init__(self, episode_len):
         self.episode_len = episode_len
-        self.env = RTCEnv(rl_algo=self.rl_algo, action_space_type=self.action_space_type)
+        self.env = None
         self.policy = None
 
     def save_checkpoint(self, ckpt_dir):
@@ -35,23 +33,28 @@ class Policy:
             return ckpt_file
 
     def _create_a2c_policy(self):
+        self.env = RTCEnv(rl_algo='A2C')
         # It will check your custom environment and output additional warnings if needed
         # check_env(self.env, warn=True)
         self.policy = A2C("MlpPolicy", self.env, n_steps=self.episode_len, device='cpu', verbose=1)
 
     def _create_ppo_policy(self):
+        self.env = RTCEnv(rl_algo='PPO')
         # check_env(self.env, warn=True)
         self.policy = PPO("MlpPolicy", self.env, n_steps=self.episode_len, device='cpu', verbose=1)
 
     def _create_dqn_policy(self):
+        self.env = RTCEnv(rl_algo='DQN', action_space_type='discrete')
         # check_env(self.env, warn=True)
         self.policy = DQN("MlpPolicy", self.env, device='cpu', verbose=1)
 
     def _create_td3_policy(self):
+        self.env = RTCEnv(rl_algo='TD3')
         # check_env(self.env, warn=True)
         self.policy = TD3("MlpPolicy", self.env, device='cpu', verbose=1)
 
     def _create_sac_policy(self):
+        self.env = RTCEnv(rl_algo='SAC')
         # check_env(self.env, warn=True)
         self.policy = SAC("MlpPolicy", self.env, device='cpu', verbose=1)
 
@@ -69,12 +72,12 @@ class Policy:
             self._create_sac_policy()
         else:
             raise ValueError(f'{rl_algo} is not supported')
-        return self.policy
 
     # A wrapper of the factory method that adds exception handling
     def create_policy(self, rl_algo):
         try:
-            return self._create_policy(rl_algo)
+            self._create_policy(rl_algo)
+            return self.env, self.policy
         except ValueError as e:
             logging.error(e)
         return None
