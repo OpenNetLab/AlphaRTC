@@ -8,9 +8,20 @@ import subprocess
 from statistics import mean, median
 import matplotlib.pyplot as plt
 import numpy as np
+import logging
+logging.basicConfig(filename='step_obs_reward_action.log', encoding='utf-8', level=logging.INFO)
+
+from rl_training.rl_policy import Policy
+
 
 RL_ALGO='SAC'
 LINK_BW='1mbps'
+
+
+def cleanup():
+    for f in glob.glob("*.log"):
+        os.remove(f)
+
 
 def plot_recv_thp():
     recv_thp_l = []
@@ -35,21 +46,6 @@ def plot_recv_thp():
     recv_thp_file = os.environ["ALPHARTC_HOME"] + f'{RL_ALGO}/recv-thp/recv-thp-{RL_ALGO}-{LINK_BW}.pdf'
     plt.savefig(recv_thp_file)
 
-# Deprecated
-def plot_training_curve():
-    rewards = []
-    with open(f'state_reward_action_{RL_ALGO}_{LINK_BW}', 'r') as f:
-        for line in f:
-            line = line.rstrip()
-            l = line.split()
-            rewards.append(float(l[8]))
-
-    plt.ylim(0, max(rewards))
-    plt.plot(rewards)
-    plt.title(f'RL-based CC ({RL_ALGO})')
-    plt.xlabel('Step')
-    plt.ylabel('Training Reward')
-    plt.savefig(f'learning-curve-{RL_ALGO}-{LINK_BW}.pdf')
 
 def save_webrtc_logs():
     # Path of sender, receiver WebRTC internal logs
@@ -62,9 +58,6 @@ def save_webrtc_logs():
     os.rename(sender_log_name, sender_log_rename)
     os.rename(receiver_log_name, receiver_log_rename)
 
-def cleanup():
-    for f in glob.glob("*.log"):
-        os.remove(f)
 
 def check_call_result(receiver_app, sender_app):
     # Log whether the call ended successfully
@@ -78,6 +71,7 @@ def check_call_result(receiver_app, sender_app):
 
     with open("call_result.log", "a+") as out:
         out.write(call_result)
+
 
 '''
 Generate a random free tcp6 port.
@@ -112,15 +106,29 @@ def generate_random_port():
         out.write(str(ret_port)+"\n")
 
 
-def main():
+def run_env(link_bandwidth=LINK_BW, delay=0):
     # `peerconnection_serverless.origin` is an e2e WebRTC app built by examples/BUILD.gn
     # Run this e2e app on separate processes in parallel
     # with AlphaCC config file as an argument (e.g. receiver_pyinfer.json)
     receiver_cmd = f"$ALPHARTC_HOME/peerconnection_serverless.origin receiver_pyinfer.json"
-    # encapsulate `peerconnection_serverless.origin sender_pyinfer.json` with a python training code
-    # sender_cmd = f"sleep 5; mm-loss uplink 0.2 mm-link traces/1mbps traces/1mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
-    sender_cmd = f"sleep 5; mm-link traces/{LINK_BW} traces/{LINK_BW} python $ALPHARTC_HOME/rl_agent_wrapper.py"
+    sender_cmd = f"sleep 5; mm-link traces/{link_bandwidth} traces/{link_bandwidth} python $ALPHARTC_HOME/rl_training/rtc_env_wrapper.py"
 
+    # Randomly assign different port for this video call
+    generate_random_port()
+
+    # Run the video call
+    receiver_app = subprocess.Popen(receiver_cmd, shell=True)
+    sender_app = subprocess.Popen(sender_cmd, shell=True)
+    logging.info(f'Running a video call env: link BW {link_bandwidth}, one-way delay {delay}ms')
+
+    receiver_app.wait()
+    sender_app.wait()
+
+    check_call_result(receiver_app, sender_app)
+
+
+
+def main():
     # Training environments
     # [1, 4, 10] Mbps x [10, 20, 30] ms = 9 environments
     # sender_cmd = f"sleep 5; mm-delay 10 mm-link traces/1mbps traces/1mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
@@ -142,25 +150,24 @@ def main():
     # sender_cmd = f"sleep 5; mm-delay 25 mm-link traces/3mbps traces/3mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
     # sender_cmd = f"sleep 5; mm-delay 25 mm-link traces/6mbps traces/6mbps python $ALPHARTC_HOME/rl_agent_wrapper.py"
 
-
     cleanup()
 
-    # Randomly assign different port per e2e call
-    generate_random_port()
+    iter = 10
+    # 1 episode = 1 video call (30 sec) = 600 timesteps
+    policy = Policy(rl_algo='PPO', episode_len=600)
 
-    # Run an e2e call
-    receiver_app = subprocess.Popen(receiver_cmd, shell=True)
-    sender_app = subprocess.Popen(sender_cmd, shell=True)
+    for i in range(0, iter):
+        # Run three envs in parallel to collect three rollouts
+        run_env('300kbps', 0)
+        run_env('600kbps', 0)
+        run_env('1mbps', 0)
 
-    receiver_app.wait()
-    sender_app.wait()
-
-    check_call_result(receiver_app, sender_app)
+        # Update the model using all three rollouts (synchronous training)
+        policy.learn(total_timesteps=6000)
 
     # Save WebRTC logs and plot results
     save_webrtc_logs()
     plot_recv_thp()
-    plot_training_curve()
 
 
 if __name__ == "__main__":

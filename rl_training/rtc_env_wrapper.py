@@ -2,7 +2,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 import traceback
 
 import rl_training.rl_agent as rl_agent
@@ -37,7 +36,6 @@ def main():
             return
         with open(config_file["logging"]["log_output_path"], "a") as log_file:
             log_file.write(error_message)
-    time.sleep(10)
 
 
 if __name__ == "__main__":

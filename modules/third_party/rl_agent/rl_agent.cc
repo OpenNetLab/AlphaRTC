@@ -11,16 +11,7 @@ void rl_agent::SendState(float loss_rate, int64_t rtt, int64_t delay_interval, f
     packet_stats_json["delay_interval"] = delay_interval;
     packet_stats_json["receiver_side_thp"] = avg_receiver_side_thp;
 
-    // cout << j.dump() << endl;
-
-    // ofstream ofs("packet_stats.json");
-    // ofs << packet_stats_json;
-    // ofs.close();
-
-    ofstream ofs;
-    ofs.open("packet_stats.json", fstream::out | fstream::app);
-    ofs << packet_stats_json;
-    ofs.close();
+    cout << packet_stats_json.dump() << endl;
 }
 
 int32_t rl_agent::GetBwe() {

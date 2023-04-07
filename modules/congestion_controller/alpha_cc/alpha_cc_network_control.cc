@@ -92,11 +92,11 @@ void GoogCcNetworkController::SendState() {
     CompAverageReceiverSideThroughput();
   }
 
-  RTC_LOG(LS_INFO) << "AlphaCC: SendState: "
-  << " loss rate " << last_loss_rate_
-  << " RTT (ms) " << last_rtt_ms_
-  << " delay interval (ms) " << last_delay_interval_ms_
-  << " avg receiver-side thp (bps) " << last_avg_receiver_side_thp_;
+  RTC_LOG(LS_INFO) << "AlphaCC: SendState:"
+  << ",LossRate " << last_loss_rate_
+  << ",RTT " << last_rtt_ms_
+  << ",DelayInterval " << last_delay_interval_ms_
+  << ",RecvThp " << last_avg_receiver_side_thp_;
   rl_agent::SendState(last_loss_rate_, last_rtt_ms_, last_delay_interval_ms_, last_avg_receiver_side_thp_);
 
   // With the state received from rl_agent::SendState,

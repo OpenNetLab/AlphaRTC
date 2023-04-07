@@ -36,7 +36,7 @@ and implement the following methods: step(), reset(), render(), close()
 class RTCEnv(Env):
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, rl_algo, link_bw, action_space_type='continuous'):
+    def __init__(self, rl_algo, action_space_type='continuous'):
         super(RTCEnv, self).__init__()
         self.metadata = None
         self.action_space_type = action_space_type
@@ -75,7 +75,6 @@ class RTCEnv(Env):
 
         # Custom
         self.rl_algo = rl_algo
-        self.link_bw = link_bw
         self.packet_record = PacketRecord()
         self.num_steps = 0
         self.episode_reward  = []
@@ -124,12 +123,12 @@ class RTCEnv(Env):
         self.num_steps += 1
         # TODO: Check whether it's okay to decide 'done' here
         # and not inside SB3 RL algorithms, e.g. OffPolicyAlgorithm
-        if self.num_steps > self.info['episode']:
-            done = True
-        else:
-            done = False
+        # if self.num_steps > self.info['episode']:
+        #     done = True
+        # else:
+        #     done = False
 
-        return obs, reward, done, self.info
+        return obs, reward, None, self.info
 
     '''
     Resets the environment to an initial state and returns an initial observation.
