@@ -1,12 +1,14 @@
 import random
 import subprocess
+import sys
 import logging
-logging.basicConfig(filename='step_obs_reward_action.log', encoding='utf-8', level=logging.INFO)
-
-# Hello World client in Python
-# Connects REQ socket to tcp://localhost:5555
-# Sends "Hello" to server, expects "World" back
-import zmq
+logging.basicConfig(
+    filename='example.log', encoding='utf-8',
+    format='%(asctime)s,%(msecs)d %(levelname)-8s [%(pathname)s:%(lineno)d in ' \
+           'function %(funcName)s] %(message)s',
+    datefmt='%Y-%m-%d:%H:%M:%S',
+    level=logging.DEBUG
+)
 
 def fetch_stats(line):
     line = line.strip()
@@ -17,7 +19,7 @@ def fetch_stats(line):
         stats_dict['rtt'] = float(lrdr[2].split(' ')[1])
         stats_dict['delay_interval'] = float(lrdr[3].split(' ')[1])
         stats_dict['recv_thp'] = float(lrdr[4].split(' ')[1])
-        logging.info(f'fetch_stats: {stats_dict}')
+        print(f'fetch_stats:<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< {stats_dict}')
         return stats_dict
     else:
         return None
@@ -34,30 +36,15 @@ def relay_packet_stats(ifd, ofd, env):
         # Extract packet statistics
         stats_dict = fetch_stats(line)
         if stats_dict:
+            print(f'relay_packet_stats:================================= {stats_dict}')
             env.packet_record.add_loss_rate(stats_dict['loss_rate'])
             env.packet_record.add_rtt(stats_dict['rtt'])
             env.packet_record.add_delay_interval()
-            env.packet_record.add_receiver_side_thp(stats_dict['receiver_side_thp'])
+            env.packet_record.add_receiver_side_thp(stats_dict['recv_thp'])
             continue
 
-        ofd.write(line)
-        ofd.flush()
-
-    # context = zmq.Context()
-
-    # # Socket to talk to server
-    # logging.info('Connecting to hello world server...')
-    # socket = context.socket(zmq.REQ)
-    # socket.connect("tcp://localhost:5555")
-
-    # # Do 10 requests, waiting each time for a response
-    # for request in range(10):
-    #     logging.info(f'Sending {request}th request')
-    #     socket.send("Hello")
-
-    #     # Get the reply.
-    #     message = socket.recv()
-    #     logging.info(f'Received {request}th reply: {message}')
+        sys.stdout.write(f'{line}')
+        sys.stdout.flush()
 
 def check_call_result(receiver_app, sender_app):
     # Log whether the call ended successfully
@@ -106,7 +93,7 @@ def generate_random_port():
 
 
 def run_call(env, link_bandwidth, delay):
-    logging.info(f'run_call: starting')
+    print(f'run_call: starting')
     # `peerconnection_serverless.origin` is an e2e WebRTC app built by examples/BUILD.gn
     # Run this e2e app on separate processes in parallel
     # with AlphaCC config file as an argument (e.g. receiver_pyinfer.json)
@@ -118,28 +105,12 @@ def run_call(env, link_bandwidth, delay):
 
     # Run the video call
     receiver_app = subprocess.Popen(receiver_cmd, shell=True)
-    sender_app = subprocess.Popen(sender_cmd, bufsize=1, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    logging.info(f'Running a video call env: link BW {link_bandwidth}, one-way delay {delay}ms')
+    sender_app = subprocess.Popen(sender_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+    print(f'Running a video call env: link BW {link_bandwidth}, one-way delay {delay}ms')
     relay_packet_stats(sender_app.stdout, sender_app.stdin, env)
 
     receiver_app.wait()
     sender_app.wait()
 
     check_call_result(receiver_app, sender_app)
-    logging.info('run_call: ended')
-
-
-# def run_sender(env, link_bandwidth):
-#     logging.info(f'sender_wrapper main arg: {env}')
-
-#     # sender_app = subprocess.Popen(
-#     #     [os.path.join(os.path.dirname(__file__), 'peerconnection_serverless.origin')] + ['sender_pyinfer.json'],
-#     #     bufsize=1,
-#     #     stdin=subprocess.PIPE,
-#     #     stdout=subprocess.PIPE,
-#     #     stderr=subprocess.STDOUT)
-#     logging.info(f'sender_wrapper: starting')
-#     # sender_cmd = f"sleep 5; mm-link traces/{link_bandwidth} traces/{link_bandwidth} $ALPHARTC_HOME/peerconnection_serverless.origin sender_pyinfer.json"
-#     # sender_app = subprocess.Popen(sender_cmd, bufsize=1, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-#     run_call(env, link_bandwidth)
-#     logging.info('sender_wrapper: ended')
+    print('run_call: ended')

@@ -104,8 +104,9 @@ NetworkControlUpdate GoogCcNetworkController::OnProcessInterval(
     ProcessInterval msg) {
   RTC_LOG(LS_VERBOSE) << "AlphaCC: OnProcessInterval called";
   // Check the file that contains latest bwe only after it is updated
-
-  last_estimated_bitrate_bps_ = DataRate::BitsPerSec(rl_agent::GetBwe());
+  int32_t bwe = rl_agent::GetBwe();
+  RTC_LOG(LS_INFO) << "AlphaCC: rl_agent::GetBwe() " << bwe;
+  last_estimated_bitrate_bps_ = DataRate::BitsPerSec(bwe);
   NetworkControlUpdate update;
   update.target_rate = TargetTransferRate();
   update.target_rate->network_estimate.at_time = msg.at_time;

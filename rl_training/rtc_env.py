@@ -6,11 +6,17 @@ import os
 import random
 import numpy as np
 import logging
-logging.basicConfig(filename='step_obs_reward_action.log', encoding='utf-8', level=logging.INFO)
+logging.basicConfig(
+    filename='example.log', encoding='utf-8',
+    format='%(asctime)s,%(msecs)d %(levelname)-8s [%(pathname)s:%(lineno)d in ' \
+           'function %(funcName)s] %(message)s',
+    datefmt='%Y-%m-%d:%H:%M:%S',
+    level=logging.DEBUG
+)
 
 from gym import Env
 from gym import spaces
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "gym"))
+# sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "gym"))
 
 from rl_training.packet_record import PacketRecord
 
@@ -40,6 +46,7 @@ class RTCEnv(Env):
         super(RTCEnv, self).__init__()
         self.metadata = None
         self.action_space_type = action_space_type
+        self.logger = logging.getLogger(__name__)
         self.info = {'episode': 600} # Dict[str, Any]
 
         # Define an action space (must be gym.spaces objects)
@@ -53,7 +60,6 @@ class RTCEnv(Env):
             space = np.array([1e4, 112e4, 223e4, 334e4, 445e4, 556e4, 667e4, 778e4, 889e4, 1000e4])
             self.action_space = DiscreteSpace(10, space)
 
-        # Using 10Kbps ~ 10Mbps as the range of action space.
         # Best practice: action space normalized to [-1, 1], i.e. symmetric and has an interval range of 2,
         # which is usually the same magnitude as the initial stdev of the Gaussian used to define the policy
         # (e.g. unit initial stdev in SB3)
@@ -77,7 +83,6 @@ class RTCEnv(Env):
         self.rl_algo = rl_algo
         self.packet_record = PacketRecord()
         self.num_steps = 0
-        self.episode_reward  = []
 
     '''
     Run one timestep of the environment's dynamics.
@@ -94,6 +99,7 @@ class RTCEnv(Env):
         info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
     '''
     def step(self, action):
+        print(f'Running env.step() 0')
         if type(action) is list or isinstance(action, np.ndarray):
             action_val = action[0]
         elif type(action) is None:
@@ -101,19 +107,21 @@ class RTCEnv(Env):
         else:
             action_val = action
 
+        print(f'Running env.step() 1')
         bwe = self.packet_record.rescale_action(action_val)
         # truncate-then-write the bwe
         with open('bwe.txt', mode='w') as f:
             f.write(f'{bwe}')
+        print(f'Running env.step() 2')
 
-        # Observation.
+        # TODO: obs, reward should be obtained after applying the action
         # TODO: correct delay interval
         obs = self.packet_record.calculate_obs()
-
-        # Reward.
+        print(f'Running env.step() 3')
         reward, recv_thp, loss_rate, rtt, recv_thp_fluct = self.packet_record.calculate_reward()
+        print(f'Running env.step() 4')
 
-        logging.info(f'''\n[{self.rl_algo}] Step {self.num_steps}:
+        print(f'''\n[{self.rl_algo}] Step {self.num_steps}:
         Obs {obs} ([loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp])
         Reward {reward} (50 * {recv_thp} - 50 * {loss_rate} - 10 * {rtt} - 30 * {recv_thp_fluct})
         Action (1Kbps-1Mbps) {bwe} action (-1~1) {action_val}''')
@@ -142,7 +150,6 @@ class RTCEnv(Env):
         # Reset internal states of the environment
         self.packet_record.reset()
         self.num_steps = 0
-        self.episode_reward = []
 
         # Produce initial observation
         action = -0.40140140140140135 # default BWE = 300Kbps

@@ -4,7 +4,13 @@
 import numpy as np
 from statistics import mean
 import logging
-logging.basicConfig(filename='step_obs_reward_action.log', encoding='utf-8', level=logging.INFO)
+logging.basicConfig(
+    filename='example.log', encoding='utf-8',
+    format='%(asctime)s,%(msecs)d %(levelname)-8s [%(pathname)s:%(lineno)d in ' \
+           'function %(funcName)s] %(message)s',
+    datefmt='%Y-%m-%d:%H:%M:%S',
+    level=logging.DEBUG
+)
 
 # For estimated bandwidth (action) or receiver-side thp (bps)
 UNIT_K = 1000
@@ -24,6 +30,7 @@ class PacketRecord:
     def __init__(self):
         # Calculate a state with an average of stats from the latest 10 RTCP packets
         self.history_len = 10
+        self.logger = logging.getLogger(__name__)
         self.reset()
 
     # Initial observation for env.reset()
@@ -40,20 +47,21 @@ class PacketRecord:
         self.packet_stats_dict['receiver_side_thp_fluct'] = [0]
         # Action
         self.packet_stats_dict['bwe'] = [300000]
-        logging.info(f'PacketRecord reset done: internal state init for a new episode')
+        self.call_start = False
+        print(f'PacketRecord reset done: internal state init for a new episode')
 
     def normalize_obs_bps(self, bps):
-        # from 1Kbps-1Mbps to 0~1
+        # 1Kbps-1Mbps to 0~1
         clipped_kbps = np.clip(bps/UNIT_K, MIN_KBPS, MAX_KBPS)
         # log_value = np.log(clipped_value)
         # (x - min) / (max - min) where x, min, max is log values
         # norm_value = (log_value - LOG_MIN_KBPS) / (LOG_MAX_KBPS - LOG_MIN_KBPS)
         norm_kbps = (clipped_kbps - MIN_KBPS) / (MAX_KBPS - MIN_KBPS)
-        logging.info(f'bps (1Kbps-1Mbps) {bps} clipped kbps (1Kbps-1Mbps) {clipped_kbps} norm kbps (0-1) {norm_kbps}')
+        print(f'bps (1Kbps-1Mbps) {bps} clipped kbps (1Kbps-1Mbps) {clipped_kbps} norm kbps (0-1) {norm_kbps}')
         return norm_kbps
 
     def normalize_obs_ms(self, ms):
-        # from 1-100ms to 0~1
+        # 1-100ms to 0~1
         clipped_ms = np.clip(ms, MIN_RTT_MS, MAX_RTT_MS)
         # log_value = np.log(clipped_value)
         # (x - min) / (max - min) where x, min, max is log values
@@ -63,19 +71,18 @@ class PacketRecord:
         return norm_ms
 
     # Referred to https://stats.stackexchange.com/questions/178626/how-to-normalize-data-between-1-and-1
-    # TODO: Sanity check
+    # Using 1Kbps ~ 1Mbps as the range of the action.
     def normalize_action(self, action_bps):
-        # from 1Kbps~1Mbps to -1~1
+        # 1Kbps~1Mbps to -1~1
         norm_action_kbps = 2 * (action_bps/UNIT_K - MIN_KBPS) / (MAX_KBPS - MIN_KBPS) - 1
-        logging.info(f'Action: (1Kbps-1Mbps) {action_bps} to (-1~1) {norm_action_kbps}')
+        print(f'Action: (1Kbps-1Mbps) {action_bps} to (-1~1) {norm_action_kbps}')
         return norm_action_kbps
 
     # Referred to https://stats.stackexchange.com/questions/178626/how-to-normalize-data-between-1-and-1
-    # TODO: Sanity check
     def rescale_action(self, norm_action_kbps):
-        # from -1~1 to 1Kbps~1Mbps
+        # -1~1 to 1Kbps~1Mbps
         rescaled_action_bps = ((MAX_KBPS - MIN_KBPS) * (norm_action_kbps + 1) / 2 + MIN_KBPS) * UNIT_K
-        logging.info(f'Action: (-1~1) {norm_action_kbps} to (1Kbps-1Mbps) {rescaled_action_bps}')
+        print(f'Action: (-1~1) {norm_action_kbps} to (1Kbps-1Mbps) {rescaled_action_bps}')
         return rescaled_action_bps
 
     def get_packet_stats(self):
@@ -94,20 +101,29 @@ class PacketRecord:
         # Normalized receiver-side throughput (for observation)
         recv_side_thp_norm = self.normalize_obs_bps(receiver_side_thp)
         self.packet_stats_dict['receiver_side_thp_norm'].append(recv_side_thp_norm)
-        logging.info(f'Added recv thp (1Kbps-1Mbps) {receiver_side_thp} recv thp (0-1) {recv_side_thp_norm} recv thp fluct (1Kbps-1Mbps) {recv_side_thp_fluct}')
+        print(f'Added recv thp (1Kbps-1Mbps) {receiver_side_thp} recv thp (0-1) {recv_side_thp_norm} recv thp fluct (1Kbps-1Mbps) {recv_side_thp_fluct}')
+        if not self.call_start:
+            self.call_start = True
 
     # Add normalized RTT.
     # 1-100ms to 0-1
     def add_rtt(self, rtt):
-        # TODO: measure delay interval instead of diff in consecutive RTTs
         self.packet_stats_dict['rtt'].append(rtt)
         norm_rtt = self.normalize_obs_ms(rtt)
         self.packet_stats_dict['rtt_norm'].append(norm_rtt)
-        logging.info(f'Added RTT (ms) {rtt} RTT (0-1) {norm_rtt}')
+        print(f'Added RTT (ms) {rtt} RTT (0-1) {norm_rtt}')
+        print(f"@@@@@@@@@@@@@@@ CURRENT PacketRecord['rtt']: {self.packet_stats_dict['rtt']}")
+        if not self.call_start:
+            self.call_start = True
+
 
     def add_loss_rate(self, loss_rate):
         self.packet_stats_dict['loss_rate'].append(loss_rate)
-        logging.info(f'Added loss rate {loss_rate}')
+        print(f'Added loss rate {loss_rate}')
+        print(f"@@@@@@@@@@@@@@@ CURRENT PacketRecord['loss_rate']: {self.packet_stats_dict['loss_rate']}")
+        if not self.call_start:
+            self.call_start = True
+
 
     # TODO: measure delay interval instead of diff in consecutive RTTs
     def add_delay_interval(self):
@@ -116,13 +132,17 @@ class PacketRecord:
         norm_delay_interval = abs(self.normalize_obs_ms(self.packet_stats_dict['rtt'][-1]) \
             - self.normalize_obs_ms(self.packet_stats_dict['rtt'][-2]))
         self.packet_stats_dict['delay_interval_norm'].append(norm_delay_interval)
-        logging.info(f'Added delay interval (ms) {delay_interval} delay interval (0-1) {norm_delay_interval}')
+        print(f'Added delay interval (ms) {delay_interval} delay interval (0-1) {norm_delay_interval}')
+        print(f"@@@@@@@@@@@@@@@ CURRENT PacketRecord['delay_interval_norm']: {self.packet_stats_dict['delay_interval_norm']}")
+        if not self.call_start:
+            self.call_start = True
+
 
     # TODO: dequeue the items when using them
     def _get_latest_history_len_stats(self, key):
         assert self.history_len > 0
         latest_history_len_stats = self.packet_stats_dict[key][-self.history_len:]
-        logging.info(f'latest {self.history_len} {key}: {latest_history_len_stats}')
+        print(f'latest {self.history_len} {key}: {latest_history_len_stats}')
         return latest_history_len_stats if len(latest_history_len_stats) > 0 else [0]
 
     '''

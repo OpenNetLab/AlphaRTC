@@ -1,7 +1,5 @@
 import glob
 import time
-import logging
-logging.basicConfig(filename='step_obs_reward_action.log', encoding='utf-8', level=logging.INFO)
 
 from stable_baselines3 import PPO, A2C, DQN, TD3, SAC
 from rl_training.rtc_env import RTCEnv
@@ -79,5 +77,5 @@ class PolicyFactory:
             self._create_policy(rl_algo)
             return self.env, self.policy
         except ValueError as e:
-            logging.error(e)
+            print(e)
         return None
