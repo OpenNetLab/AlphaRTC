@@ -83,7 +83,12 @@ class PacketRecord:
         # -1~1 to 1Kbps~1Mbps
         rescaled_action_bps = ((MAX_KBPS - MIN_KBPS) * (norm_action_kbps + 1) / 2 + MIN_KBPS) * UNIT_K
         print(f'Action: (-1~1) {norm_action_kbps} to (1Kbps-1Mbps) {rescaled_action_bps}')
-        return rescaled_action_bps
+        if type(rescaled_action_bps) is list or isinstance(rescaled_action_bps, np.ndarray):
+            action_val = rescaled_action_bps[0]
+        else:
+            action_val = rescaled_action_bps
+
+        return action_val
 
     def get_packet_stats(self):
         # get packet stats from zeromq
