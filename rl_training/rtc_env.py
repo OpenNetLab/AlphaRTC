@@ -118,6 +118,7 @@ class RTCEnv(Env):
         self.on_or_off_policy = ''
         if self.rl_algo == 'PPO' or self.rl_algo == 'A2C':
             self.on_or_off_policy = 'On-Policy'
+            # self._last_obs is initialized by env.reset() here
             self.policy._setup_learn(total_timesteps=self.total_timesteps)
         else:
             self.on_or_off_policy = 'Off-Policy'
@@ -184,7 +185,7 @@ class RTCEnv(Env):
         if self.num_rollout_steps < self.total_rollout_steps:
             # We just started the rollout collection.
             if self.num_rollout_steps == 0:
-                self.rollout_collection_init()
+                self.policy.init_rollout_collection()
             self.do_env_step()
             self.num_rollout_steps += 1
             self.num_timesteps += 1
@@ -205,30 +206,35 @@ class RTCEnv(Env):
             print(f'Training finished!')
             self.training_completed = True
 
-    '''
-    Init rollout collection in on-policy training.
-    '''
-    def rollout_collection_init(self):
-        self.policy.policy.set_training_mode(False)
-        self.policy.rollout_buffer.reset()
 
+    '''
+    One env step implemented in two parts:
+    - Part 1. policy.compute_actions() computes actions based on the latest previous obs
+    - Part 2. policy.add_new_obs_and trajectory() sends a trajectory related to the latest previous obs
+      and the new obs.
+    '''
     def do_env_step(self):
-        # Calculate obs, reward
-        new_obs = self.packet_record.calculate_obs()
-        rewards, recv_thp, loss_rate, rtt, recv_thp_fluct \
-            = self.packet_record.calculate_reward()
-        # Compute action based on the obs, reward
-        action = self.policy.env_step(new_obs, rewards, None, self.info)
-        # Apply the action to the video call
-        bwe = self.packet_record.rescale_action(action)
+        # Part 1. Compute action and based on the previous obs
+        # and send it to the video call sender
+        actions, values, log_probs = self.policy.compute_actions()
+        bwe = self.packet_record.rescale_action(actions)
         # truncate-then-write the bwe
         with open('bwe.txt', mode='w') as f:
             f.write(f'{bwe}')
 
+        # Part 2. Independent from the action,
+        # sends a trajectory related to the latest previous obs and the new obs to the policy
+        new_obs = self.packet_record.calculate_obs()
+        rewards, recv_thp, loss_rate, rtt, recv_thp_fluct = self.packet_record.calculate_reward()
+        self.policy.add_new_obs_and_trajectory(new_obs, actions, rewards, values, log_probs, None, self.info)
+
+        # New Obs: a new obs collected, as a result of the previously computed action
+        # Reward: how good the previously computed action was
+        # Action: a new action computed based on the previous obs
         print(f'''\n[{self.on_or_off_policy} {self.rl_algo}] Step {self.num_timesteps}:
-            Obs {new_obs} ([loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp])
+            New Obs {new_obs} ([loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp])
             Reward {rewards} (50 * {recv_thp} - 50 * {loss_rate} - 10 * {rtt} - 30 * {recv_thp_fluct})
-            Action (1Kbps-1Mbps) {bwe} action (-1~1) {action}''')
+            Action (1Kbps-1Mbps) {bwe} action (-1~1) {actions}''')
 
     def off_policy_training(self, stats_dict):
         pass
