@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import torch
 import numpy as np
 from statistics import mean
 import logging
@@ -107,6 +108,7 @@ class PacketRecord:
         recv_side_thp_norm = self.normalize_obs_bps(receiver_side_thp)
         self.packet_stats_dict['receiver_side_thp_norm'].append(recv_side_thp_norm)
         print(f'Added recv thp (1Kbps-1Mbps) {receiver_side_thp} recv thp (0-1) {recv_side_thp_norm} recv thp fluct (1Kbps-1Mbps) {recv_side_thp_fluct}')
+        # print(f"PacketRecord['recv_thp']: {self.packet_stats_dict['receiver_side_thp']}")
         if not self.call_start:
             self.call_start = True
 
@@ -117,7 +119,7 @@ class PacketRecord:
         norm_rtt = self.normalize_obs_ms(rtt)
         self.packet_stats_dict['rtt_norm'].append(norm_rtt)
         print(f'Added RTT (ms) {rtt} RTT (0-1) {norm_rtt}')
-        print(f"@@@@@@@@@@@@@@@ CURRENT PacketRecord['rtt']: {self.packet_stats_dict['rtt']}")
+        # print(f"PacketRecord['rtt']: {self.packet_stats_dict['rtt']}")
         if not self.call_start:
             self.call_start = True
 
@@ -125,7 +127,7 @@ class PacketRecord:
     def add_loss_rate(self, loss_rate):
         self.packet_stats_dict['loss_rate'].append(loss_rate)
         print(f'Added loss rate {loss_rate}')
-        print(f"@@@@@@@@@@@@@@@ CURRENT PacketRecord['loss_rate']: {self.packet_stats_dict['loss_rate']}")
+        # print(f"PacketRecord['loss_rate']: {self.packet_stats_dict['loss_rate']}")
         if not self.call_start:
             self.call_start = True
 
@@ -138,7 +140,7 @@ class PacketRecord:
             - self.normalize_obs_ms(self.packet_stats_dict['rtt'][-2]))
         self.packet_stats_dict['delay_interval_norm'].append(norm_delay_interval)
         print(f'Added delay interval (ms) {delay_interval} delay interval (0-1) {norm_delay_interval}')
-        print(f"@@@@@@@@@@@@@@@ CURRENT PacketRecord['delay_interval_norm']: {self.packet_stats_dict['delay_interval_norm']}")
+        # print(f"PacketRecord['delay_interval_norm']: {self.packet_stats_dict['delay_interval_norm']}")
         if not self.call_start:
             self.call_start = True
 
@@ -159,7 +161,10 @@ class PacketRecord:
         norm_rtt = mean(self._get_latest_history_len_stats(key='rtt_norm'))
         norm_delay_interval = mean(self._get_latest_history_len_stats(key='delay_interval_norm'))
         norm_recv_thp = mean(self._get_latest_history_len_stats(key='receiver_side_thp_norm'))
-        return [loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp]
+        obs = [loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp]
+        # TODO: correctness check
+        obs_tensor = torch.unsqueeze(torch.as_tensor(np.array(obs), device='cpu'), 0)
+        return obs_tensor
 
     '''
     Incentivize increase in receiver-side thp,

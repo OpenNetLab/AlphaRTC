@@ -34,12 +34,12 @@ class PolicyFactory:
         self.env = RTCEnv(rl_algo='A2C')
         # It will check your custom environment and output additional warnings if needed
         # check_env(self.env, warn=True)
-        self.policy = A2C("MlpPolicy", self.env, n_steps=self.episode_len, device='cpu', verbose=1)
+        self.policy = A2C("MlpPolicy", self.env, device='cpu', verbose=1)
 
     def _create_ppo_policy(self):
         self.env = RTCEnv(rl_algo='PPO')
         # check_env(self.env, warn=True)
-        self.policy = PPO("MlpPolicy", self.env, n_steps=self.episode_len, device='cpu', verbose=1)
+        self.policy = PPO("MlpPolicy", self.env, device='cpu', verbose=1)
 
     def _create_dqn_policy(self):
         self.env = RTCEnv(rl_algo='DQN', action_space_type='discrete')

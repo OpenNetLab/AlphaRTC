@@ -98,7 +98,8 @@ class RTCEnv(Env):
         super(RTCEnv, self).__init__()
         self.metadata = None
         self.action_space_type = action_space_type
-        self.info = {'episode': 600} # Dict[str, Any]
+        self.dones = np.zeros(1)
+        self.infos = [{'episode': 640}] # List[Dict[str, Any]]
         self.logger = logging.getLogger(__name__)
         self.policy = None
         self.link_bandwidth = None
@@ -118,8 +119,6 @@ class RTCEnv(Env):
         self.on_or_off_policy = ''
         if self.rl_algo == 'PPO' or self.rl_algo == 'A2C':
             self.on_or_off_policy = 'On-Policy'
-            # self._last_obs is initialized by env.reset() here
-            self.policy._setup_learn(total_timesteps=self.total_timesteps)
         else:
             self.on_or_off_policy = 'Off-Policy'
         self.training_completed = False
@@ -160,8 +159,12 @@ class RTCEnv(Env):
 
     def set_policy(self, policy):
         self.policy = policy
-        self.total_rollout_steps = policy.n_steps
-        self.total_timesteps = policy._total_timesteps
+        self.total_rollout_steps = policy.n_rollout_steps
+        # TODO: get total_timesteps as policy-specific args
+        self.total_timesteps = 6400 # policy._total_timesteps
+        if self.rl_algo == 'PPO' or self.rl_algo == 'A2C':
+            # self._last_obs is initialized by env.reset() here
+            self.policy._setup_learn(total_timesteps=self.total_timesteps)
 
     def set_bw_delay(self, link_bandwidth, delay):
         self.link_bandwidth = link_bandwidth
@@ -213,20 +216,27 @@ class RTCEnv(Env):
     - Part 2. policy.add_new_obs_and trajectory() sends a trajectory related to the latest previous obs
       and the new obs.
     '''
+    # TODO: Rewrite policy#add_new_obs_and_trajectory and policy#compute_action such that:
+    # obs: observation obtained as a result of applying the current action
+    # rewards: how good the current action was
+    # compute_actions() returns
     def do_env_step(self):
-        # Part 1. Compute action and based on the previous obs
+        # Part 2. Compute action and based on the previous obs
         # and send it to the video call sender
         actions, values, log_probs = self.policy.compute_actions()
         bwe = self.packet_record.rescale_action(actions)
+        if type(bwe) is list or isinstance(bwe, np.ndarray):
+            bwe = bwe[0]
         # truncate-then-write the bwe
         with open('bwe.txt', mode='w') as f:
             f.write(f'{bwe}')
 
-        # Part 2. Independent from the action,
-        # sends a trajectory related to the latest previous obs and the new obs to the policy
+        # Part 1. Sends a trajectory (the latest previous obs and the new obs to the policy)
+        # obs: observation obtained as a result of applying the current action
+        # rewards: how good the current action was
         new_obs = self.packet_record.calculate_obs()
         rewards, recv_thp, loss_rate, rtt, recv_thp_fluct = self.packet_record.calculate_reward()
-        self.policy.add_new_obs_and_trajectory(new_obs, actions, rewards, values, log_probs, None, self.info)
+        self.policy.add_trajectory(new_obs, actions, rewards, values, log_probs, self.dones, self.infos)
 
         # New Obs: a new obs collected, as a result of the previously computed action
         # Reward: how good the previously computed action was
@@ -246,7 +256,7 @@ class RTCEnv(Env):
         receiver_cmd = f"$ALPHARTC_HOME/peerconnection_serverless.origin receiver_pyinfer.json"
         sender_cmd = f"sleep 5; mm-link traces/{self.link_bandwidth} traces/{self.link_bandwidth} $ALPHARTC_HOME/peerconnection_serverless.origin sender_pyinfer.json"
         receiver_app = subprocess.Popen(receiver_cmd, shell=True)
-        sender_app = subprocess.Popen(sender_cmd, bufsize=1, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+        sender_app = subprocess.Popen(sender_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
         print(f'Video call started. link BW {self.link_bandwidth}, one-way delay {self.delay}ms')
 
         # A loop that monitors sender-side packet stats in real time for training.
@@ -323,7 +333,7 @@ class RTCEnv(Env):
 
         # self.num_timesteps += 1
 
-        # return obs, reward, None, self.info
+        # return obs, reward, None, self.infos
 
     '''
     Resets the environment to an initial state and returns an initial observation.
@@ -345,8 +355,7 @@ class RTCEnv(Env):
         self.num_stats = 0
 
         # Produce initial observation
-        action = -0.4014 # default BWE = 300Kbps
-        obs, _, _, _ = self.step(action)
+        obs = self.packet_record.calculate_obs()
         logging.info(f'env reset done: an environment for a new episode is set')
         return obs
 

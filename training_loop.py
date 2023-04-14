@@ -57,7 +57,7 @@ def main():
     link_bandwidth='300kbps'
     delay=0
 
-    env, policy = PolicyFactory(episode_len=64).create_policy(RL_ALGO)
+    env, policy = PolicyFactory(episode_len=640).create_policy(RL_ALGO)
     env.set_policy(policy)
     env.set_bw_delay(link_bandwidth, delay)
     env.start_call()
