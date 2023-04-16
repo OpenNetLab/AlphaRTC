@@ -74,18 +74,6 @@ def generate_random_port():
     with open("port_assignment.log", "a+") as out:
         out.write(str(ret_port)+"\n")
 
-class DiscreteSpace(spaces.discrete.Discrete):
-    def __init__(self, n, space):
-        assert n >= 0
-        self.n = n
-        self.space = space
-        super(DiscreteSpace, self).__init__(n)
-
-    def sample(self):
-        ret = random.choice(self.space)
-        # print(f'{ret} sampled from the discrete action space')
-        return ret
-
 """
 Custom Environment that follows OpenAI gym interface.
 Must inherit from OpenAI Gym Class
@@ -114,7 +102,7 @@ class RTCEnv(Env):
         self.total_timesteps = 0
         self.num_timesteps = 0
         assert rl_algo == 'PPO' or rl_algo == 'A2C' \
-            or rl_algo == 'DQN' or rl_algo == 'SAC'
+            or rl_algo == 'DQN' or rl_algo == 'SAC' or rl_algo == 'TD3'
         self.rl_algo = rl_algo
         self.on_or_off_policy = ''
         if self.rl_algo == 'PPO' or self.rl_algo == 'A2C':
@@ -123,18 +111,9 @@ class RTCEnv(Env):
             self.on_or_off_policy = 'Off-Policy'
         self.training_completed = False
 
-        self.packet_record = PacketRecord()
-
         # Define an action space (must be gym.spaces objects)
         if self.action_space_type == 'discrete':
-            '''
-            Using 10Kbps ~ 10Mbps as the range of action space
-            10Kbps = 10,000 bps
-            10Mbps = 10,000,000 bps
-            (10Mbps - 10Kbps) / 10 = 111e4
-            '''
-            space = np.array([1e4, 112e4, 223e4, 334e4, 445e4, 556e4, 667e4, 778e4, 889e4, 1000e4])
-            self.action_space = DiscreteSpace(10, space)
+            self.action_space = spaces.Discrete(10)
 
         # Best practice: action space normalized to [-1, 1], i.e. symmetric and has an interval range of 2,
         # which is usually the same magnitude as the initial stdev of the Gaussian used to define the policy
@@ -155,6 +134,7 @@ class RTCEnv(Env):
             high=np.array([1.0, 1.0, 1.0, 1.0]),
             dtype=np.float64)
 
+        self.packet_record = PacketRecord()
 
     def set_policy(self, policy):
         self.policy = policy
@@ -162,10 +142,10 @@ class RTCEnv(Env):
         self.total_timesteps = 6400 # policy._total_timesteps
         if self.rl_algo == 'PPO' or self.rl_algo == 'A2C':
             self.total_rollout_steps = self.policy.n_rollout_steps
-            # self._last_obs is initialized by env.reset() here
-            self.policy._setup_learn(total_timesteps=self.total_timesteps)
         else:
             self.total_rollout_steps = self.policy.train_freq.frequency
+        # for on-policy algorithms, self._last_obs is initialized by env.reset() here
+        self.policy._setup_learn(total_timesteps=self.total_timesteps)
 
     def set_bw_delay(self, link_bandwidth, delay):
         self.link_bandwidth = link_bandwidth
@@ -192,7 +172,7 @@ class RTCEnv(Env):
         # Part 2. Compute action and based on the previous obs
         # and send it to the video call sender
         actions, values, log_probs = self.policy.compute_actions()
-        bwe = self.packet_record.rescale_action(actions)
+        bwe = self.packet_record.rescale_action_continuous(actions)
         if type(bwe) is list or isinstance(bwe, np.ndarray):
             bwe = bwe[0]
         # truncate-then-write the bwe
@@ -260,7 +240,10 @@ class RTCEnv(Env):
         # Part 2. Sample an action according to the exploration policy
         # and send it to the video call sender
         actions, buffer_actions = self.policy.sample_action()
-        bwe = self.packet_record.rescale_action(actions)
+        if (self.action_space_type == 'continuous'):
+            bwe = self.packet_record.rescale_action_continuous(actions)
+        else:
+            bwe = self.packet_record.rescale_action_discrete(actions)
         if type(bwe) is list or isinstance(bwe, np.ndarray):
             bwe = bwe[0]
         # truncate-then-write the bwe
@@ -368,33 +351,7 @@ class RTCEnv(Env):
         info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
     '''
     def step(self, action):
-        print(f'env.step() not used!')
-        logging.error(f'env.step() not used!')
-        # if type(action) is list or isinstance(action, np.ndarray):
-        #     action_val = action[0]
-        # elif type(action) is None:
-        #     action_val = -0.40140140140140135 # default BWE = 300Kbps
-        # else:
-        #     action_val = action
-
-        # bwe = self.packet_record.rescale_action(action_val)
-        # # truncate-then-write the bwe
-        # with open('bwe.txt', mode='w') as f:
-        #     f.write(f'{bwe}')
-
-        # # TODO: obs, reward should be obtained after applying the action
-        # # TODO: correct delay interval
-        # obs = self.packet_record.calculate_obs()
-        # reward, recv_thp, loss_rate, rtt, recv_thp_fluct = self.packet_record.calculate_reward()
-
-        # print(f'''\n[{self.rl_algo}] Step {self.num_timesteps}:
-        # Obs {obs} ([loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp])
-        # Reward {reward} (50 * {recv_thp} - 50 * {loss_rate} - 10 * {rtt} - 30 * {recv_thp_fluct})
-        # Action (1Kbps-1Mbps) {bwe} action (-1~1) {action_val}''')
-
-        # self.num_timesteps += 1
-
-        # return obs, reward, None, self.infos
+        logging.error(f'env.step() is no more used!')
 
     '''
     Resets the environment to an initial state and returns an initial observation.

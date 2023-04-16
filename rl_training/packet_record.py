@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import torch
 import numpy as np
 from statistics import mean
@@ -79,8 +76,14 @@ class PacketRecord:
         print(f'Action: (1Kbps-1Mbps) {action_bps} to (-1~1) {norm_action_kbps}')
         return norm_action_kbps
 
+    def rescale_action_discrete(self, action_idx):
+        # 10 discrete action values in 1Kbps~1Mbps
+        action_space = np.array([1e3, 112e4, 223e4, 334e4, 445e4, 556e4, 667e4, 778e4, 889e4, 1000e4])
+        print(f'Action: (0~9) {action_idx} to (1Kbps-1Mbps) {action_space[action_idx]}')
+        return action_space[action_idx]
+
     # Referred to https://stats.stackexchange.com/questions/178626/how-to-normalize-data-between-1-and-1
-    def rescale_action(self, norm_action_kbps):
+    def rescale_action_continuous(self, norm_action_kbps):
         # -1~1 to 1Kbps~1Mbps
         rescaled_action_bps = ((MAX_KBPS - MIN_KBPS) * (norm_action_kbps + 1) / 2 + MIN_KBPS) * UNIT_K
         print(f'Action: (-1~1) {norm_action_kbps} to (1Kbps-1Mbps) {rescaled_action_bps}')

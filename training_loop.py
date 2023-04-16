@@ -7,7 +7,7 @@ import numpy as np
 from rl_training.policy_factory import PolicyFactory
 
 
-RL_ALGO='SAC'
+RL_ALGO='TD3'
 LINK_BW='1mbps'
 
 
