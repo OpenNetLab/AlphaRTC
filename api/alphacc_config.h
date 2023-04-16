@@ -35,9 +35,6 @@ struct AlphaCCConfig {
   bool is_sender = false;
   bool is_receiver = false;
 
-  // training or evaluation
-  std::string type;
-
   // The address to connect to
   std::string dest_ip;
   int dest_port = 0;

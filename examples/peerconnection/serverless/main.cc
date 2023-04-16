@@ -161,42 +161,10 @@ int main(int argc, char* argv[]) {
   rtc::scoped_refptr<Conductor> conductor(
       new rtc::RefCountedObject<Conductor>(&client, &wnd));
 
-  if (config->type.compare("evalaution") == 0) {
-    std::ofstream ofs;
-    ofs.open("port_assignment.log", std::fstream::out | std::fstream::app);
-    ofs << "type=evaluation, using port " << config->listening_port << std::endl;
-    ofs.close();
-    //std::cout << "type=evaluation, using port " << config->listening_port << std::endl;
-    if (config->is_receiver) {
-      client.StartListen(config->listening_ip, config->listening_port);
-    } else if (config->is_sender) {
-      client.StartConnect(config->dest_ip, config->dest_port);
-    }
-  } else if (config->type.compare("training") == 0) {
-    // Read port from a free_port file
-    // (used for single-node emulator training only)
-    std::ifstream freeport ("free_port");
-    std::string free_port;
-    int free_port_int = 8000;
-    if(freeport.is_open()) {
-      freeport >> free_port;
-      free_port_int = stoi(free_port);
-      std::cout << "free port: " << free_port_int << std::endl;
-    } else {
-      std::cout << "Failed to open free_port file! Using port 8000" << std::endl;
-    }
-    std::ofstream ofs;
-    ofs.open("port_assignment.log", std::fstream::out | std::fstream::app);
-    ofs << "type=training, using port " << free_port_int << std::endl;
-    ofs.close();
-    // std::cout << "type=training, using port " << free_port_int << std::endl;
-    if (config->is_receiver) {
-      client.StartListen(config->listening_ip, free_port_int);
-    } else if (config->is_sender) {
-      client.StartConnect(config->dest_ip, free_port_int);
-    }
-  } else {
-    std::cout << "e2e call type is neither training nor evaluation!" << std::endl;
+  if (config->is_receiver) {
+    client.StartListen(config->listening_ip, config->listening_port);
+  } else if (config->is_sender) {
+    client.StartConnect(config->dest_ip, config->dest_port);
   }
 
   wnd.Run();

@@ -71,7 +71,7 @@ int PASCAL wWinMain(HINSTANCE instance,
   if (config->is_sender) {
     client.StartConnect(config->dest_ip, config->dest_port);
   }
- 
+
   // Main loop.
   MSG msg;
   BOOL gm;

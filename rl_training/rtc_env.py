@@ -90,8 +90,6 @@ class RTCEnv(Env):
         self.infos = [{'episode': 640}] # List[Dict[str, Any]]
         self.logger = logging.getLogger(__name__)
         self.policy = None
-        self.link_bandwidth = None
-        self.delay = None
         self.num_stats = 0
         # number of steps in one rollout collection loop.
         # 2048 for PPO, 5 for A2C
@@ -147,10 +145,6 @@ class RTCEnv(Env):
         # for on-policy algorithms, self._last_obs is initialized by env.reset() here
         self.policy._setup_learn(total_timesteps=self.total_timesteps)
 
-    def set_bw_delay(self, link_bandwidth, delay):
-        self.link_bandwidth = link_bandwidth
-        self.delay = delay
-
     def collect_packet_stats(self, stats_dict):
         self.packet_record.add_loss_rate(stats_dict['loss_rate'])
         self.packet_record.add_rtt(stats_dict['rtt'])
@@ -195,38 +189,6 @@ class RTCEnv(Env):
             Action (1Kbps-1Mbps) {bwe} action (-1~1) {actions}''')
 
     '''
-    Adaptation of SB3's OnPolicyAlgorithm for an environment that runs in real-time.
-    '''
-    def on_policy_training(self):
-        print(f'env.on_policy_training:=====================')
-        # (1) Rollout collection.
-        # One rollout collection consists of total_rollout_steps number of env.step()s.
-        # Do env.step() when history_len number of stats are collected.
-        if self.num_rollout_steps < self.total_rollout_steps:
-            # We just started the rollout collection.
-            if self.num_rollout_steps == 0:
-                self.policy.init_rollout_collection()
-            self.on_policy_env_step()
-            self.num_rollout_steps += 1
-            self.num_timesteps += 1
-
-        # (2) Model update.
-        # After finishing one rollout collection loop, do model update.
-        if self.num_rollout_steps % self.total_rollout_steps == 0:
-            self.num_rollout_steps = 0
-            # Used in PPO
-            self.policy._update_current_progress_remaining(self.num_timesteps, self.total_timesteps)
-            print(f'\n[{self.on_or_off_policy} {self.rl_algo}] Step {self.num_timesteps}: Starting model update ({self.total_rollout_steps} steps for a single rollout collection)')
-            # Do model update
-            self.policy.train()
-            # One policy.learn loop finished
-
-        # Training finished (total_timesteps number of steps reached)!
-        if self.num_timesteps == self.total_timesteps:
-            print(f'Training finished!')
-            self.training_completed = True
-
-    '''
     One env step implemented in two parts:
     - Part 1. policy.compute_actions() computes actions based on the latest previous obs
     - Part 2. policy.add_new_obs_and trajectory() sends a trajectory related to the latest previous obs
@@ -265,21 +227,27 @@ class RTCEnv(Env):
             Reward {rewards} (50 * {recv_thp} - 50 * {loss_rate} - 10 * {rtt} - 30 * {recv_thp_fluct})
             Action (1Kbps-1Mbps) {bwe} action (-1~1) {actions}''')
 
-    def off_policy_training(self):
-        print(f'env.off_policy_training:=====================')
+    def rollout_collection(self):
         # (1) Rollout collection.
-        # One rollout collection consists of policy.train_freq.frequency number of env.step()s.
+        # One rollout collection consists of total_rollout_steps number of env.step()s.
         # Do env.step() when history_len number of stats are collected.
         if self.num_rollout_steps < self.total_rollout_steps:
             # We just started the rollout collection.
             if self.num_rollout_steps == 0:
                 self.policy.init_rollout_collection()
-            self.off_policy_env_step()
+            # Execute logic that corresponds to env.step()
+            if self.on_or_off_policy == 'On-Policy':
+                self.on_policy_env_step()
+            else:
+                self.off_policy_env_step()
+            # TODO: num_rollout_steps should be incremented by the number of stats collected
             self.num_rollout_steps += 1
             self.num_timesteps += 1
 
+    def model_update(self):
         # (2) Model update.
         # After finishing one rollout collection loop, do model update.
+        # TODO: Add proper synchronization for self.num_stats which is updated by multiple calls
         if self.num_rollout_steps % self.total_rollout_steps == 0:
             self.num_rollout_steps = 0
             self.policy.collection_loop_fin(True)
@@ -293,47 +261,69 @@ class RTCEnv(Env):
             print(f'Training finished!')
             self.training_completed = True
 
-    def start_call(self):
+    '''
+    Adaptation of SB3's OnPolicyAlgorithm for an environment that runs in real-time.
+    '''
+    def train(self):
+        self.rollout_collection()
+        # TODO: Model update should be called after one episode from each env have finished
+        self.model_update()
+
+    def start_calls(self, link_bandwidth, delay):
         # Randomly assign different port for this video call
-        generate_random_port()
+        # generate_random_port()
         # Run the video call (env) in separate processes
         receiver_cmd = f"$ALPHARTC_HOME/peerconnection_serverless.origin receiver_pyinfer.json"
-        sender_cmd = f"sleep 5; mm-link traces/{self.link_bandwidth} traces/{self.link_bandwidth} $ALPHARTC_HOME/peerconnection_serverless.origin sender_pyinfer.json"
+        sender_cmd = f"sleep 5; mm-link traces/{link_bandwidth} traces/{link_bandwidth} $ALPHARTC_HOME/peerconnection_serverless.origin sender_pyinfer.json"
         receiver_app = subprocess.Popen(receiver_cmd, shell=True)
         sender_app = subprocess.Popen(sender_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
-        print(f'Video call started. link BW {self.link_bandwidth}, one-way delay {self.delay}ms')
+        print(f'Video call started: link BW {link_bandwidth}') # , one-way delay {delay}ms')
+
+        receiver_cmd2 = f"$ALPHARTC_HOME/peerconnection_serverless.origin receiver_pyinfer2.json"
+        sender_cmd2 = f"sleep 5; mm-link traces/2mbps traces/2mbps $ALPHARTC_HOME/peerconnection_serverless.origin sender_pyinfer2.json"
+        receiver_app2 = subprocess.Popen(receiver_cmd2, shell=True)
+        sender_app2 = subprocess.Popen(sender_cmd2, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+        print(f'Video call started: link BW 2mbps') # , one-way delay {delay}ms')
 
         # A loop that monitors sender-side packet stats in real time for training.
+        # TODO: cleanup
         while True:
             if self.training_completed:
                 break
 
             line = sender_app.stdout.readline()
-            if not line:
+            line2 = sender_app2.stdout.readline()
+            if not line and not line2:
                 # sender_app completed.
                 break
             if isinstance(line, bytes):
                 line = line.decode("utf-8")
+                stats_dict = fetch_stats(line)
+            if isinstance(line2, bytes):
+                line2 = line2.decode("utf-8")
+                stats_dict2 = fetch_stats(line2)
 
-            # Extract packet statistics
-            stats_dict = fetch_stats(line)
-            if stats_dict:
-                self.collect_packet_stats(stats_dict)
+            # Add newly fetched packet stats
+            if stats_dict or stats_dict2:
+                if stats_dict:
+                    self.collect_packet_stats(stats_dict)
+                if stats_dict2:
+                    self.collect_packet_stats(stats_dict2)
                 # For every HISTORY_LEN number of received packets,
                 # run (1) rollout collection, (2) model update, or both.
-                if self.num_stats % self.packet_record.history_len == 0:
-                    if self.on_or_off_policy == 'On-Policy':
-                        self.on_policy_training()
-                    else:
-                        self.off_policy_training()
+                # if self.num_stats % self.packet_record.history_len == 0:
+                self.train()
 
             sys.stdout.write(f'{line}')
             sys.stdout.flush()
 
         receiver_app.wait()
         sender_app.wait()
+        receiver_app2.wait()
+        sender_app2.wait()
         check_call_result(receiver_app, sender_app)
-        print('Video call ended')
+        check_call_result(receiver_app2, sender_app2)
+        print(f'Video call ended: link BW {link_bandwidth}, 2mbps') # , one-way delay {delay}ms')
 
     '''
     Deprecated.
