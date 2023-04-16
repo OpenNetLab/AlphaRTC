@@ -161,6 +161,8 @@ int main(int argc, char* argv[]) {
   rtc::scoped_refptr<Conductor> conductor(
       new rtc::RefCountedObject<Conductor>(&client, &wnd));
 
+  // TODO: randomly generate free port for this call
+  // instead of reading a static port from config files.
   if (config->is_receiver) {
     client.StartListen(config->listening_ip, config->listening_port);
   } else if (config->is_sender) {
