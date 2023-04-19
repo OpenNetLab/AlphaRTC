@@ -79,4 +79,5 @@ src/
 rl_model/
 .gclient_entries
 *.log
+*-log
 peerconnection_serverless.origin
