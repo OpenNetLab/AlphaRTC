@@ -1,3 +1,4 @@
+import json
 import sys
 import random
 import numpy as np
@@ -46,12 +47,12 @@ def fetch_stats(line):
 Generate a random free tcp6 port.
 Goal: dynamically binding an unused port for e2e call
 '''
-def generate_random_port():
+def generate_random_port(config_file):
     MIN_PORT = 1024
     MAX_PORT = 65535
 
     used_ports = []
-    ret_port = -1
+    free_port = -1
 
     out = subprocess.check_output('netstat -tnlp | grep tcp6', shell=True)
     lines = out.decode("utf-8").split("\n")
@@ -64,15 +65,19 @@ def generate_random_port():
             port = int(local_address.split(':')[-1])
             used_ports.append(port)
 
-    while(ret_port < 0 or ret_port in used_ports):
-        ret_port = random.randint(MIN_PORT, MAX_PORT)
+    while(free_port < 0 or free_port in used_ports):
+        free_port = random.randint(MIN_PORT, MAX_PORT)
 
-    # Write the free port as a file
-    with open("free_port", "w") as out:
-        out.write(str(ret_port))
+    # Write the free port to the designated port file
+    port_path = ''
+    with open(config_file) as json_file:
+        data = json.load(json_file)
+        port_path = data['serverless_connection']['receiver']['listening_port']
+    with open(port_path, "w") as out:
+        out.write(str(free_port))
 
-    with open("port_assignment.log", "a+") as out:
-        out.write(str(ret_port)+"\n")
+    with open('port_assignment.log', "a+") as out:
+        out.write(f'Call with config {config_file}: assigned {free_port} written to {port_path}\n')
 
 """
 Custom Environment that follows OpenAI gym interface.
@@ -271,7 +276,8 @@ class RTCEnv(Env):
 
     def start_calls(self, link_bandwidth, delay):
         # Randomly assign different port for this video call
-        # generate_random_port()
+        generate_random_port('receiver_pyinfer.json')
+        generate_random_port('receiver_pyinfer2.json')
         # Run the video call (env) in separate processes
         receiver_cmd = f"$ALPHARTC_HOME/peerconnection_serverless.origin receiver_pyinfer.json"
         sender_cmd = f"sleep 5; mm-link traces/{link_bandwidth} traces/{link_bandwidth} $ALPHARTC_HOME/peerconnection_serverless.origin sender_pyinfer.json"

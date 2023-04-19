@@ -52,14 +52,14 @@ bool ParseAlphaCCConfig(const std::string& file_path) {
     RETURN_ON_FAIL(GetBool(third, "enabled", &config->is_sender));
     if (config->is_sender) {
       RETURN_ON_FAIL(GetString(third, "dest_ip", &config->dest_ip));
-      RETURN_ON_FAIL(GetInt(third, "dest_port", &config->dest_port));
+      RETURN_ON_FAIL(GetString(third, "dest_port", &config->dest_port));
     }
     third.clear();
     RETURN_ON_FAIL(GetValue(second, "receiver", &third));
     RETURN_ON_FAIL(GetBool(third, "enabled", &config->is_receiver));
     if (config->is_receiver) {
       RETURN_ON_FAIL(GetString(third, "listening_ip", &config->listening_ip));
-      RETURN_ON_FAIL(GetInt(third, "listening_port", &config->listening_port));
+      RETURN_ON_FAIL(GetString(third, "listening_port", &config->listening_port));
     }
     third.clear();
   }

@@ -37,9 +37,9 @@ struct AlphaCCConfig {
 
   // The address to connect to
   std::string dest_ip;
-  int dest_port = 0;
+  std::string dest_port;
   std::string listening_ip;
-  int listening_port = 0;
+  std::string listening_port;
 
   int bwe_feedback_duration_ms = 0;
 

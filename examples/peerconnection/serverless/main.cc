@@ -118,6 +118,33 @@ class MainWindowMock : public MainWindow {
   }
 };
 
+int get_port(const webrtc::AlphaCCConfig* config) {
+  int port = 8000;
+  std::string line;
+  std::string port_path;
+
+  if (config->is_receiver) {
+    port_path = config->listening_port;
+  } else if (config->is_sender) {
+    port_path = config->dest_port;
+  } else {
+    std::cerr << "bad config file: neither receiver nor sender" << std::endl;
+    exit(EINVAL);
+  }
+
+  std::ifstream port_file(port_path);
+  std::getline(port_file, line);
+  std::stringstream sss(line);
+  if( !( sss >> port ) ) {
+      std::cerr << "Failed to read port " << line << " to int" << std::endl;
+  } else {
+      std::cout << "Read port " << port << std::endl;
+  }
+  port_file.close();
+
+  return port;
+}
+
 int main(int argc, char* argv[]) {
   if (argc != 2) {
     fprintf(stderr, "Usage: %s config_file\n", argv[0]);
@@ -163,10 +190,12 @@ int main(int argc, char* argv[]) {
 
   // TODO: randomly generate free port for this call
   // instead of reading a static port from config files.
+  int assigned_port = get_port(config);
+  std::cerr << "Using port " << assigned_port << std::endl;
   if (config->is_receiver) {
-    client.StartListen(config->listening_ip, config->listening_port);
+    client.StartListen(config->listening_ip, assigned_port);
   } else if (config->is_sender) {
-    client.StartConnect(config->dest_ip, config->dest_port);
+    client.StartConnect(config->dest_ip, assigned_port);
   }
 
   wnd.Run();

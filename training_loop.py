@@ -63,7 +63,7 @@ def main():
     env.start_calls(link_bandwidth, delay)
 
     # Save WebRTC logs and plot results
-    save_webrtc_logs()
+    # save_webrtc_logs()
     # plot_recv_thp()
 
 
