@@ -6,8 +6,7 @@ from rl_training.rtc_env import RTCEnv
 
 
 class PolicyFactory:
-    def __init__(self, episode_len):
-        self.episode_len = episode_len
+    def __init__(self):
         self.env = None
         self.policy = None
 
@@ -57,7 +56,7 @@ class PolicyFactory:
         self.policy = SAC("MlpPolicy", self.env, device='cpu', verbose=1)
 
     # Factory method that returns a requested RL algorithm-based policy
-    def _create_policy(self, rl_algo='PPO'):
+    def _create_env_and_policy(self, rl_algo='PPO'):
         if rl_algo == 'A2C':
             self._create_a2c_policy()
         elif rl_algo == 'PPO':
@@ -70,12 +69,13 @@ class PolicyFactory:
             self._create_sac_policy()
         else:
             raise ValueError(f'{rl_algo} is not supported')
+        self.env.policy = self.policy
 
     # A wrapper of the factory method that adds exception handling
-    def create_policy(self, rl_algo):
+    def create_env_and_policy(self, rl_algo):
         try:
-            self._create_policy(rl_algo)
-            return self.env, self.policy
+            self._create_env_and_policy(rl_algo)
+            return self.env
         except ValueError as e:
             print(e)
         return None

@@ -188,8 +188,6 @@ int main(int argc, char* argv[]) {
   rtc::scoped_refptr<Conductor> conductor(
       new rtc::RefCountedObject<Conductor>(&client, &wnd));
 
-  // TODO: randomly generate free port for this call
-  // instead of reading a static port from config files.
   int assigned_port = get_port(config);
   std::cerr << "Using port " << assigned_port << std::endl;
   if (config->is_receiver) {

@@ -7,7 +7,7 @@ import numpy as np
 from rl_training.policy_factory import PolicyFactory
 
 
-RL_ALGO='SAC'
+RL_ALGO='A2C'
 LINK_BW='1mbps'
 
 
@@ -56,10 +56,11 @@ def main():
 
     link_bandwidth='300kbps'
     delay=0
+    # TODO: Check how to specify episode len
+    total_timesteps = 30
 
-    env, policy = PolicyFactory(episode_len=640).create_policy(RL_ALGO)
-    env.set_policy(policy)
-    # TODO: Interface for execution multiple calls in one RTCEnv
+    env = PolicyFactory().create_env_and_policy(RL_ALGO)
+    env.setup_learn(total_timesteps)
     env.start_calls(link_bandwidth, delay)
 
     # Save WebRTC logs and plot results

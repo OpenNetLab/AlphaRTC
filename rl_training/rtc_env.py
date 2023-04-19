@@ -97,11 +97,14 @@ class RTCEnv(Env):
         self.policy = None
         self.num_stats = 0
         # number of steps in one rollout collection loop.
-        # 2048 for PPO, 5 for A2C
+        # HP of an RL algorithm: 2048 for PPO, 5 for A2C
         self.total_rollout_steps = 0
         # number of env.step() performed in a single rollout
+        # reset to 0 when a single rollout is finished
         self.num_rollout_steps = 0
-        # number of steps in one training loop
+        # k-th rollout loops we're in
+        self.kth_rollout_loop = 0
+        # the total number of samples (env steps) to train on
         self.total_timesteps = 0
         self.num_timesteps = 0
         assert rl_algo == 'PPO' or rl_algo == 'A2C' \
@@ -139,22 +142,25 @@ class RTCEnv(Env):
 
         self.packet_record = PacketRecord()
 
-    def set_policy(self, policy):
-        self.policy = policy
-        # TODO: get total_timesteps as policy-specific args
-        self.total_timesteps = 6400 # policy._total_timesteps
-        if self.rl_algo == 'PPO' or self.rl_algo == 'A2C':
+    def setup_learn(self, total_timesteps):
+        # Set total rollout steps
+        if self.on_or_off_policy == 'On-Policy':
             self.total_rollout_steps = self.policy.n_rollout_steps
+            print(f'total_rollout_steps {self.total_rollout_steps}')
         else:
             self.total_rollout_steps = self.policy.train_freq.frequency
-        # for on-policy algorithms, self._last_obs is initialized by env.reset() here
+
+        # Set total timesteps
+        self.total_timesteps = total_timesteps
+        # self.policy._total_timesteps is set in _setup_learn
         self.policy._setup_learn(total_timesteps=self.total_timesteps)
 
-    def collect_packet_stats(self, stats_dict):
+    def collect_packet_stats(self, call_idx, stats_dict):
         self.packet_record.add_loss_rate(stats_dict['loss_rate'])
         self.packet_record.add_rtt(stats_dict['rtt'])
         self.packet_record.add_delay_interval()
         self.packet_record.add_receiver_side_thp(stats_dict['recv_thp'])
+        # print(f'collect_packet_stats: call {call_idx} {stats_dict}')
         self.num_stats += 1
 
     '''
@@ -188,7 +194,7 @@ class RTCEnv(Env):
         # New Obs: a new obs collected, as a result of the previously computed action
         # Reward: how good the previously computed action was
         # Action: a new action computed based on the previous obs
-        print(f'''\n[{self.on_or_off_policy} {self.rl_algo}] Step {self.num_timesteps}:
+        print(f'''\n[{self.on_or_off_policy} {self.rl_algo}] Step {self.num_timesteps} ({self.kth_rollout_loop}th rollout_collection loop):
             New Obs {new_obs} ([loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp])
             Reward {rewards} (50 * {recv_thp} - 50 * {loss_rate} - 10 * {rtt} - 30 * {recv_thp_fluct})
             Action (1Kbps-1Mbps) {bwe} action (-1~1) {actions}''')
@@ -227,7 +233,7 @@ class RTCEnv(Env):
         # New Obs: a new obs collected, as a result of the previously computed action
         # Reward: how good the previously computed action was
         # Action: a new action computed based on the previous obs
-        print(f'''\n[{self.on_or_off_policy} {self.rl_algo}] Step {self.num_timesteps}:
+        print(f'''\n[{self.on_or_off_policy} {self.rl_algo}] Step {self.num_timesteps} ({self.kth_rollout_loop}th rollout_collection loop):
             New Obs {new_obs} ([loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp])
             Reward {rewards} (50 * {recv_thp} - 50 * {loss_rate} - 10 * {rtt} - 30 * {recv_thp_fluct})
             Action (1Kbps-1Mbps) {bwe} action (-1~1) {actions}''')
@@ -252,11 +258,12 @@ class RTCEnv(Env):
     def model_update(self):
         # (2) Model update.
         # After finishing one rollout collection loop, do model update.
-        # TODO: Add proper synchronization for self.num_stats which is updated by multiple calls
+        # print(f'model_update: self.num_rollout_steps {self.num_rollout_steps} self.total_rollout_steps {self.total_rollout_steps} ')
         if self.num_rollout_steps % self.total_rollout_steps == 0:
             self.num_rollout_steps = 0
+            self.kth_rollout_loop += 1
             self.policy.collection_loop_fin(True)
-            print(f'\n[{self.on_or_off_policy} {self.rl_algo}] Step {self.num_timesteps}: Starting model update ({self.total_rollout_steps} steps for a single rollout collection)')
+            print(f'\n[{self.on_or_off_policy} {self.rl_algo}] Step {self.num_timesteps}: Finished rollout_collection, starting model_update ({self.total_rollout_steps} steps for a single rollout collection)')
             # Do model update
             self.policy.train()
             # One policy.learn loop finished
@@ -312,13 +319,14 @@ class RTCEnv(Env):
             # Add newly fetched packet stats
             if stats_dict or stats_dict2:
                 if stats_dict:
-                    self.collect_packet_stats(stats_dict)
+                    self.collect_packet_stats(0, stats_dict)
                 if stats_dict2:
-                    self.collect_packet_stats(stats_dict2)
+                    self.collect_packet_stats(1, stats_dict2)
                 # For every HISTORY_LEN number of received packets,
                 # run (1) rollout collection, (2) model update, or both.
-                # if self.num_stats % self.packet_record.history_len == 0:
-                self.train()
+                if self.num_stats % self.packet_record.history_len == 0:
+                    print(f'HISTORY_LEN reached: {self.num_stats}')
+                    self.train()
 
             sys.stdout.write(f'{line}')
             sys.stdout.flush()
