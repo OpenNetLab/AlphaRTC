@@ -165,10 +165,6 @@ class RTCEnv(Env):
         # print(f'collect_packet_stats: call {call_idx} {stats_dict}')
         self.num_stats += 1
 
-    def is_done(self):
-        episode_len = self.infos[0]['episode']
-        return self.num_timesteps == episode_len
-
     '''
     One env step implemented in two parts:
     - Part 1. policy.compute_actions() computes actions based on the latest previous obs
@@ -196,9 +192,6 @@ class RTCEnv(Env):
         # - rewards: how good the current action was
         new_obs = self.packet_record.calculate_obs()
         rewards, recv_thp, loss_rate, rtt, recv_thp_fluct = self.packet_record.calculate_reward()
-        if self.is_done():
-            self.dones = np.ones(1)
-        print(f'DONES self.timesteps {self.num_timesteps} self.dones {self.dones}')
         self.policy.add_to_rollout_buffer(new_obs, actions, rewards, values, log_probs, self.dones, self.infos)
 
         # New Obs: a new obs collected, as a result of the previously computed action
