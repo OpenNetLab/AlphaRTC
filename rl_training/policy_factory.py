@@ -33,27 +33,27 @@ class PolicyFactory:
         self.env = RTCEnv(rl_algo='A2C')
         # It will check your custom environment and output additional warnings if needed
         # check_env(self.env, warn=True)
-        self.policy = A2C("MlpPolicy", self.env, device='cpu', verbose=1)
+        self.policy = A2C("MlpPolicy", env=self.env, device='cpu', verbose=1)
 
     def _create_ppo_policy(self):
         self.env = RTCEnv(rl_algo='PPO')
         # check_env(self.env, warn=True)
-        self.policy = PPO("MlpPolicy", self.env, device='cpu', verbose=1)
+        self.policy = PPO("MlpPolicy", env=self.env, device='cpu', verbose=1)
 
     def _create_dqn_policy(self):
         self.env = RTCEnv(rl_algo='DQN', action_space_type='discrete')
         # check_env(self.env, warn=True)
-        self.policy = DQN("MlpPolicy", self.env, device='cpu', verbose=1)
+        self.policy = DQN("MlpPolicy", env=self.env, device='cpu', verbose=1)
 
     def _create_td3_policy(self):
         self.env = RTCEnv(rl_algo='TD3')
         # check_env(self.env, warn=True)
-        self.policy = TD3("MlpPolicy", self.env, device='cpu', verbose=1)
+        self.policy = TD3("MlpPolicy", env=self.env, device='cpu', verbose=1)
 
     def _create_sac_policy(self):
         self.env = RTCEnv(rl_algo='SAC')
         # check_env(self.env, warn=True)
-        self.policy = SAC("MlpPolicy", self.env, device='cpu', verbose=1)
+        self.policy = SAC("MlpPolicy", env=self.env, device='cpu', verbose=1)
 
     # Factory method that returns a requested RL algorithm-based policy
     def _create_env_and_policy(self, rl_algo='PPO'):

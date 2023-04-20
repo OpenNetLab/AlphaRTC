@@ -83,6 +83,7 @@ def generate_random_port(config_file):
 Custom Environment that follows OpenAI gym interface.
 Must inherit from OpenAI Gym Class
 and implement the following methods: step(), reset(), render(), close()
+RTCEnv is a single environment that plays multiple video calls in parallel.
 """
 class RTCEnv(Env):
     metadata = {'render.modes': ['human']}
@@ -91,7 +92,8 @@ class RTCEnv(Env):
         super(RTCEnv, self).__init__()
         self.metadata = None
         self.action_space_type = action_space_type
-        self.dones = np.zeros(1)
+        # end of episode signal
+        self.dones = np.zeros(1) # single env (with multiple calls)
         self.infos = [{'episode': 640}] # List[Dict[str, Any]]
         self.logger = logging.getLogger(__name__)
         self.policy = None
@@ -163,6 +165,10 @@ class RTCEnv(Env):
         # print(f'collect_packet_stats: call {call_idx} {stats_dict}')
         self.num_stats += 1
 
+    def is_done(self):
+        episode_len = self.infos[0]['episode']
+        return self.num_timesteps == episode_len
+
     '''
     One env step implemented in two parts:
     - Part 1. policy.compute_actions() computes actions based on the latest previous obs
@@ -174,7 +180,7 @@ class RTCEnv(Env):
     # rewards: how good the current action was
     # compute_actions() returns
     def on_policy_env_step(self):
-        # Part 2. Compute action and based on the previous obs
+        # (1) Compute action based on the latest obs
         # and send it to the video call sender
         actions, values, log_probs = self.policy.compute_actions()
         bwe = self.packet_record.rescale_action_continuous(actions)
@@ -184,11 +190,15 @@ class RTCEnv(Env):
         with open('bwe.txt', mode='w') as f:
             f.write(f'{bwe}')
 
-        # Part 1. Sends a trajectory (the latest previous obs and the new obs to the policy)
-        # obs: observation obtained as a result of applying the current action
-        # rewards: how good the current action was
+        # (2) Sends a trajectory (the latest previous obs and the new obs to the policy)
+        # as a result of applying the action.
+        # - obs: observation obtained as a result of applying the current action
+        # - rewards: how good the current action was
         new_obs = self.packet_record.calculate_obs()
         rewards, recv_thp, loss_rate, rtt, recv_thp_fluct = self.packet_record.calculate_reward()
+        if self.is_done():
+            self.dones = np.ones(1)
+        print(f'DONES self.timesteps {self.num_timesteps} self.dones {self.dones}')
         self.policy.add_to_rollout_buffer(new_obs, actions, rewards, values, log_probs, self.dones, self.infos)
 
         # New Obs: a new obs collected, as a result of the previously computed action
@@ -251,7 +261,6 @@ class RTCEnv(Env):
                 self.on_policy_env_step()
             else:
                 self.off_policy_env_step()
-            # TODO: num_rollout_steps should be incremented by the number of stats collected
             self.num_rollout_steps += 1
             self.num_timesteps += 1
 
@@ -325,7 +334,6 @@ class RTCEnv(Env):
                 # For every HISTORY_LEN number of received packets,
                 # run (1) rollout collection, (2) model update, or both.
                 if self.num_stats % self.packet_record.history_len == 0:
-                    print(f'HISTORY_LEN reached: {self.num_stats}')
                     self.train()
 
             sys.stdout.write(f'{line}')
