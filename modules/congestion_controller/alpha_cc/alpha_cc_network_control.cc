@@ -103,9 +103,7 @@ void GoogCcNetworkController::SendState() {
 NetworkControlUpdate GoogCcNetworkController::OnProcessInterval(
     ProcessInterval msg) {
   RTC_LOG(LS_VERBOSE) << "AlphaCC: OnProcessInterval called";
-  // Check the file that contains latest bwe only after it is updated
   int32_t bwe = rl_agent::GetBwe();
-  RTC_LOG(LS_INFO) << "AlphaCC: rl_agent::GetBwe() " << bwe;
   last_estimated_bitrate_bps_ = DataRate::BitsPerSec(bwe);
   NetworkControlUpdate update;
   update.target_rate = TargetTransferRate();
@@ -151,13 +149,13 @@ PacerConfig GoogCcNetworkController::GetPacingRates(Timestamp at_time) const {
 
 NetworkControlUpdate GoogCcNetworkController::OnRemoteBitrateReport(
     RemoteBitrateReport msg) {
-  RTC_LOG(LS_INFO) << "AlphaCC: OnRemoteBitrateReport called";
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnRemoteBitrateReport called";
   return NetworkControlUpdate();
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnRoundTripTimeUpdate(
     RoundTripTimeUpdate msg) {
-  RTC_LOG(LS_INFO) << "AlphaCC: OnRoundTripTimeUpdate called, RTT (ms) " << msg.round_trip_time.ms();
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnRoundTripTimeUpdate called, RTT (ms) " << msg.round_trip_time.ms();
   if (msg.smoothed)
     return NetworkControlUpdate();
   RTC_DCHECK(!msg.round_trip_time.IsZero());
@@ -248,7 +246,7 @@ void GoogCcNetworkController::CompAverageReceiverSideThroughput(void) {
   }
 
   last_avg_receiver_side_thp_ = sum / size;
-  RTC_LOG(LS_INFO) << "AlphaCC: CompAverageReceiverSideThroughput:"
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: CompAverageReceiverSideThroughput:"
   << " last_avg_receiver_side_thp_ " << last_avg_receiver_side_thp_
   << " size " << size;
   receiver_side_thp_v.clear();
@@ -287,7 +285,7 @@ NetworkControlUpdate GoogCcNetworkController::OnTransportLossReport(
       msg.packets_lost_delta, total_packets_delta, msg.receive_time);
   uint8_t fraction_loss = bandwidth_estimation_->fraction_loss();
   auto loss_rate = (fraction_loss * 100) / 255.0f;
-  RTC_LOG(LS_INFO) << "AlphaCC: OnTransportLossReport called: "
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnTransportLossReport called: "
   << " loss rate (%) " << loss_rate
   << " (total_packets_delta " << total_packets_delta
   << " packets_received_delta " << msg.packets_received_delta
@@ -298,7 +296,7 @@ NetworkControlUpdate GoogCcNetworkController::OnTransportLossReport(
 
 NetworkControlUpdate GoogCcNetworkController::OnTransportPacketsFeedback(
     TransportPacketsFeedback report) {
-  RTC_LOG(LS_INFO) << "AlphaCC: OnTransportPacketsFeedback called";
+  RTC_LOG(LS_VERBOSE) << "AlphaCC: OnTransportPacketsFeedback called";
   // TODO: calculate delay interval
   last_delay_interval_ms_ = 0;
   SendState();

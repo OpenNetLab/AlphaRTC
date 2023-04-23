@@ -1037,7 +1037,7 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
   }
   if (rtcp_loss_notification_observer_ &&
       (packet_information.packet_type_flags & kRtcpLossNotification)) {
-    RTC_LOG(LS_INFO)
+    RTC_LOG(LS_VERBOSE)
           << "Incoming RTCP packet: kRtcpLossNotification";
     rtcp::LossNotification* loss_notification =
         packet_information.loss_notification.get();
@@ -1052,7 +1052,7 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
   if (rtcp_bandwidth_observer_) {
     RTC_DCHECK(!receiver_only_);
     if (packet_information.packet_type_flags & kRtcpRemb) {
-      RTC_LOG(LS_INFO)
+      RTC_LOG(LS_VERBOSE)
           << "Incoming RTCP packet: rtcp_bandwidth_observer_: Incoming REMB: "
           << packet_information.receiver_estimated_max_bitrate_bps;
       rtcp_bandwidth_observer_->OnReceivedEstimatedBitrate(
@@ -1060,7 +1060,7 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
     }
     if ((packet_information.packet_type_flags & kRtcpSr) ||
         (packet_information.packet_type_flags & kRtcpRr)) {
-      RTC_LOG(LS_INFO)
+      RTC_LOG(LS_VERBOSE)
           << "Incoming RTCP packet: rtcp_bandwidth_observer_: OnReceivedRtcpReceiverReport";
       int64_t now_ms = clock_->TimeInMilliseconds();
       rtcp_bandwidth_observer_->OnReceivedRtcpReceiverReport(
@@ -1074,7 +1074,7 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
 
   if (transport_feedback_observer_ &&
       (packet_information.packet_type_flags & kRtcpTransportFeedback)) {
-    RTC_LOG(LS_INFO)
+    RTC_LOG(LS_VERBOSE)
           << "Incoming RTCP packet: kRtcpTransportFeedback";
     uint32_t media_source_ssrc =
         packet_information.transport_feedback->media_ssrc();
@@ -1095,7 +1095,7 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
 
   if (network_state_estimate_observer_ &&
       packet_information.network_state_estimate) {
-    RTC_LOG(LS_INFO)
+    RTC_LOG(LS_VERBOSE)
           << "Incoming RTCP packet: OnRemoteNetworkEstimate";
     network_state_estimate_observer_->OnRemoteNetworkEstimate(
         *packet_information.network_state_estimate);
@@ -1103,7 +1103,7 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
 
   if (bitrate_allocation_observer_ &&
       packet_information.target_bitrate_allocation) {
-    RTC_LOG(LS_INFO)
+    RTC_LOG(LS_VERBOSE)
           << "Incoming RTCP packet: OnBitrateAllocationUpdated";
     bitrate_allocation_observer_->OnBitrateAllocationUpdated(
         *packet_information.target_bitrate_allocation);

@@ -118,20 +118,9 @@ class MainWindowMock : public MainWindow {
   }
 };
 
-int get_port(const webrtc::AlphaCCConfig* config) {
+int get_port(const std::string port_path) {
   int port = 8000;
   std::string line;
-  std::string port_path;
-
-  if (config->is_receiver) {
-    port_path = config->listening_port;
-  } else if (config->is_sender) {
-    port_path = config->dest_port;
-  } else {
-    std::cerr << "bad config file: neither receiver nor sender" << std::endl;
-    exit(EINVAL);
-  }
-
   std::ifstream port_file(port_path);
   std::getline(port_file, line);
   std::stringstream sss(line);
@@ -146,16 +135,12 @@ int get_port(const webrtc::AlphaCCConfig* config) {
 }
 
 int main(int argc, char* argv[]) {
-  if (argc != 2) {
-    fprintf(stderr, "Usage: %s config_file\n", argv[0]);
-    exit(EINVAL);
-  }
-
   const auto json_file_path = argv[1];
   if (!webrtc::ParseAlphaCCConfig(json_file_path)) {
-    std::cerr << "bad config file" << std::endl;
+    std::cerr << "bad config file " << json_file_path << std::endl;
     exit(EINVAL);
   }
+  const std::string port_path = argv[2];
 
   rtc::LogMessage::LogToDebug(rtc::LS_INFO);
 
@@ -188,7 +173,7 @@ int main(int argc, char* argv[]) {
   rtc::scoped_refptr<Conductor> conductor(
       new rtc::RefCountedObject<Conductor>(&client, &wnd));
 
-  int assigned_port = get_port(config);
+  int assigned_port = get_port(port_path);
   std::cerr << "Using port " << assigned_port << std::endl;
   if (config->is_receiver) {
     client.StartListen(config->listening_ip, assigned_port);

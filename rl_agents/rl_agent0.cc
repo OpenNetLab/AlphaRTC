@@ -16,7 +16,7 @@ void rl_agent::SendState(float loss_rate, int64_t rtt, int64_t delay_interval, f
 
 int32_t rl_agent::GetBwe() {
     int32_t bwe = 300000;
-    std::string bwe_file = "bwe11.txt";
+    std::string bwe_file = "bwe0.txt";
     std::ifstream f(bwe_file.c_str());
     std::string line;
     // File exists

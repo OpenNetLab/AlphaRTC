@@ -16,19 +16,7 @@ from gym import Env
 from gym import spaces
 
 from rl_training.packet_record import PacketRecord
-
-def check_call_result(receiver_app, sender_app):
-    # Log whether the call ended successfully
-    call_result = ''
-    if receiver_app.returncode == 0 and sender_app.returncode == 0:
-        call_result = f'Call finished successfully!\n'
-    else:
-        call_result = f'Call finished with errors! \
-            receiver\'s return code {receiver_app.returncode} \
-            sender\'s return code {sender_app.returncode}\n'
-
-    with open("call_result.log", "a+") as out:
-        out.write(call_result)
+from rl_training.call import Call
 
 def fetch_stats(line):
     line = line.strip()
@@ -43,42 +31,6 @@ def fetch_stats(line):
     else:
         return None
 
-'''
-Generate a random free tcp6 port.
-Goal: dynamically binding an unused port for e2e call
-'''
-def generate_random_port(config_file):
-    MIN_PORT = 1024
-    MAX_PORT = 65535
-
-    used_ports = []
-    free_port = -1
-
-    out = subprocess.check_output('netstat -tnlp | grep tcp6', shell=True)
-    lines = out.decode("utf-8").split("\n")
-    # Figure out all the used ports
-    for line in lines:
-        # Proto    Recv-Q    Send-Q    Local Address    Foreign Address    State    PID/Program name
-        line_elements = line.split()
-        if len(line_elements) > 4:
-            local_address = line.split()[3] # e.g., ::1:39673 :::22
-            port = int(local_address.split(':')[-1])
-            used_ports.append(port)
-
-    while(free_port < 0 or free_port in used_ports):
-        free_port = random.randint(MIN_PORT, MAX_PORT)
-
-    # Write the free port to the designated port file
-    port_path = ''
-    with open(config_file) as json_file:
-        data = json.load(json_file)
-        port_path = data['serverless_connection']['receiver']['listening_port']
-    with open(port_path, "w") as out:
-        out.write(str(free_port))
-
-    with open('port_assignment.log', "a+") as out:
-        out.write(f'Call with config {config_file}: assigned {free_port} written to {port_path}\n')
-
 """
 Custom Environment that follows OpenAI gym interface.
 Must inherit from OpenAI Gym Class
@@ -92,12 +44,12 @@ class RTCEnv(Env):
         super(RTCEnv, self).__init__()
         self.metadata = None
         self.action_space_type = action_space_type
+        self.history_len = 10
         # end of episode signal
         self.dones = np.zeros(1) # single env (with multiple calls)
         self.infos = [{'episode': 640}] # List[Dict[str, Any]]
         self.logger = logging.getLogger(__name__)
         self.policy = None
-        self.num_stats = 0
         # number of steps in one rollout collection loop.
         # HP of an RL algorithm: 2048 for PPO, 5 for A2C
         self.total_rollout_steps = 0
@@ -142,7 +94,18 @@ class RTCEnv(Env):
             high=np.array([1.0, 1.0, 1.0, 1.0]),
             dtype=np.float64)
 
-        self.packet_record = PacketRecord()
+        self.call = None
+
+        # Per-call data structures
+        self.packet_records = {}
+        self.num_stats = {}
+
+    def set_calls(self, link_bandwidths, delays):
+        self.call = Call(link_bandwidths, delays)
+        num_calls = self.call.num_calls
+        for call_idx in range(0, num_calls):
+            self.packet_records[call_idx] = PacketRecord()
+            self.num_stats[call_idx] = 0
 
     def setup_learn(self, total_timesteps):
         # Set total rollout steps
@@ -155,15 +118,16 @@ class RTCEnv(Env):
         # Set total timesteps
         self.total_timesteps = total_timesteps
         # self.policy._total_timesteps is set in _setup_learn
-        self.policy._setup_learn(total_timesteps=self.total_timesteps)
+        self.policy._setup_learn(total_timesteps=self.total_timesteps, num_calls=self.call.num_calls)
 
     def collect_packet_stats(self, call_idx, stats_dict):
-        self.packet_record.add_loss_rate(stats_dict['loss_rate'])
-        self.packet_record.add_rtt(stats_dict['rtt'])
-        self.packet_record.add_delay_interval()
-        self.packet_record.add_receiver_side_thp(stats_dict['recv_thp'])
-        # print(f'collect_packet_stats: call {call_idx} {stats_dict}')
-        self.num_stats += 1
+        self.packet_records[call_idx].add_loss_rate(stats_dict['loss_rate'])
+        self.packet_records[call_idx].add_rtt(stats_dict['rtt'])
+        self.packet_records[call_idx].add_delay_interval()
+        self.packet_records[call_idx].add_receiver_side_thp(stats_dict['recv_thp'])
+        self.num_stats[call_idx] += 1
+        print(f'CALL collect_packet_stats: call {call_idx} {stats_dict} num_stats {self.num_stats[call_idx]}')
+
 
     '''
     One env step implemented in two parts:
@@ -175,32 +139,33 @@ class RTCEnv(Env):
     # obs: observation obtained as a result of applying the current action
     # rewards: how good the current action was
     # compute_actions() returns
-    def on_policy_env_step(self):
+    def on_policy_env_step(self, call_idx):
         # (1) Compute action based on the latest obs
         # and send it to the video call sender
-        actions, values, log_probs = self.policy.compute_actions()
-        bwe = self.packet_record.rescale_action_continuous(actions)
+        actions, values, log_probs = self.policy.compute_actions(call_idx)
+        bwe = self.packet_records[call_idx].rescale_action_continuous(actions)
         if type(bwe) is list or isinstance(bwe, np.ndarray):
             bwe = bwe[0]
-        # truncate-then-write the bwe
-        with open('bwe.txt', mode='w') as f:
+        print(f'Call {call_idx} sending BWE {bwe}')
+        # truncate-then-write the bwe for this call
+        with open(f'bwe{call_idx}.txt', mode='w') as f:
             f.write(f'{bwe}')
 
         # (2) Sends a trajectory (the latest previous obs and the new obs to the policy)
         # as a result of applying the action.
         # - obs: observation obtained as a result of applying the current action
         # - rewards: how good the current action was
-        new_obs = self.packet_record.calculate_obs()
-        rewards, recv_thp, loss_rate, rtt, recv_thp_fluct = self.packet_record.calculate_reward()
-        self.policy.add_to_rollout_buffer(new_obs, actions, rewards, values, log_probs, self.dones, self.infos)
+        new_obs = self.packet_records[call_idx].calculate_obs(self.history_len)
+        rewards, recv_thp, loss_rate, rtt, recv_thp_fluct = self.packet_records[call_idx].calculate_reward(self.history_len)
+        self.policy.add_to_rollout_buffer(call_idx, new_obs, actions, rewards, values, log_probs, self.dones, self.infos)
 
         # New Obs: a new obs collected, as a result of the previously computed action
         # Reward: how good the previously computed action was
         # Action: a new action computed based on the previous obs
-        print(f'''\n[{self.on_or_off_policy} {self.rl_algo}] Step {self.num_timesteps} ({self.kth_rollout_loop}th rollout_collection loop):
-            New Obs {new_obs} ([loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp])
-            Reward {rewards} (50 * {recv_thp} - 50 * {loss_rate} - 10 * {rtt} - 30 * {recv_thp_fluct})
-            Action (1Kbps-1Mbps) {bwe} action (-1~1) {actions}''')
+        print(f'[{self.on_or_off_policy} {self.rl_algo}] Step {self.num_timesteps} traj. of call {call_idx} ({self.kth_rollout_loop}th rc loop): New Obs {new_obs} ([loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp]) Reward {rewards} (50 * {recv_thp} - 50 * {loss_rate} - 10 * {rtt} - 30 * {recv_thp_fluct}) Action (1Kbps-1Mbps) {bwe} action (-1~1) {actions}')
+
+        with open('reward-curve.log', mode='a+') as f:
+            f.write(f'{self.num_timesteps} {rewards}\n')
 
     '''
     One env step implemented in two parts:
@@ -212,14 +177,14 @@ class RTCEnv(Env):
     # obs: observation obtained as a result of applying the current action
     # rewards: how good the current action was
     # compute_actions() returns
-    def off_policy_env_step(self):
+    def off_policy_env_step(self, call_idx):
         # Part 2. Sample an action according to the exploration policy
         # and send it to the video call sender
         actions, buffer_actions = self.policy.sample_action()
         if (self.action_space_type == 'continuous'):
-            bwe = self.packet_record.rescale_action_continuous(actions)
+            bwe = self.packet_records[call_idx].rescale_action_continuous(actions)
         else:
-            bwe = self.packet_record.rescale_action_discrete(actions)
+            bwe = self.packet_records[call_idx].rescale_action_discrete(actions)
         if type(bwe) is list or isinstance(bwe, np.ndarray):
             bwe = bwe[0]
         # truncate-then-write the bwe
@@ -229,19 +194,16 @@ class RTCEnv(Env):
         # Part 1. Sends a trajectory (the latest previous obs and the new obs to the policy)
         # obs: observation obtained as a result of applying the current action
         # rewards: how good the current action was
-        new_obs = self.packet_record.calculate_obs()
-        rewards, recv_thp, loss_rate, rtt, recv_thp_fluct = self.packet_record.calculate_reward()
+        new_obs = self.packet_records[call_idx].calculate_obs(self.history_len)
+        rewards, recv_thp, loss_rate, rtt, recv_thp_fluct = self.packet_records[call_idx].calculate_reward(self.history_len)
         self.policy.add_to_replay_buffer(new_obs, buffer_actions, rewards, self.dones, self.infos)
 
         # New Obs: a new obs collected, as a result of the previously computed action
         # Reward: how good the previously computed action was
         # Action: a new action computed based on the previous obs
-        print(f'''\n[{self.on_or_off_policy} {self.rl_algo}] Step {self.num_timesteps} ({self.kth_rollout_loop}th rollout_collection loop):
-            New Obs {new_obs} ([loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp])
-            Reward {rewards} (50 * {recv_thp} - 50 * {loss_rate} - 10 * {rtt} - 30 * {recv_thp_fluct})
-            Action (1Kbps-1Mbps) {bwe} action (-1~1) {actions}''')
+        print(f'[{self.on_or_off_policy} {self.rl_algo}] Step {self.num_timesteps} ({self.kth_rollout_loop}th rollout_collection loop): New Obs {new_obs} ([loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp]) Reward {rewards} (50 * {recv_thp} - 50 * {loss_rate} - 10 * {rtt} - 30 * {recv_thp_fluct}) Action (1Kbps-1Mbps) {bwe} action (-1~1) {actions}')
 
-    def rollout_collection(self):
+    def rollout_collection(self, call_idx):
         # (1) Rollout collection.
         # One rollout collection consists of total_rollout_steps number of env.step()s.
         # Do env.step() when history_len number of stats are collected.
@@ -251,13 +213,13 @@ class RTCEnv(Env):
                 self.policy.init_rollout_collection()
             # Execute logic that corresponds to env.step()
             if self.on_or_off_policy == 'On-Policy':
-                self.on_policy_env_step()
+                self.on_policy_env_step(call_idx)
             else:
-                self.off_policy_env_step()
+                self.off_policy_env_step(call_idx)
             self.num_rollout_steps += 1
             self.num_timesteps += 1
 
-    def model_update(self):
+    def model_update(self, call_idx):
         # (2) Model update.
         # After finishing one rollout collection loop, do model update.
         # print(f'model_update: self.num_rollout_steps {self.num_rollout_steps} self.total_rollout_steps {self.total_rollout_steps} ')
@@ -265,7 +227,7 @@ class RTCEnv(Env):
             self.num_rollout_steps = 0
             self.kth_rollout_loop += 1
             self.policy.collection_loop_fin(True)
-            print(f'\n[{self.on_or_off_policy} {self.rl_algo}] Step {self.num_timesteps}: Finished rollout_collection, starting model_update ({self.total_rollout_steps} steps for a single rollout collection)')
+            print(f'[{self.on_or_off_policy} {self.rl_algo}] Step {self.num_timesteps} traj. of call {call_idx}: Model Update (rc len {self.total_rollout_steps})')
             # Do model update
             self.policy.train()
             # One policy.learn loop finished
@@ -276,69 +238,50 @@ class RTCEnv(Env):
             self.training_completed = True
 
     '''
-    Adaptation of SB3's OnPolicyAlgorithm for an environment that runs in real-time.
+    Adaptation of SB3's On/OffPolicyAlgorithm for an environment that runs in real-time.
     '''
-    def train(self):
-        self.rollout_collection()
+    def learn(self, call_idx):
+        self.rollout_collection(call_idx)
         # TODO: Model update should be called after one episode from each env have finished
-        self.model_update()
+        self.model_update(call_idx)
 
-    def start_calls(self, link_bandwidth, delay):
-        # Randomly assign different port for this video call
-        generate_random_port('receiver_pyinfer.json')
-        generate_random_port('receiver_pyinfer2.json')
-        # Run the video call (env) in separate processes
-        receiver_cmd = f"$ALPHARTC_HOME/peerconnection_serverless.origin receiver_pyinfer.json"
-        sender_cmd = f"sleep 5; mm-link traces/{link_bandwidth} traces/{link_bandwidth} $ALPHARTC_HOME/peerconnection_serverless.origin sender_pyinfer.json"
-        receiver_app = subprocess.Popen(receiver_cmd, shell=True)
-        sender_app = subprocess.Popen(sender_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
-        print(f'Video call started: link BW {link_bandwidth}') # , one-way delay {delay}ms')
-
-        receiver_cmd2 = f"$ALPHARTC_HOME/peerconnection_serverless.origin receiver_pyinfer2.json"
-        sender_cmd2 = f"sleep 5; mm-link traces/2mbps traces/2mbps $ALPHARTC_HOME/peerconnection_serverless.origin sender_pyinfer2.json"
-        receiver_app2 = subprocess.Popen(receiver_cmd2, shell=True)
-        sender_app2 = subprocess.Popen(sender_cmd2, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
-        print(f'Video call started: link BW 2mbps') # , one-way delay {delay}ms')
-
+    def start_calls(self):
+        receiver_apps, sender_apps = self.call.run_calls()
+        num_calls = len(sender_apps)
         # A loop that monitors sender-side packet stats in real time for training.
-        # TODO: cleanup
+        # TODO: Better way of collecting parallel packet stats?
+        lines = {}
         while True:
             if self.training_completed:
                 break
 
-            line = sender_app.stdout.readline()
-            line2 = sender_app2.stdout.readline()
-            if not line and not line2:
-                # sender_app completed.
-                break
-            if isinstance(line, bytes):
-                line = line.decode("utf-8")
-                stats_dict = fetch_stats(line)
-            if isinstance(line2, bytes):
-                line2 = line2.decode("utf-8")
-                stats_dict2 = fetch_stats(line2)
+            for call_idx in range(0, num_calls):
+                lines[call_idx] = sender_apps[call_idx].stdout.readline()
 
-            # Add newly fetched packet stats
-            if stats_dict or stats_dict2:
-                if stats_dict:
-                    self.collect_packet_stats(0, stats_dict)
-                if stats_dict2:
-                    self.collect_packet_stats(1, stats_dict2)
-                # For every HISTORY_LEN number of received packets,
-                # run (1) rollout collection, (2) model update, or both.
-                if self.num_stats % self.packet_record.history_len == 0:
-                    self.train()
+            for call_idx in range(0, num_calls):
+                line = lines[call_idx]
+                if not line:
+                    continue
+                if isinstance(line, bytes):
+                    line = line.decode("utf-8")
+                    stats_dict = fetch_stats(line)
 
-            sys.stdout.write(f'{line}')
-            sys.stdout.flush()
+                    if stats_dict:
+                        self.collect_packet_stats(call_idx, stats_dict)
+                        # For every HISTORY_LEN number of received packets in each call,
+                        # run (1) rollout collection, (2) model update, or both.
+                        if self.num_stats[call_idx] % self.history_len == 0:
+                            self.learn(call_idx)
 
-        receiver_app.wait()
-        sender_app.wait()
-        receiver_app2.wait()
-        sender_app2.wait()
-        check_call_result(receiver_app, sender_app)
-        check_call_result(receiver_app2, sender_app2)
-        print(f'Video call ended: link BW {link_bandwidth}, 2mbps') # , one-way delay {delay}ms')
+            lines.clear()
+
+        for call_idx in range(0, num_calls):
+            receiver_apps[call_idx].wait()
+            sender_apps[call_idx].wait()
+            print(f'CALL wait() called for receiver_apps[{call_idx}], sender_apps[{call_idx}]')
+
+        self.call.check_result()
+        print(f'CALL Video calls ended')
 
     '''
     Deprecated.
@@ -372,13 +315,15 @@ class RTCEnv(Env):
     '''
     def reset(self):
         # Reset internal states of the environment
-        self.packet_record.reset()
+        for call_idx in range(0, self.call.num_calls):
+            self.packet_records[call_idx].reset()
+            self.num_stats[call_idx] = 0
         self.num_rollout_steps = 0
         self.num_timesteps = 0
-        self.num_stats = 0
 
         # Produce initial observation
-        obs = self.packet_record.calculate_obs()
+        obs = self.packet_records[0].calculate_obs(self.history_len)
+
         logging.info(f'env reset done: an environment for a new episode is set')
         return obs
 

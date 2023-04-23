@@ -83,7 +83,7 @@ float RemoteEstimatorProxy::ComputeReceiverSideThroughput() {
   int64_t now = clock_->TimeInMicroseconds();
   float elapsed_s = (now - last_comp_receiver_side_thp_time_us_) * 0.000001;
   float receiver_side_thp_ = aggregated_payload_size / elapsed_s;
-  RTC_LOG(LS_INFO) << "Receiver-side thp (bps) " << receiver_side_thp_
+  RTC_LOG(LS_VERBOSE) << "Receiver-side thp (bps) " << receiver_side_thp_
   << " agg. payload bits " << aggregated_payload_size
   << " elapsed_s " << elapsed_s
   << " for " << received_packets << " received packets ";

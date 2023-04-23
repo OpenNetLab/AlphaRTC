@@ -80,4 +80,6 @@ rl_model/
 .gclient_entries
 *.log
 *-log
+*.port
+*.pdf
 peerconnection_serverless.origin
