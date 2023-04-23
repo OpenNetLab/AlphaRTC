@@ -188,7 +188,7 @@ class RTCEnv(Env):
         if type(bwe) is list or isinstance(bwe, np.ndarray):
             bwe = bwe[0]
         # truncate-then-write the bwe
-        with open('bwe.txt', mode='w') as f:
+        with open(f'bwe{call_idx}.txt', mode='w') as f:
             f.write(f'{bwe}')
 
         # Part 1. Sends a trajectory (the latest previous obs and the new obs to the policy)

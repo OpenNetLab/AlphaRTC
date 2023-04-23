@@ -35,6 +35,7 @@ class PacketRecord:
     def __init__(self):
         # Calculate a state with an average of stats from the latest 10 RTCP packets
         self.logger = logging.getLogger(__name__)
+        self.stats_max_len = 100
         self.reset()
 
     # Initial observation for env.reset()
@@ -51,7 +52,6 @@ class PacketRecord:
         self.packet_stats_dict['receiver_side_thp_fluct'] = [0]
         # Action
         self.packet_stats_dict['bwe'] = [300000]
-        self.call_start = False
         # print(f'PacketRecord reset done: internal state init for a new episode')
 
     def normalize_obs_bps(self, bps):
@@ -109,8 +109,6 @@ class PacketRecord:
         self.packet_stats_dict['receiver_side_thp_norm'].append(recv_side_thp_norm)
         # print(f'Added recv thp (1Kbps-1Mbps) {receiver_side_thp} recv thp (0-1) {recv_side_thp_norm} recv thp fluct (1Kbps-1Mbps) {recv_side_thp_fluct}')
         # print(f"PacketRecord['recv_thp']: {self.packet_stats_dict['receiver_side_thp']}")
-        if not self.call_start:
-            self.call_start = True
 
     # Add normalized RTT.
     # 1-100ms to 0-1
@@ -120,16 +118,12 @@ class PacketRecord:
         self.packet_stats_dict['rtt_norm'].append(norm_rtt)
         # print(f'Added RTT (ms) {rtt} RTT (0-1) {norm_rtt}')
         # print(f"PacketRecord['rtt']: {self.packet_stats_dict['rtt']}")
-        if not self.call_start:
-            self.call_start = True
 
 
     def add_loss_rate(self, loss_rate):
         self.packet_stats_dict['loss_rate'].append(loss_rate)
         # print(f'Added loss rate {loss_rate}')
         # print(f"PacketRecord['loss_rate']: {self.packet_stats_dict['loss_rate']}")
-        if not self.call_start:
-            self.call_start = True
 
 
     # TODO: measure delay interval instead of diff in consecutive RTTs
@@ -141,13 +135,20 @@ class PacketRecord:
         self.packet_stats_dict['delay_interval_norm'].append(norm_delay_interval)
         # print(f'Added delay interval (ms) {delay_interval} delay interval (0-1) {norm_delay_interval}')
         # print(f"PacketRecord['delay_interval_norm']: {self.packet_stats_dict['delay_interval_norm']}")
-        if not self.call_start:
-            self.call_start = True
 
+
+    # Keep the list length up to self.stats_max_len
+    # by truncating stats older than self.stats_max_len
+    def maybe_truncate_stats(self, stats_l):
+        if len(stats_l) > self.stats_max_len:
+            return stats_l[-self.stats_max_len:]
+        else:
+            return stats_l
 
     # TODO: dequeue the items when using them
     def _get_latest_history_len_stats(self, key, history_len):
         latest_history_len_stats = self.packet_stats_dict[key][-history_len:]
+        self.packet_stats_dict[key] = self.maybe_truncate_stats(self.packet_stats_dict[key])
         # print(f'latest {self.history_len} {key}: {latest_history_len_stats}')
         return latest_history_len_stats if len(latest_history_len_stats) > 0 else [0]
 
@@ -160,6 +161,7 @@ class PacketRecord:
         norm_rtt = mean(self._get_latest_history_len_stats('rtt_norm', history_len))
         norm_delay_interval = mean(self._get_latest_history_len_stats('delay_interval_norm', history_len))
         norm_recv_thp = mean(self._get_latest_history_len_stats('receiver_side_thp_norm', history_len))
+        # print(f"PacketRecord stats len: loss_rate {len(self.packet_stats_dict['loss_rate'])} rtt {len(self.packet_stats_dict['rtt_norm'])} receiver_side_thp_norm {len(self.packet_stats_dict['receiver_side_thp_norm'])}")
         obs = [loss_rate, norm_rtt, norm_delay_interval, norm_recv_thp]
         # TODO: correctness check
         obs_tensor = torch.unsqueeze(torch.as_tensor(np.array(obs), device='cpu'), 0)
