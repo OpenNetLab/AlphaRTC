@@ -17,7 +17,7 @@ def main():
 
     env = PolicyFactory().create_env_and_policy(RL_ALGO)
     env.set_calls(link_bandwidths=['1mbps', '2mbps', '4mbps', '12mbps'], delays=[10, 20, 30])
-    env.setup_learn(total_timesteps=320)
+    env.setup_learn(total_timesteps=102400)
     env.start_calls()
 
 

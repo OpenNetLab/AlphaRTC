@@ -91,10 +91,6 @@ class PacketRecord:
         # print(f'Action: (0~9) {action_idx} to (1Kbps-12Mbps) {action_space[action_idx]}')
         return action_space[action_idx]
 
-    def get_packet_stats(self):
-        # get packet stats from zeromq
-        pass
-
     # Add normalized receiver-side throughput.
     # 1Kbps-1Mbps (empirically) to 0-1
     def add_receiver_side_thp(self, receiver_side_thp):
