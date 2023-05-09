@@ -157,6 +157,7 @@ class RTCEnv(Env):
         # - rewards: how good the current action was
         new_obs = self.packet_records[call_idx].calculate_obs(self.history_len)
         rewards, recv_thp, loss_rate, rtt, recv_thp_fluct = self.packet_records[call_idx].calculate_reward(self.history_len)
+        # TODO: Bug fix - self._last_obs, not new_obs
         self.policy.add_to_rollout_buffer(call_idx, new_obs, actions, rewards, values, log_probs, self.dones, self.infos)
 
         # New Obs: a new obs collected, as a result of the previously computed action
@@ -250,30 +251,30 @@ class RTCEnv(Env):
         num_calls = len(sender_apps)
         # A loop that monitors sender-side packet stats in real time for training.
         # TODO: Better way of collecting parallel packet stats?
-        lines = {}
-        while True:
-            if self.training_completed:
-                break
+        # lines = {}
+        # while True:
+        #     if self.training_completed:
+        #         break
 
-            for call_idx in range(0, num_calls):
-                lines[call_idx] = sender_apps[call_idx].stdout.readline()
+        #     for call_idx in range(0, num_calls):
+        #         lines[call_idx] = sender_apps[call_idx].stdout.readline()
 
-            for call_idx in range(0, num_calls):
-                line = lines[call_idx]
-                if not line:
-                    continue
-                if isinstance(line, bytes):
-                    line = line.decode("utf-8")
-                    stats_dict = fetch_stats(line)
+        #     for call_idx in range(0, num_calls):
+        #         line = lines[call_idx]
+        #         if not line:
+        #             continue
+        #         if isinstance(line, bytes):
+        #             line = line.decode("utf-8")
+        #             stats_dict = fetch_stats(line)
 
-                    if stats_dict:
-                        self.collect_packet_stats(call_idx, stats_dict)
-                        # For every HISTORY_LEN number of received packets in each call,
-                        # run (1) rollout collection, (2) model update, or both.
-                        if self.num_stats[call_idx] % self.history_len == 0:
-                            self.learn(call_idx)
+        #             if stats_dict:
+        #                 self.collect_packet_stats(call_idx, stats_dict)
+        #                 # For every HISTORY_LEN number of received packets in each call,
+        #                 # run (1) rollout collection, (2) model update, or both.
+        #                 if self.num_stats[call_idx] % self.history_len == 0:
+        #                     self.learn(call_idx)
 
-            lines.clear()
+        #     lines.clear()
 
         for call_idx in range(0, num_calls):
             receiver_apps[call_idx].wait()

@@ -13,7 +13,7 @@
 #include "json.hpp"
 
 namespace StatCollect {
-    
+
     /**
      **========================================================
      ** StatsCollectInterface External Function StatsCollectModule
@@ -91,7 +91,7 @@ namespace StatCollect {
      ** return: SC_SUCCESS             if successfully created
                 SC_COLLECT_TYPE_ERROR  if the collect type error.
                 SC_NEW_MEMORY_FAIL     if the new memory fail
-    */ 
+    */
     SCResult StatsCollectModule::StatsCollect(
         double             pacerPacingRate,
         double             pacerPaddingRate,
@@ -164,14 +164,14 @@ namespace StatCollect {
                 totalSamplesReceived,
                 concealedSamples,
                 concealmentEvents);
-            
+
             if (collectInfoPtr == NULL ) {
                 return SC_NEW_MEMORY_FAIL;
 	        }
             else {
                 resultPtr = (void*)collectInfoPtr;
             }
-            
+
         }
         else if (collectType_ == SC_TYPE_JSON) {
             std::string collectInfoJson = StatsCollectByJSON(
@@ -296,7 +296,7 @@ namespace StatCollect {
                 SC_CONCEALED_SAMPLES_EMPTY,
                 SC_CONCEALED_EVENTS_EMPTY
                 );
-            
+
             if (collectInfoPtr == NULL) {
                 return SC_NEW_MEMORY_FAIL;
 	    }
@@ -437,11 +437,11 @@ namespace StatCollect {
 
         //Todo: How to use the PacerPacingRate pacerPaddingRate.
         struct CollectInfo* CollectInfoPtr = new CollectInfo;
-            
+
         if (CollectInfoPtr == NULL) {
             return NULL;
         }
-        
+
         CollectInfoPtr->pacerPacingRate = pacerPacingRate;
         CollectInfoPtr->pacerPaddingRate = pacerPaddingRate;
         CollectInfoPtr->packetInfo.header.payloadType = payloadType;
@@ -474,7 +474,7 @@ namespace StatCollect {
         CollectInfoPtr->mediaInfo.audioInfo.totalSamplesReceived = totalSamplesReceived;
         CollectInfoPtr->mediaInfo.audioInfo.concealedSamples = concealedSamples;
         CollectInfoPtr->mediaInfo.audioInfo.concealmentEvents = concealmentEvents;
-        
+
         return CollectInfoPtr;
 
     }
@@ -562,7 +562,7 @@ namespace StatCollect {
         unsigned long long concealedSamples,
         unsigned long long concealmentEvents
         ) {
-        
+
         using json = nlohmann::json;
         json CollectInfoJson;
         CollectInfoJson["pacerPacingRate"]                                         = pacerPacingRate;
@@ -597,7 +597,7 @@ namespace StatCollect {
         CollectInfoJson["mediaInfo"]["audioInfo"]["totalSamplesReceived"]          = totalSamplesReceived;
         CollectInfoJson["mediaInfo"]["audioInfo"]["concealedSamples"]              = concealedSamples;
         CollectInfoJson["mediaInfo"]["audioInfo"]["concealmentEvents"]             = concealmentEvents;
-    
+
         return CollectInfoJson.dump();
     }
 
@@ -615,7 +615,7 @@ namespace StatCollect {
 
         using json = nlohmann::json;
         json CollectInfoJson;
-            
+
         CollectInfoJson["pacerPacingRate"]                                         = CollectInfoPtr->pacerPacingRate;
         CollectInfoJson["pacerPaddingRate"]                                        = CollectInfoPtr->pacerPaddingRate;
         CollectInfoJson["packetInfo"]["header"]["payloadType"]                     = CollectInfoPtr->packetInfo.header.payloadType;
@@ -672,12 +672,12 @@ namespace StatCollect {
             std::string* dataJsonPtr = NULL;
             if (collectType_ == SC_TYPE_STRUCT) {
                 CollectInfoPtr = (CollectInfo*)collectQueue_.front();
-              result = ConvertStructToJSON(CollectInfoPtr);            
+              result = ConvertStructToJSON(CollectInfoPtr);
             }
             else if (collectType_ == SC_TYPE_JSON) {
                 std::string* dataJsonPtr = static_cast<std::string*>(collectQueue_.front());
               result = *dataJsonPtr;
-            }                     
+            }
              collectQueue_.pop();
             if (!result.empty()) {
               if (collectType_ == SC_TYPE_STRUCT) {
@@ -685,14 +685,14 @@ namespace StatCollect {
               } else if (collectType_ == SC_TYPE_JSON) {
                 delete dataJsonPtr;
               }
-            }           
+            }
         }
-        
-        queueMutex_->unlock();  
-        
+
+        queueMutex_->unlock();
+
         return result;
     }
-  
+
     /**
      **========================================================
      ** StatsCollectInterface External Function SetStatsConfig

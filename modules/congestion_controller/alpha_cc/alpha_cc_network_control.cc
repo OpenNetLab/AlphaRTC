@@ -88,6 +88,7 @@ NetworkControlUpdate GoogCcNetworkController::OnNetworkRouteChange(
 }
 
 void GoogCcNetworkController::SendState() {
+
   if (receiver_side_thp_v.size() > 0) {
     CompAverageReceiverSideThroughput();
   }
