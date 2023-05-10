@@ -20,13 +20,13 @@ gn_flags := --args='is_debug=false'
 all: init sync app release
 
 init:
-	docker build dockers --build-arg UID=$(shell id -u) --build-arg GUID=$(shell id -g) -f $(build_dockerfile) -t $(compile_docker)
+	docker build dockers --build-arg UID=$(shell id -u) --build-arg GUID=$(shell id -g) -f $(build_dockerfile) -t $(compile_docker) --network host
 
 release:
 	docker build $(target_dir) -f $(release_dockerfile) -t $(release_docker)
 
 sync:
-	docker run $(docker_flags) $(compile_docker) \
+	docker run --network host $(docker_flags) $(compile_docker) \
 		make docker-$@ \
 		output_dir=$(output_dir) \
 		gn_flags=$(gn_flags)
@@ -34,7 +34,7 @@ sync:
 app: peerconnection_serverless
 
 peerconnection_serverless:
-	docker run $(docker_flags) $(compile_docker) \
+	docker run --network host $(docker_flags) $(compile_docker) \
 		make docker-$@ \
 		output_dir=$(output_dir) \
 		target_lib_dir=$(target_lib_dir) \
