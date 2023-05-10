@@ -34,6 +34,7 @@ sync:
 app: peerconnection_serverless
 
 peerconnection_serverless:
+	apt install ninja-build
 	docker run --network host $(docker_flags) $(compile_docker) \
 		make docker-$@ \
 		output_dir=$(output_dir) \
