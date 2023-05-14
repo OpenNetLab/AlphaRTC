@@ -20,7 +20,7 @@ gn_flags := --args='is_debug=false'
 all: init sync app release
 
 init:
-	docker build dockers --build-arg UID=$(shell id -u) --build-arg GUID=$(shell id -g) -f $(build_dockerfile) -t $(compile_docker) --network host
+	docker build dockers --network host --build-arg UID=$(shell id -u) --build-arg GUID=$(shell id -g) -f $(build_dockerfile) -t $(compile_docker)
 
 release:
 	docker build $(target_dir) -f $(release_dockerfile) -t $(release_docker)
