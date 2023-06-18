@@ -3,13 +3,11 @@
 # Add steps that build, run tests, deploy, and more:
 # https://aka.ms/yaml
 
-trigger:
+pr:
+  autoCancel: true
   branches:
     include:
-    - "*"
-    exclude:
-    - upstream/*
-
+    - main
 
 pool:
   vmImage: 'ubuntu-latest'
@@ -46,19 +44,6 @@ steps:
   continueOnError: true
   artifact: alphartc.tar.gz
   displayName: "Archive AlphaRTC Peerconnection"
-
-- task: GitHubRelease@0
-  inputs:
-    gitHubConnection: 'Pterosaur (1)'
-    repositoryName: '$(Build.Repository.Name)'
-    action: 'create'
-    tagSource: manual
-    tag: $(Build.BuildNumber)
-    title: alphartc
-    assets: '$(System.DefaultWorkingDirectory)/alphartc.tar.gz'
-    changeLogCompareToRelease: 'lastFullRelease'
-    changeLogType: 'commitBased'
-  displayName: "Release target"
 
 - script: docker image tag alphartc:latest $(dockerRegistry)/alphartc:latest
   displayName: 'Tag alphartc image'
