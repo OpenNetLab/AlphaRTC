@@ -43,6 +43,9 @@ app:
 # Docker internal commands
 
 docker-sync:
+	gclient sync
+	mv -fvn src/* .
+	rm -rf src
 	gn gen $(output_dir) $(gn_flags)
 
 docker-app:
