@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM opennetlab.azurecr.io/alphartc
 
 RUN apt-get update && apt-get install -y \
     git curl wget python libglib2.0-dev clang ninja-build
