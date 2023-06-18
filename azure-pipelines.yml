@@ -1,7 +1,6 @@
 # Azure pipeline for automated testing required to pass before PR merge.
 
 pr:
-  branches:
   - main
 
 pool:
