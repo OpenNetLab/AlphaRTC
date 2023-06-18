@@ -3110,6 +3110,26 @@ hooks = [
                '--bucket', 'chromium-webrtc-resources',
                'src/resources'],
   },
+  {
+    'name': 'noise_tracks',
+    'pattern': '.',
+    'action': [ "download_from_google_storage",
+                "--no_resume",
+                "--no_auth",
+                "--bucket", "chromium-webrtc-resources",
+                "-s", "resources/audio_processing/test/py_quality_assessment/noise_tracks/city.wav.sha1",
+              ],
+  },
+  {
+    'name': 'probing_signals',
+    'pattern': '.',
+    'action': [ "download_from_google_storage",
+                "--no_resume",
+                "--no_auth",
+                "--bucket", "chromium-webrtc-resources",
+                "-s", "resources/audio_processing/test/py_quality_assessment/probing_signals/tone-880.wav.sha1",
+              ],
+  },
 ]
 
 recursedeps = []

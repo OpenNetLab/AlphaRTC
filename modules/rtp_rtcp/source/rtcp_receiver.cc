@@ -1079,12 +1079,6 @@ void RTCPReceiver::TriggerCallbacksFromRtcpPacket(
     }
   }
 
-  if (transport_feedback_observer_ &&
-      (packet_information.packet_type_flags & kRtcpApp)) {
-      transport_feedback_observer_->OnApplicationPacket(
-          *packet_information.application);
-  }
-
   if (network_state_estimate_observer_ &&
       packet_information.network_state_estimate) {
     network_state_estimate_observer_->OnRemoteNetworkEstimate(

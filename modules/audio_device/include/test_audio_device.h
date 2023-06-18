@@ -86,7 +86,7 @@ class TestAudioDeviceModule : public AudioDeviceModule {
       float speed = 1);
 
   // AlphaCC version.
-  // Pass a rtc::Event |audio_started| to mark audio has started 
+  // Pass a rtc::Event |audio_started| to mark audio has started
   static rtc::scoped_refptr<TestAudioDeviceModule> Create(
       TaskQueueFactory* task_queue_factory,
       std::unique_ptr<Capturer> capturer,

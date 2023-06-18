@@ -253,7 +253,6 @@ class TransportFeedbackObserver {
 
   virtual void OnAddPacket(const RtpPacketSendInfo& packet_info) = 0;
   virtual void OnTransportFeedback(const rtcp::TransportFeedback& feedback) = 0;
-  virtual void OnApplicationPacket(const rtcp::App& app){}
 };
 
 // Interface for PacketRouter to send rtcp feedback on behalf of

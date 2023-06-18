@@ -7,8 +7,8 @@ target_lib_dir := $(target_dir)/lib
 target_bin_dir := $(target_dir)/bin
 target_pylib_dir := $(target_dir)/pylib
 
-compile_docker := alphartc-compile
-release_docker := alphartc
+compile_docker := gcc-compile
+release_docker := gcc
 
 host_workdir := `pwd`
 docker_homedir := /app/AlphaRTC/
@@ -22,18 +22,13 @@ all: init sync app release
 init:
 	docker build dockers --build-arg UID=$(shell id -u) --build-arg GUID=$(shell id -g) -f $(build_dockerfile) -t $(compile_docker)
 
-release:
-	docker build $(target_dir) -f $(release_dockerfile) -t $(release_docker)
-
 sync:
 	docker run $(docker_flags) $(compile_docker) \
 		make docker-$@ \
 		output_dir=$(output_dir) \
 		gn_flags=$(gn_flags)
 
-app: peerconnection_serverless
-
-peerconnection_serverless:
+app:
 	docker run $(docker_flags) $(compile_docker) \
 		make docker-$@ \
 		output_dir=$(output_dir) \
@@ -41,26 +36,21 @@ peerconnection_serverless:
 		target_bin_dir=$(target_bin_dir) \
 		target_pylib_dir=$(target_pylib_dir)
 
+release:
+	docker build $(target_dir) -f $(release_dockerfile) -t $(release_docker)
+
+
 # Docker internal command
 
+# gclient sync
+# mv -fvn src/* .
+# rm -rf src
 docker-sync:
-	gclient sync
-	mv -fvn src/* .
-	rm -rf src
 	gn gen $(output_dir) $(gn_flags)
 
-docker-app: docker-peerconnection_serverless
-
-docker-peerconnection_serverless:
-	ninja -C $(output_dir) peerconnection_serverless
-
+docker-app:
+	ninja -C $(output_dir) peerconnection_challenge_client
 	mkdir -p $(target_lib_dir)
-	cp modules/third_party/onnxinfer/lib/*.so $(target_lib_dir)
-	cp modules/third_party/onnxinfer/lib/*.so.* $(target_lib_dir)
-
 	mkdir -p $(target_bin_dir)
-	cp $(output_dir)/peerconnection_serverless $(target_bin_dir)/peerconnection_serverless.origin
-	cp examples/peerconnection/serverless/peerconnection_serverless $(target_bin_dir)
-
-	mkdir -p $(target_pylib_dir)
-	cp modules/third_party/cmdinfer/*.py $(target_pylib_dir)/
+	cp $(output_dir)/peerconnection_challenge_client $(target_bin_dir)/peerconnection_serverless_gcc
+	cp $(output_dir)/peerconnection_challenge_client peerconnection_serverless_gcc

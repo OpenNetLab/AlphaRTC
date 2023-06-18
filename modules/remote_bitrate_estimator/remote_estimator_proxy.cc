@@ -56,25 +56,15 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       last_bwe_sendback_ms_(clock->TimeInMilliseconds()),
       stats_collect_(StatCollect::SC_TYPE_STRUCT),
       cycles_(-1),
-      max_abs_send_time_(0),
-      onnx_infer_(nullptr) {
-
-  if (!GetAlphaCCConfig()->onnx_model_path.empty()) {
-    onnx_infer_ = onnxinfer::CreateONNXInferInterface(
-        GetAlphaCCConfig()->onnx_model_path.c_str());
-    if (!onnxinfer::IsReady(onnx_infer_)) {
-      RTC_LOG(LS_ERROR) << "Failed to create onnx_infer_.";
-    }
-  }
+      max_abs_send_time_(0) {
+      // previous_abs_send_time_(0),
+      // abs_send_timestamp_(clock->CurrentTime()) {
   RTC_LOG(LS_INFO)
       << "Maximum interval between transport feedback RTCP messages (ms): "
       << send_config_.max_interval->ms();
 }
 
 RemoteEstimatorProxy::~RemoteEstimatorProxy() {
-  if (onnx_infer_) {
-    onnxinfer::DestroyONNXInferInterface(onnx_infer_);
-  }
 }
 
 void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
@@ -86,44 +76,56 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   }
   rtc::CritScope cs(&lock_);
   media_ssrc_ = header.ssrc;
-  OnPacketArrival(header.extension.transportSequenceNumber, arrival_time_ms,
-                  header.extension.feedback_request);
+  int64_t seq = 0;
 
-  //--- ONNXInfer: Input the per-packet info to ONNXInfer module ---
   uint32_t send_time_ms =
       GetTtimeFromAbsSendtime(header.extension.absoluteSendTime);
-
-  // lossCound and RTT field for onnxinfer::OnReceived() are set to -1 since
-  // no available lossCound and RTT in webrtc
-  if (onnx_infer_) {
-    onnxinfer::OnReceived(onnx_infer_, header.payloadType, header.sequenceNumber,
-                          send_time_ms, header.ssrc, header.paddingLength,
-                          header.headerLength, arrival_time_ms, payload_size, -1, -1);
-  } else {
-    cmdinfer::ReportStates(
-        send_time_ms,
-        arrival_time_ms,
-        payload_size,
-        header.payloadType,
-        header.sequenceNumber,
-        header.ssrc,
-        header.paddingLength,
-        header.headerLength);
-  }
-
-  //--- BandWidthControl: Send back bandwidth estimation into to sender ---
   bool time_to_send_bew_message = TimeToSendBweMessage();
   float estimation = 0;
-  if (time_to_send_bew_message) {
-    BweMessage bwe;
-    if (onnx_infer_) {
-      estimation = onnxinfer::GetBweEstimate(onnx_infer_);
-    } else {
-      estimation = cmdinfer::GetEstimatedBandwidth();
+
+  if (header.extension.hasTransportSequenceNumber) {
+    seq = unwrapper_.Unwrap(header.extension.transportSequenceNumber);
+
+    if (send_periodic_feedback_) {
+      if (periodic_window_start_seq_ &&
+          packet_arrival_times_.lower_bound(*periodic_window_start_seq_) ==
+              packet_arrival_times_.end()) {
+        // Start new feedback packet, cull old packets.
+        for (auto it = packet_arrival_times_.begin();
+             it != packet_arrival_times_.end() && it->first < seq &&
+             arrival_time_ms - it->second >= send_config_.back_window->ms();) {
+          it = packet_arrival_times_.erase(it);
+        }
+      }
+      if (!periodic_window_start_seq_ || seq < *periodic_window_start_seq_) {
+        periodic_window_start_seq_ = seq;
+      }
     }
-    bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
-    bwe.timestamp_ms = clock_->TimeInMilliseconds();
-    SendbackBweEstimation(bwe);
+
+    // We are only interested in the first time a packet is received.
+    if (packet_arrival_times_.find(seq) != packet_arrival_times_.end())
+      return;
+
+    packet_arrival_times_[seq] = arrival_time_ms;
+
+    // Limit the range of sequence numbers to send feedback for.
+    auto first_arrival_time_to_keep = packet_arrival_times_.lower_bound(
+        packet_arrival_times_.rbegin()->first - kMaxNumberOfPackets);
+    if (first_arrival_time_to_keep != packet_arrival_times_.begin()) {
+      packet_arrival_times_.erase(packet_arrival_times_.begin(),
+                                  first_arrival_time_to_keep);
+      if (send_periodic_feedback_) {
+        // |packet_arrival_times_| cannot be empty since we just added one
+        // element and the last element is not deleted.
+        RTC_DCHECK(!packet_arrival_times_.empty());
+        periodic_window_start_seq_ = packet_arrival_times_.begin()->first;
+      }
+    }
+
+    if (header.extension.feedback_request) {
+      // Send feedback packet immediately.
+      SendFeedbackOnRequest(seq, header.extension.feedback_request.value());
+    }
   }
 
   // Save per-packet info locally on receiving
@@ -148,6 +150,7 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   {
     RTC_LOG(LS_ERROR) << "Save data failed";
   }
+
   RTC_LOG(LS_INFO) << out_data;
 }
 
@@ -197,6 +200,15 @@ void RemoteEstimatorProxy::OnBitrateChanged(int bitrate_bps) {
       0.5 + kTwccReportSize * 8.0 * 1000.0 /
                 rtc::SafeClamp(send_config_.bandwidth_fraction * bitrate_bps,
                                kMinTwccRate, kMaxTwccRate));
+}
+
+bool RemoteEstimatorProxy::TimeToSendBweMessage() {
+  int64_t time_now = clock_->TimeInMilliseconds();
+  if (time_now - bwe_sendback_interval_ms_ > last_bwe_sendback_ms_) {
+    last_bwe_sendback_ms_ = time_now;
+    return true;
+  }
+  return false;
 }
 
 void RemoteEstimatorProxy::SetSendPeriodicFeedback(
@@ -256,15 +268,6 @@ void RemoteEstimatorProxy::OnPacketArrival(
     // Send feedback packet immediately.
     SendFeedbackOnRequest(seq, *feedback_request);
   }
-}
-
-bool RemoteEstimatorProxy::TimeToSendBweMessage() {
-  int64_t time_now = clock_->TimeInMilliseconds();
-  if (time_now - bwe_sendback_interval_ms_ > last_bwe_sendback_ms_) {
-    last_bwe_sendback_ms_ = time_now;
-    return true;
-  }
-  return false;
 }
 
 void RemoteEstimatorProxy::SendPeriodicFeedbacks() {
