@@ -1,4 +1,7 @@
-# Azure pipeline for automated testing required to pass before PR merge.
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
 
 pr:
   - main
@@ -29,4 +32,4 @@ steps:
 
 - script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc_pyinfer alphartc peerconnection_serverless receiver_pyinfer.json
             && docker exec alphartc_pyinfer peerconnection_serverless sender_pyinfer.json
-  displayName: 'Run end-to-end pyinfer peerconnection app'
+  displayName: 'Run end-to-end PyInfer peerconnection app'

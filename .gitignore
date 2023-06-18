@@ -73,13 +73,7 @@
 !webrtc/*
 .vs/
 
-# AlphaRTC
-.gclient_entries
-.gclient_previous_sync_commits
 !Makefile
 target/
 src/
-outvideo*
-outaudio*
-*.log
-peerconnection_serverless
+.gclient_entries

@@ -31,7 +31,9 @@ sync:
 		output_dir=$(output_dir) \
 		gn_flags=$(gn_flags)
 
-app:
+app: peerconnection_serverless
+
+peerconnection_serverless:
 	docker run $(docker_flags) $(compile_docker) \
 		make docker-$@ \
 		output_dir=$(output_dir) \
@@ -39,8 +41,7 @@ app:
 		target_bin_dir=$(target_bin_dir) \
 		target_pylib_dir=$(target_pylib_dir)
 
-
-# Docker internal commands
+# Docker internal command
 
 docker-sync:
 	gclient sync
@@ -48,7 +49,9 @@ docker-sync:
 	rm -rf src
 	gn gen $(output_dir) $(gn_flags)
 
-docker-app:
+docker-app: docker-peerconnection_serverless
+
+docker-peerconnection_serverless:
 	ninja -C $(output_dir) peerconnection_serverless
 
 	mkdir -p $(target_lib_dir)
