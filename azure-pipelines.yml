@@ -1,12 +1,8 @@
 # Azure pipeline for automated testing required to pass before PR merge.
 
-trigger:
+pr:
   branches:
-    include:
-    - "*"
-    exclude:
-    - upstream/*
-
+  - main
 
 pool:
   vmImage: 'ubuntu-latest'
