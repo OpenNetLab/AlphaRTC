@@ -20,8 +20,8 @@
         },
         "video_file": {
             "enabled": false,
-            "width": 320,
-            "height": 240,
+            "width": 1280,
+            "height": 720,
             "fps": 30,
             "file_path": "testmedia/test.yuv"
         }
@@ -41,8 +41,8 @@
             "file_path": "outaudio.wav"
         },
         "video": {
-            "width": 320,
-            "height": 240,
+            "width": 1280,
+            "height": 720,
             "fps": 30,
             "file_path": "outvideo.yuv"
         }
