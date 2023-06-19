@@ -26,7 +26,6 @@ class LinkCapacityEstimator {
   DataRate estimate() const;
 
  private:
-  friend class AlphaCcStatePrinter;
   void Update(DataRate capacity_sample, double alpha);
 
   double deviation_estimate_kbps() const;
