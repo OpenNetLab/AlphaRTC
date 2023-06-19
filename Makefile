@@ -41,10 +41,10 @@ release:
 
 
 # Docker internal command
-# gclient sync
-# mv -fvn src/* .
-# rm -rf src
 docker-sync:
+	gclient sync
+	mv -fvn src/* .
+	rm -rf src
 	gn gen $(output_dir) $(gn_flags)
 
 docker-app:
