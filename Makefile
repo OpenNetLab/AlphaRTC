@@ -51,10 +51,6 @@ docker-sync:
 docker-app:
 	ninja -C $(output_dir) peerconnection_challenge_client
 
-	mkdir -p $(target_lib_dir)
-
 	mkdir -p $(target_bin_dir)
 	cp $(output_dir)/peerconnection_challenge_client $(target_bin_dir)/peerconnection_serverless_gcc
 	cp $(output_dir)/peerconnection_challenge_client peerconnection_serverless_gcc
-
-	mkdir -p $(target_pylib_dir)
