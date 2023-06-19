@@ -29,8 +29,8 @@ steps:
 - script: make release
   displayName: 'build release image'
 
-- script: docker run -d --rm -v `pwd`/examples/peerconnection/challenge_client/corpus:/app -w /app --name gcc gcc peerconnection_challenge_client receiver.json
-            && docker exec gcc peerconnection_challenge_client sender.json
+- script: docker run -d --rm -v `pwd`/examples/peerconnection/challenge_client/corpus:/app -w /app --name gcc gcc peerconnection_serverless_gcc receiver.json
+            && docker exec gcc peerconnection_serverless_gcc sender.json
   displayName: 'run GCC example'
 
 - script: docker save alphartc | gzip > alphartc.tar.gz
