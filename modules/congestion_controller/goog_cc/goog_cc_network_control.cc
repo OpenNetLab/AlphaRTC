@@ -126,6 +126,7 @@ GoogCcNetworkController::GoogCcNetworkController(NetworkControllerConfig config,
       key_value_config_->Lookup("WebRTC-Bwe-SafeResetOnRouteChange"));
   if (delay_based_bwe_)
     delay_based_bwe_->SetMinBitrate(congestion_controller::GetMinBitrate());
+  RTC_LOG(LS_INFO) << "Using GCC";
 }
 
 GoogCcNetworkController::~GoogCcNetworkController() {}

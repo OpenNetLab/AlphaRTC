@@ -18,36 +18,36 @@ steps:
 - checkout: self
 
 - script: make init
-  displayName: 'build compile environment'
+  displayName: 'Build compile environment'
 
 - script: make sync
-  displayName: 'sync dependencies'
+  displayName: 'Sync dependencies'
 
 - script: make app
-  displayName: 'build application'
+  displayName: 'Build application'
 
 - script: make release
-  displayName: 'build release image'
+  displayName: 'Build release image'
 
 - script: docker run -d --rm -v `pwd`/examples/peerconnection/challenge_client/corpus:/app -w /app --name gcc gcc peerconnection_serverless_gcc receiver.json
             && docker exec gcc peerconnection_serverless_gcc sender.json
-  displayName: 'run GCC example'
+  displayName: 'Run GCC peerconnection example'
 
-- script: docker save alphartc | gzip > alphartc.tar.gz
-  displayName: "Export alphartc docker image"
+- script: docker save gcc | gzip > gcc.tar.gz
+  displayName: "Export the GCC docker image"
 
-- publish: $(System.DefaultWorkingDirectory)/alphartc.tar.gz
+- publish: $(System.DefaultWorkingDirectory)/gcc.tar.gz
   continueOnError: true
-  artifact: alphartc.tar.gz
-  displayName: "Archive AlphaRTC Peerconnection"
+  artifact: gcc.tar.gz
+  displayName: "Archive the GCC docker image"
 
-- script: docker image tag alphartc:latest $(dockerRegistry)/alphartc:latest
-  displayName: 'Tag alphartc image'
+- script: docker image tag gcc:latest $(dockerRegistry)/gcc:latest
+  displayName: 'Tag the GCC docker image'
 
 - task: Docker@2
   inputs:
-    containerRegistry: 'opennetlab Azure registry'
-    repository: 'alphartc'
+    containerRegistry: 'OpenNetLab Azure registry'
+    repository: 'gcc'
     command: 'push'
     tags: 'latest'
-  displayName: "Push alphartc image"
+  displayName: "Push the GCC docker image to Azure registry"

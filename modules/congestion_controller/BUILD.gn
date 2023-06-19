@@ -49,7 +49,6 @@ if (rtc_include_tests) {
       "../../test:test_support",
       "../../test/scenario",
       "../pacing",
-      # Remove it for enabling AlphaCC and disabling GCC
       # Todo: The test doesn't work now
       # "goog_cc:estimators",
       # "goog_cc:goog_cc_unittests",

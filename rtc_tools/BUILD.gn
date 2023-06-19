@@ -339,8 +339,7 @@ if (!build_with_chromium) {
         # TODO(kwiberg): Remove this dependency.
         "../api/audio_codecs:audio_codecs_api",
         "../api/transport:field_trial_based_config",
-        # Revision for enabling AlphaCC and disabling GCC
-        "../api/transport:alpha_cc",
+        "../api/transport:goog_cc",
         "../api/transport:network_control",
         "../call:call_interfaces",
         "../call:video_stream_api",
@@ -350,10 +349,8 @@ if (!build_with_chromium) {
         "../modules/audio_coding:audio_network_adaptor",
         "../modules/audio_coding:neteq_tools",
         "../modules/congestion_controller",
-        # Remove it for enabling AlphaCC and disabling GCC
-        # Todo: event_log_visualizer_utils doesn't work
-        # "../modules/congestion_controller/goog_cc:delay_based_bwe",
-        # "../modules/congestion_controller/goog_cc:estimators",
+        "../modules/congestion_controller/goog_cc:delay_based_bwe",
+        "../modules/congestion_controller/goog_cc:estimators",
         "../modules/congestion_controller/rtp:transport_feedback",
         "../modules/pacing",
         "../modules/remote_bitrate_estimator",

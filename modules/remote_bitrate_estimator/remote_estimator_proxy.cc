@@ -8,10 +8,6 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifdef WIN32
-#pragma comment(lib, "../../modules/third_party/onnxinfer/lib/onnxinfer.lib")
-#endif  //  WIN32
-
 #include "modules/remote_bitrate_estimator/remote_estimator_proxy.h"
 #include "modules/third_party/cmdinfer/cmdinfer.h"
 
@@ -54,7 +50,6 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       send_periodic_feedback_(true),
       bwe_sendback_interval_ms_(GetAlphaCCConfig()->bwe_feedback_duration_ms),
       last_bwe_sendback_ms_(clock->TimeInMilliseconds()),
-      stats_collect_(StatCollect::SC_TYPE_STRUCT),
       cycles_(-1),
       max_abs_send_time_(0) {
       // previous_abs_send_time_(0),
@@ -77,11 +72,6 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   rtc::CritScope cs(&lock_);
   media_ssrc_ = header.ssrc;
   int64_t seq = 0;
-
-  uint32_t send_time_ms =
-      GetTtimeFromAbsSendtime(header.extension.absoluteSendTime);
-  bool time_to_send_bew_message = TimeToSendBweMessage();
-  float estimation = 0;
 
   if (header.extension.hasTransportSequenceNumber) {
     seq = unwrapper_.Unwrap(header.extension.transportSequenceNumber);
@@ -127,31 +117,6 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
       SendFeedbackOnRequest(seq, header.extension.feedback_request.value());
     }
   }
-
-  // Save per-packet info locally on receiving
-  // ---------- Collect packet-related info into a local file ----------
-  double pacing_rate =
-      time_to_send_bew_message ? estimation : SC_PACER_PACING_RATE_EMPTY;
-  double padding_rate =
-      time_to_send_bew_message ? estimation : SC_PACER_PADDING_RATE_EMPTY;
-
-  // Save per-packet info locally on receiving
-  auto res = stats_collect_.StatsCollect(
-      pacing_rate, padding_rate, header.payloadType,
-                              header.sequenceNumber, send_time_ms, header.ssrc,
-                              header.paddingLength, header.headerLength,
-                              arrival_time_ms, payload_size, 0);
-  if (res != StatCollect::SCResult::SC_SUCCESS)
-  {
-    RTC_LOG(LS_ERROR) << "Collect data failed";
-  }
-  std::string out_data = stats_collect_.DumpData();
-  if (out_data.empty())
-  {
-    RTC_LOG(LS_ERROR) << "Save data failed";
-  }
-
-  RTC_LOG(LS_INFO) << out_data;
 }
 
 bool RemoteEstimatorProxy::LatestEstimate(std::vector<unsigned int>* ssrcs,
@@ -200,15 +165,6 @@ void RemoteEstimatorProxy::OnBitrateChanged(int bitrate_bps) {
       0.5 + kTwccReportSize * 8.0 * 1000.0 /
                 rtc::SafeClamp(send_config_.bandwidth_fraction * bitrate_bps,
                                kMinTwccRate, kMaxTwccRate));
-}
-
-bool RemoteEstimatorProxy::TimeToSendBweMessage() {
-  int64_t time_now = clock_->TimeInMilliseconds();
-  if (time_now - bwe_sendback_interval_ms_ > last_bwe_sendback_ms_) {
-    last_bwe_sendback_ms_ = time_now;
-    return true;
-  }
-  return false;
 }
 
 void RemoteEstimatorProxy::SetSendPeriodicFeedback(
@@ -338,17 +294,6 @@ void RemoteEstimatorProxy::SendFeedbackOnRequest(
   RTC_DCHECK(feedback_sender_ != nullptr);
   std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets;
   packets.push_back(std::move(feedback_packet));
-  feedback_sender_->SendCombinedRtcpPacket(std::move(packets));
-}
-
-void RemoteEstimatorProxy::SendbackBweEstimation(const BweMessage& bwe) {
-  auto app_packet = std::make_unique<rtcp::App>();
-  app_packet->SetSubType(kAppPacketSubType);
-  app_packet->SetName(kAppPacketName);
-
-  app_packet->SetData(reinterpret_cast<const uint8_t*>(&bwe), sizeof(bwe));
-  std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets;
-  packets.push_back(std::move(app_packet));
   feedback_sender_->SendCombinedRtcpPacket(std::move(packets));
 }
 

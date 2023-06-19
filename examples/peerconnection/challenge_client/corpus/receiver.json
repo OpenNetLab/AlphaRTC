@@ -52,6 +52,6 @@
     },
     "logging": {
         "enabled": true,
-        "log_output_path": "webrtc.log"
+        "log_output_path": "gcc-receiver.log"
     }
 }

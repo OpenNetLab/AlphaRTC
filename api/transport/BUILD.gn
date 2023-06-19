@@ -86,20 +86,17 @@ rtc_source_set("datagram_transport_interface") {
   ]
 }
 
-# Revision for enabling AlphaCC and disabling GCC
-rtc_static_library("alpha_cc") {
+rtc_library("goog_cc") {
   visibility = [ "*" ]
   sources = [
-    "alpha_cc_factory.cc",
-    "alpha_cc_factory.h",
+    "goog_cc_factory.cc",
+    "goog_cc_factory.h",
   ]
   deps = [
     ":network_control",
     ":webrtc_key_value_config",
     "..:network_state_predictor_api",
-    "../../modules/congestion_controller/alpha_cc",
-    "//third_party/abseil-cpp/absl/memory",
-    # "../../modules/congestion_controller/goog_cc",
+    "../../modules/congestion_controller/goog_cc",
     "../../rtc_base:deprecation",
   ]
 }

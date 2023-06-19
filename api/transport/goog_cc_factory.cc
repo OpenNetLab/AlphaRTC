@@ -8,34 +8,33 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "api/transport/alpha_cc_factory.h"
+#include "api/transport/goog_cc_factory.h"
 
 #include <memory>
 #include <utility>
-#include "absl/memory/memory.h"
-#include "modules/congestion_controller/alpha_cc/alpha_cc_network_control.h"
-#include "rtc_base/logging.h"
+
+#include "modules/congestion_controller/goog_cc/goog_cc_network_control.h"
 
 namespace webrtc {
-AlphaCcNetworkControllerFactory::AlphaCcNetworkControllerFactory(
+GoogCcNetworkControllerFactory::GoogCcNetworkControllerFactory(
     RtcEventLog* event_log)
     : event_log_(event_log) {}
 
-AlphaCcNetworkControllerFactory::AlphaCcNetworkControllerFactory(
+GoogCcNetworkControllerFactory::GoogCcNetworkControllerFactory(
     NetworkStatePredictorFactoryInterface* network_state_predictor_factory) {
   factory_config_.network_state_predictor_factory =
       network_state_predictor_factory;
 }
 
-AlphaCcNetworkControllerFactory::AlphaCcNetworkControllerFactory(
-    AlphaCcFactoryConfig config)
+GoogCcNetworkControllerFactory::GoogCcNetworkControllerFactory(
+    GoogCcFactoryConfig config)
     : factory_config_(std::move(config)) {}
 
 std::unique_ptr<NetworkControllerInterface>
-AlphaCcNetworkControllerFactory::Create(NetworkControllerConfig config) {
+GoogCcNetworkControllerFactory::Create(NetworkControllerConfig config) {
   if (event_log_)
     config.event_log = event_log_;
-  AlphaCcConfig goog_cc_config;
+  GoogCcConfig goog_cc_config;
   goog_cc_config.feedback_only = factory_config_.feedback_only;
   if (factory_config_.network_state_estimator_factory) {
     RTC_DCHECK(config.key_value_config);
@@ -48,18 +47,18 @@ AlphaCcNetworkControllerFactory::Create(NetworkControllerConfig config) {
         factory_config_.network_state_predictor_factory
             ->CreateNetworkStatePredictor();
   }
-  return std::make_unique<AlphaCcNetworkController>(config,
+  return std::make_unique<GoogCcNetworkController>(config,
                                                    std::move(goog_cc_config));
 }
 
-TimeDelta AlphaCcNetworkControllerFactory::GetProcessInterval() const {
+TimeDelta GoogCcNetworkControllerFactory::GetProcessInterval() const {
   const int64_t kUpdateIntervalMs = 25;
   return TimeDelta::Millis(kUpdateIntervalMs);
 }
 
-AlphaCcFeedbackNetworkControllerFactory::AlphaCcFeedbackNetworkControllerFactory(
+GoogCcFeedbackNetworkControllerFactory::GoogCcFeedbackNetworkControllerFactory(
     RtcEventLog* event_log)
-    : AlphaCcNetworkControllerFactory(event_log) {
+    : GoogCcNetworkControllerFactory(event_log) {
   factory_config_.feedback_only = true;
 }
 

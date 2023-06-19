@@ -391,7 +391,7 @@ void BitrateAllocator::OnNetworkEstimateChanged(TargetTransferRate msg) {
   // Periodically log the incoming BWE.
   int64_t now = msg.at_time.ms();
   if (now > last_bwe_log_time_ + kBweLogIntervalMs) {
-    RTC_LOG(LS_INFO) << "Current BWE " << last_target_bps_;
+    RTC_LOG(LS_INFO) << "GCC: Current BWE " << last_target_bps_;
     last_bwe_log_time_ = now;
   }
 

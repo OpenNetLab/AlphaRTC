@@ -19,7 +19,7 @@
 namespace webrtc {
 class RtcEventLog;
 
-struct AlphaCcFactoryConfig {
+struct GoogCcFactoryConfig {
   std::unique_ptr<NetworkStateEstimatorFactory>
       network_state_estimator_factory = nullptr;
   NetworkStatePredictorFactoryInterface* network_state_predictor_factory =
@@ -27,32 +27,32 @@ struct AlphaCcFactoryConfig {
   bool feedback_only = false;
 };
 
-class AlphaCcNetworkControllerFactory
+class GoogCcNetworkControllerFactory
     : public NetworkControllerFactoryInterface {
  public:
-  AlphaCcNetworkControllerFactory() = default;
-  explicit RTC_DEPRECATED AlphaCcNetworkControllerFactory(
+  GoogCcNetworkControllerFactory() = default;
+  explicit RTC_DEPRECATED GoogCcNetworkControllerFactory(
       RtcEventLog* event_log);
-  explicit AlphaCcNetworkControllerFactory(
+  explicit GoogCcNetworkControllerFactory(
       NetworkStatePredictorFactoryInterface* network_state_predictor_factory);
 
-  explicit AlphaCcNetworkControllerFactory(AlphaCcFactoryConfig config);
+  explicit GoogCcNetworkControllerFactory(GoogCcFactoryConfig config);
   std::unique_ptr<NetworkControllerInterface> Create(
       NetworkControllerConfig config) override;
   TimeDelta GetProcessInterval() const override;
 
  protected:
   RtcEventLog* const event_log_ = nullptr;
-  AlphaCcFactoryConfig factory_config_;
+  GoogCcFactoryConfig factory_config_;
 };
 
-// Deprecated, use AlphaCcFactoryConfig to enable feedback only mode instead.
+// Deprecated, use GoogCcFactoryConfig to enable feedback only mode instead.
 // Factory to create packet feedback only GoogCC, this can be used for
 // connections providing packet receive time feedback but no other reports.
-class RTC_DEPRECATED AlphaCcFeedbackNetworkControllerFactory
-    : public AlphaCcNetworkControllerFactory {
+class RTC_DEPRECATED GoogCcFeedbackNetworkControllerFactory
+    : public GoogCcNetworkControllerFactory {
  public:
-  explicit AlphaCcFeedbackNetworkControllerFactory(RtcEventLog* event_log);
+  explicit GoogCcFeedbackNetworkControllerFactory(RtcEventLog* event_log);
 };
 
 }  // namespace webrtc

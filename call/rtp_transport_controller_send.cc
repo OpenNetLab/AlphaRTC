@@ -15,8 +15,7 @@
 
 #include "absl/strings/match.h"
 #include "absl/types/optional.h"
-// Revision for enabling AlphaCC and disabling GCC
-#include "api/transport/alpha_cc_factory.h"
+#include "api/transport/goog_cc_factory.h"
 #include "api/transport/network_types.h"
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"

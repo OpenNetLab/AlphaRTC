@@ -42,6 +42,7 @@
         "enabled": false
     },
     "logging": {
-        "enabled": false
+        "enabled": true,
+        "log_output_path": "gcc-sender.log"
     }
 }

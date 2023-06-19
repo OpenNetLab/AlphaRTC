@@ -40,8 +40,8 @@ bool IsNotDisabled(const WebRtcKeyValueConfig* config, absl::string_view key) {
 }
 }  // namespace
 
-GoogCcNetworkController::GoogCcNetworkController(NetworkControllerConfig config,
-                                                 GoogCcConfig alpha_cc_config)
+AlphaCcNetworkController::AlphaCcNetworkController(NetworkControllerConfig config,
+                                                 AlphaCcConfig alpha_cc_config)
     : key_value_config_(config.key_value_config ? config.key_value_config
                                                 : &trial_based_config_),
       safe_reset_on_route_change_("Enabled"),
@@ -60,55 +60,55 @@ GoogCcNetworkController::GoogCcNetworkController(NetworkControllerConfig config,
       key_value_config_->Lookup("WebRTC-Bwe-SafeResetOnRouteChange"));
 }
 
-GoogCcNetworkController::~GoogCcNetworkController() {}
+AlphaCcNetworkController::~AlphaCcNetworkController() {}
 
-NetworkControlUpdate GoogCcNetworkController::OnNetworkAvailability(
+NetworkControlUpdate AlphaCcNetworkController::OnNetworkAvailability(
     NetworkAvailability msg) {
   return NetworkControlUpdate();
 }
 
-NetworkControlUpdate GoogCcNetworkController::OnNetworkRouteChange(
+NetworkControlUpdate AlphaCcNetworkController::OnNetworkRouteChange(
     NetworkRouteChange msg) {
   return NetworkControlUpdate();
 }
 
-NetworkControlUpdate GoogCcNetworkController::OnProcessInterval(
+NetworkControlUpdate AlphaCcNetworkController::OnProcessInterval(
     ProcessInterval msg) {
   return NetworkControlUpdate();
 }
 
-NetworkControlUpdate GoogCcNetworkController::OnRemoteBitrateReport(
+NetworkControlUpdate AlphaCcNetworkController::OnRemoteBitrateReport(
     RemoteBitrateReport msg) {
   return NetworkControlUpdate();
 }
 
-NetworkControlUpdate GoogCcNetworkController::OnRoundTripTimeUpdate(
+NetworkControlUpdate AlphaCcNetworkController::OnRoundTripTimeUpdate(
     RoundTripTimeUpdate msg) {
   return NetworkControlUpdate();
 }
 
-NetworkControlUpdate GoogCcNetworkController::OnSentPacket(
+NetworkControlUpdate AlphaCcNetworkController::OnSentPacket(
     SentPacket sent_packet) {
   return NetworkControlUpdate();
 }
 
-NetworkControlUpdate GoogCcNetworkController::OnStreamsConfig(
+NetworkControlUpdate AlphaCcNetworkController::OnStreamsConfig(
     StreamsConfig msg) {
   return GetDefaultState(msg.at_time);
 }
 
-NetworkControlUpdate GoogCcNetworkController::OnReceivedPacket(
+NetworkControlUpdate AlphaCcNetworkController::OnReceivedPacket(
     ReceivedPacket received_packet) {
   return NetworkControlUpdate();
 }
 
 // Make this alive since this might be used to tune the birate.
-NetworkControlUpdate GoogCcNetworkController::OnTargetRateConstraints(
+NetworkControlUpdate AlphaCcNetworkController::OnTargetRateConstraints(
     TargetRateConstraints constraints) {
   return NetworkControlUpdate();
 }
 
-NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
+NetworkControlUpdate AlphaCcNetworkController::GetDefaultState(
     Timestamp at_time) {
   //*-----Set target_rate-----*//
   constexpr int32_t default_bitrate_bps = 300000;  // default: 300000 bps = 300 kbps
@@ -158,7 +158,7 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
   return update;
 }
 
-NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
+NetworkControlUpdate AlphaCcNetworkController::OnReceiveBwe(BweMessage bwe) {
   int32_t default_bitrate_bps = static_cast<int32_t>(bwe.target_rate);  // default: 300000 bps = 300 kbps
   DataRate bandwidth = DataRate::BitsPerSec(default_bitrate_bps);
   TimeDelta rtt = TimeDelta::Millis(last_estimated_rtt_ms_);
@@ -176,7 +176,7 @@ NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
   update.target_rate->target_rate = bandwidth;
 
   //*-----Set pacing & padding_rate-----*//
-  int32_t default_pacing_rate = static_cast<int32_t>(bwe.pacing_rate); 
+  int32_t default_pacing_rate = static_cast<int32_t>(bwe.pacing_rate);
   int32_t default_padding_rate = 0;  // default: 0bps = 0kbps
   DataRate pacing_rate = DataRate::BitsPerSec(default_pacing_rate * pacing_factor_);
   DataRate padding_rate = DataRate::BitsPerSec(default_padding_rate);
@@ -193,7 +193,7 @@ NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
   return update;
 }
 
-void GoogCcNetworkController::ClampConstraints() {
+void AlphaCcNetworkController::ClampConstraints() {
   // TODO(holmer): We should make sure the default bitrates are set to 10 kbps,
   // and that we don't try to set the min bitrate to 0 from any applications.
   // The congestion controller should allow a min bitrate of 0.
@@ -211,17 +211,17 @@ void GoogCcNetworkController::ClampConstraints() {
   }
 }
 
-NetworkControlUpdate GoogCcNetworkController::OnTransportLossReport(
+NetworkControlUpdate AlphaCcNetworkController::OnTransportLossReport(
     TransportLossReport msg) {
   return NetworkControlUpdate();
 }
 
-NetworkControlUpdate GoogCcNetworkController::OnTransportPacketsFeedback(
+NetworkControlUpdate AlphaCcNetworkController::OnTransportPacketsFeedback(
     TransportPacketsFeedback report) {
   return NetworkControlUpdate();
 }
 
-NetworkControlUpdate GoogCcNetworkController::OnNetworkStateEstimate(
+NetworkControlUpdate AlphaCcNetworkController::OnNetworkStateEstimate(
     NetworkStateEstimate msg) {
   return NetworkControlUpdate();
 }
