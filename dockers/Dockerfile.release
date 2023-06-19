@@ -6,3 +6,5 @@ RUN apt-get update && apt-get install -y \
 COPY lib /usr/lib/
 
 COPY bin /usr/bin/
+
+COPY pylib /usr/lib/python3/dist-packages/
