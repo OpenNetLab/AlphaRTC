@@ -11,62 +11,71 @@ trigger:
     - upstream/*
 
 
-pool:
-  vmImage: 'ubuntu-latest'
+jobs:
 
+- job: Linux
+  pool:
+    vmImage: 'ubuntu-latest'
 
 steps:
 
 - checkout: self
 
-- script: make init
-  displayName: 'build compile environment'
+  - script: make init
+    displayName: 'build compile environment'
 
-- script: make sync
-  displayName: 'sync dependencies'
+  - script: make sync
+    displayName: 'sync dependencies'
 
-- script: make app
-  displayName: 'build application'
+  - script: make app
+    displayName: 'build application'
 
-- script: make release
-  displayName: 'build release image'
+  - script: make release
+    displayName: 'build release image'
 
-- script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
-            && docker exec alphartc peerconnection_serverless sender.json
-  displayName: 'run example'
+  - script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
+              && docker exec alphartc peerconnection_serverless sender.json
+    displayName: 'run example'
 
-- script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc_pyinfer alphartc peerconnection_serverless receiver_pyinfer.json
-            && docker exec alphartc_pyinfer peerconnection_serverless sender_pyinfer.json
-  displayName: 'run pyinfer example'
+- job: Windows
+  pool:
+    vmImage: VS2017-Win2016
 
-- script: docker save alphartc | gzip > alphartc.tar.gz
-  displayName: "Export alphartc docker image"
+  variables:
+  - name: DEPOT_TOOLS_WIN_TOOLCHAIN
+    value: 0
+  - name: GYP_MSVS_VERSION
+    value: 2017
 
-- publish: $(System.DefaultWorkingDirectory)/alphartc.tar.gz
-  continueOnError: true
-  artifact: alphartc.tar.gz
-  displayName: "Archive AlphaRTC Peerconnection"
+  steps:
 
-- task: GitHubRelease@0
-  inputs:
-    gitHubConnection: 'Pterosaur (1)'
-    repositoryName: '$(Build.Repository.Name)'
-    action: 'create'
-    tagSource: manual
-    tag: $(Build.BuildNumber)
-    title: alphartc
-    assets: '$(System.DefaultWorkingDirectory)/alphartc.tar.gz'
-    changeLogCompareToRelease: 'lastFullRelease'
-    changeLogType: 'commitBased'
-  displayName: "Release target"
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: "2.x"
+        addToPath: true
+    
+    - powershell: |
+        Invoke-WebRequest -Uri "https://storage.googleapis.com/chrome-infra/depot_tools.zip" -OutFile "depot_tools.zip"
+        Expand-Archive "./depot_tools.zip"
+      workingDirectory: $(Pipeline.Workspace)
+      displayName: "clone depot_tools"
 
-- script: docker image tag alphartc:latest $(dockerRegistry)/alphartc:latest
-  displayName: 'Tag alphartc image'
-
-- task: Docker@2
-  inputs:
-    containerRegistry: 'opennetlab Azure registry'
-    repository: 'alphartc'
-    command: 'push'
-    tags: 'latest'
-  displayName: "Push alphartc image"
+    - checkout: self
+    
+    - powershell: |
+        Write-Host "##vso[task.prependpath]$(Pipeline.Workspace)/depot_tools"
+      displayName: "set path"
+    
+    - powershell: gclient sync
+      displayName: "sync dependencies"
+    
+    - powershell: |
+        Get-ChildItem -Path "src" -Recurse | Move-Item -Destination "."
+        Remove-Item 'src'
+      displayName: "move src"
+    
+    - powershell: gn gen out/Default --args='is_debug=false'
+      displayName: "generate build rules"
+    
+    - powershell: ninja -C out/Default peerconnection_serverless
+      displayName: "make peerconnection"
