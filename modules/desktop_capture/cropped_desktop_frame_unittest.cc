@@ -8,11 +8,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "modules/desktop_capture/cropped_desktop_frame.h"
+
 #include <memory>
 #include <utility>
 
-#include "absl/memory/memory.h"
-#include "modules/desktop_capture/cropped_desktop_frame.h"
 #include "modules/desktop_capture/desktop_frame.h"
 #include "modules/desktop_capture/shared_desktop_frame.h"
 #include "test/gtest.h"
@@ -20,7 +20,7 @@
 namespace webrtc {
 
 std::unique_ptr<DesktopFrame> CreateTestFrame() {
-  return absl::make_unique<BasicDesktopFrame>(DesktopSize(10, 20));
+  return std::make_unique<BasicDesktopFrame>(DesktopSize(10, 20));
 }
 
 TEST(CroppedDesktopFrameTest, DoNotCreateWrapperIfSizeIsNotChanged) {

@@ -8,9 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "audio/remix_resample.h"
+
 #include <cmath>
 
-#include "audio/remix_resample.h"
 #include "common_audio/resampler/include/push_resampler.h"
 #include "rtc_base/arraysize.h"
 #include "rtc_base/checks.h"
@@ -139,7 +140,7 @@ float ComputeSNR(const AudioFrame& ref_frame,
       best_delay = delay;
     }
   }
-  printf("SNR=%.1f dB at delay=%" PRIuS "\n", best_snr, best_delay);
+  printf("SNR=%.1f dB at delay=%" RTC_PRIuS "\n", best_snr, best_delay);
   return best_snr;
 }
 

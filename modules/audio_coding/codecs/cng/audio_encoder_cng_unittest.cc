@@ -8,21 +8,26 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "modules/audio_coding/codecs/cng/audio_encoder_cng.h"
+
 #include <memory>
 #include <vector>
 
 #include "common_audio/vad/mock/mock_vad.h"
-#include "modules/audio_coding/codecs/cng/audio_encoder_cng.h"
 #include "rtc_base/constructor_magic.h"
 #include "rtc_base/numerics/safe_conversions.h"
 #include "test/gtest.h"
 #include "test/mock_audio_encoder.h"
+#include "test/testsupport/rtc_expect_death.h"
 
-using ::testing::Return;
 using ::testing::_;
-using ::testing::SetArgPointee;
+using ::testing::Eq;
 using ::testing::InSequence;
 using ::testing::Invoke;
+using ::testing::Not;
+using ::testing::Optional;
+using ::testing::Return;
+using ::testing::SetArgPointee;
 
 namespace webrtc {
 
@@ -229,6 +234,15 @@ TEST_F(AudioEncoderCngTest, CheckPacketLossFractionPropagation) {
   CreateCng(MakeCngConfig());
   EXPECT_CALL(*mock_encoder_, OnReceivedUplinkPacketLossFraction(0.5));
   cng_->OnReceivedUplinkPacketLossFraction(0.5);
+}
+
+TEST_F(AudioEncoderCngTest, CheckGetFrameLengthRangePropagation) {
+  CreateCng(MakeCngConfig());
+  auto expected_range =
+      std::make_pair(TimeDelta::Millis(20), TimeDelta::Millis(20));
+  EXPECT_CALL(*mock_encoder_, GetFrameLengthRange())
+      .WillRepeatedly(Return(absl::make_optional(expected_range)));
+  EXPECT_THAT(cng_->GetFrameLengthRange(), Optional(Eq(expected_range)));
 }
 
 TEST_F(AudioEncoderCngTest, EncodeCallsVad) {
@@ -440,7 +454,7 @@ class AudioEncoderCngDeathTest : public AudioEncoderCngTest {
   }
 
   void TryWrongNumCoefficients(int num) {
-    EXPECT_DEATH(
+    RTC_EXPECT_DEATH(
         [&] {
           auto config = MakeCngConfig();
           config.num_cng_coefficients = num;
@@ -453,9 +467,9 @@ class AudioEncoderCngDeathTest : public AudioEncoderCngTest {
 TEST_F(AudioEncoderCngDeathTest, WrongFrameSize) {
   CreateCng(MakeCngConfig());
   num_audio_samples_10ms_ *= 2;  // 20 ms frame.
-  EXPECT_DEATH(Encode(), "");
+  RTC_EXPECT_DEATH(Encode(), "");
   num_audio_samples_10ms_ = 0;  // Zero samples.
-  EXPECT_DEATH(Encode(), "");
+  RTC_EXPECT_DEATH(Encode(), "");
 }
 
 TEST_F(AudioEncoderCngDeathTest, WrongNumCoefficientsA) {
@@ -473,16 +487,16 @@ TEST_F(AudioEncoderCngDeathTest, WrongNumCoefficientsC) {
 TEST_F(AudioEncoderCngDeathTest, NullSpeechEncoder) {
   auto config = MakeCngConfig();
   config.speech_encoder = nullptr;
-  EXPECT_DEATH(CreateCng(std::move(config)), "");
+  RTC_EXPECT_DEATH(CreateCng(std::move(config)), "");
 }
 
 TEST_F(AudioEncoderCngDeathTest, StereoEncoder) {
   EXPECT_CALL(*mock_encoder_, NumChannels()).WillRepeatedly(Return(2));
-  EXPECT_DEATH(CreateCng(MakeCngConfig()), "Invalid configuration");
+  RTC_EXPECT_DEATH(CreateCng(MakeCngConfig()), "Invalid configuration");
 }
 
 TEST_F(AudioEncoderCngDeathTest, StereoConfig) {
-  EXPECT_DEATH(
+  RTC_EXPECT_DEATH(
       [&] {
         auto config = MakeCngConfig();
         config.num_channels = 2;
@@ -497,8 +511,8 @@ TEST_F(AudioEncoderCngDeathTest, EncoderFrameSizeTooLarge) {
       .WillRepeatedly(Return(7U));
   for (int i = 0; i < 6; ++i)
     Encode();
-  EXPECT_DEATH(Encode(),
-               "Frame size cannot be larger than 60 ms when using VAD/CNG.");
+  RTC_EXPECT_DEATH(
+      Encode(), "Frame size cannot be larger than 60 ms when using VAD/CNG.");
 }
 
 #endif  // GTEST_HAS_DEATH_TEST

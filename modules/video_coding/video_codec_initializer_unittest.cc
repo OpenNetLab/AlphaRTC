@@ -12,6 +12,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include <memory>
 
 #include "absl/types/optional.h"
@@ -150,8 +151,9 @@ TEST_F(VideoCodecInitializerTest, SingleStreamVp8Screenshare) {
   streams_.push_back(DefaultStream());
   EXPECT_TRUE(InitializeCodec());
 
-  VideoBitrateAllocation bitrate_allocation = bitrate_allocator_->GetAllocation(
-      kDefaultTargetBitrateBps, kDefaultFrameRate);
+  VideoBitrateAllocation bitrate_allocation =
+      bitrate_allocator_->Allocate(VideoBitrateAllocationParameters(
+          kDefaultTargetBitrateBps, kDefaultFrameRate));
   EXPECT_EQ(1u, codec_out_.numberOfSimulcastStreams);
   EXPECT_EQ(1u, codec_out_.VP8()->numberOfTemporalLayers);
   EXPECT_EQ(kDefaultTargetBitrateBps, bitrate_allocation.get_sum_bps());
@@ -164,8 +166,9 @@ TEST_F(VideoCodecInitializerTest, SingleStreamVp8ScreenshareInactive) {
   streams_.push_back(inactive_stream);
   EXPECT_TRUE(InitializeCodec());
 
-  VideoBitrateAllocation bitrate_allocation = bitrate_allocator_->GetAllocation(
-      kDefaultTargetBitrateBps, kDefaultFrameRate);
+  VideoBitrateAllocation bitrate_allocation =
+      bitrate_allocator_->Allocate(VideoBitrateAllocationParameters(
+          kDefaultTargetBitrateBps, kDefaultFrameRate));
   EXPECT_EQ(1u, codec_out_.numberOfSimulcastStreams);
   EXPECT_EQ(1u, codec_out_.VP8()->numberOfTemporalLayers);
   EXPECT_EQ(0U, bitrate_allocation.get_sum_bps());
@@ -178,8 +181,9 @@ TEST_F(VideoCodecInitializerTest, TemporalLayeredVp8Screenshare) {
 
   EXPECT_EQ(1u, codec_out_.numberOfSimulcastStreams);
   EXPECT_EQ(2u, codec_out_.VP8()->numberOfTemporalLayers);
-  VideoBitrateAllocation bitrate_allocation = bitrate_allocator_->GetAllocation(
-      kScreenshareCodecTargetBitrateBps, kScreenshareDefaultFramerate);
+  VideoBitrateAllocation bitrate_allocation =
+      bitrate_allocator_->Allocate(VideoBitrateAllocationParameters(
+          kScreenshareCodecTargetBitrateBps, kScreenshareDefaultFramerate));
   EXPECT_EQ(kScreenshareCodecTargetBitrateBps,
             bitrate_allocation.get_sum_bps());
   EXPECT_EQ(kScreenshareTl0BitrateBps, bitrate_allocation.GetBitrate(0, 0));
@@ -197,8 +201,9 @@ TEST_F(VideoCodecInitializerTest, SimulcastVp8Screenshare) {
   EXPECT_EQ(1u, codec_out_.VP8()->numberOfTemporalLayers);
   const uint32_t max_bitrate_bps =
       streams_[0].target_bitrate_bps + streams_[1].max_bitrate_bps;
-  VideoBitrateAllocation bitrate_allocation = bitrate_allocator_->GetAllocation(
-      max_bitrate_bps, kScreenshareDefaultFramerate);
+  VideoBitrateAllocation bitrate_allocation =
+      bitrate_allocator_->Allocate(VideoBitrateAllocationParameters(
+          max_bitrate_bps, kScreenshareDefaultFramerate));
   EXPECT_EQ(max_bitrate_bps, bitrate_allocation.get_sum_bps());
   EXPECT_EQ(static_cast<uint32_t>(streams_[0].target_bitrate_bps),
             bitrate_allocation.GetSpatialLayerSum(0));
@@ -221,8 +226,9 @@ TEST_F(VideoCodecInitializerTest, SimulcastVp8ScreenshareInactive) {
   EXPECT_EQ(1u, codec_out_.VP8()->numberOfTemporalLayers);
   const uint32_t target_bitrate =
       streams_[0].target_bitrate_bps + streams_[1].target_bitrate_bps;
-  VideoBitrateAllocation bitrate_allocation = bitrate_allocator_->GetAllocation(
-      target_bitrate, kScreenshareDefaultFramerate);
+  VideoBitrateAllocation bitrate_allocation =
+      bitrate_allocator_->Allocate(VideoBitrateAllocationParameters(
+          target_bitrate, kScreenshareDefaultFramerate));
   EXPECT_EQ(static_cast<uint32_t>(streams_[0].max_bitrate_bps),
             bitrate_allocation.get_sum_bps());
   EXPECT_EQ(static_cast<uint32_t>(streams_[0].max_bitrate_bps),
@@ -244,8 +250,8 @@ TEST_F(VideoCodecInitializerTest, HighFpsSimulcastVp8Screenshare) {
   EXPECT_EQ(3u, codec_out_.VP8()->numberOfTemporalLayers);
   const uint32_t max_bitrate_bps =
       streams_[0].target_bitrate_bps + streams_[1].max_bitrate_bps;
-  VideoBitrateAllocation bitrate_allocation =
-      bitrate_allocator_->GetAllocation(max_bitrate_bps, kDefaultFrameRate);
+  VideoBitrateAllocation bitrate_allocation = bitrate_allocator_->Allocate(
+      VideoBitrateAllocationParameters(max_bitrate_bps, kDefaultFrameRate));
   EXPECT_EQ(max_bitrate_bps, bitrate_allocation.get_sum_bps());
   EXPECT_EQ(static_cast<uint32_t>(streams_[0].target_bitrate_bps),
             bitrate_allocation.GetSpatialLayerSum(0));
@@ -345,14 +351,14 @@ TEST_F(VideoCodecInitializerTest, Vp9DeactivateLayers) {
   EXPECT_TRUE(codec_out_.spatialLayers[2].active);
 
   // Deactivate top layer.
-  config_.simulcast_layers[0].active = false;
+  config_.simulcast_layers[2].active = false;
   EXPECT_TRUE(InitializeCodec());
   EXPECT_TRUE(codec_out_.spatialLayers[0].active);
   EXPECT_TRUE(codec_out_.spatialLayers[1].active);
   EXPECT_FALSE(codec_out_.spatialLayers[2].active);
 
   // Deactivate middle layer.
-  config_.simulcast_layers[0].active = true;
+  config_.simulcast_layers[2].active = true;
   config_.simulcast_layers[1].active = false;
   EXPECT_TRUE(InitializeCodec());
   EXPECT_TRUE(codec_out_.spatialLayers[0].active);

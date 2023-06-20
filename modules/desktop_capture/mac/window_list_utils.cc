@@ -15,11 +15,13 @@
 #include <algorithm>
 #include <cmath>
 #include <iterator>
+#include <limits>
 #include <list>
 #include <map>
+#include <memory>
+#include <utility>
 
 #include "rtc_base/checks.h"
-#include "rtc_base/mac_utils.h"
 
 static_assert(static_cast<webrtc::WindowId>(kCGNullWindowID) ==
                   webrtc::kNullWindowId,
@@ -28,6 +30,19 @@ static_assert(static_cast<webrtc::WindowId>(kCGNullWindowID) ==
 namespace webrtc {
 
 namespace {
+
+bool ToUtf8(const CFStringRef str16, std::string* str8) {
+  size_t maxlen = CFStringGetMaximumSizeForEncoding(CFStringGetLength(str16),
+                                                    kCFStringEncodingUTF8) +
+                  1;
+  std::unique_ptr<char[]> buffer(new char[maxlen]);
+  if (!buffer ||
+      !CFStringGetCString(str16, buffer.get(), maxlen, kCFStringEncodingUTF8)) {
+    return false;
+  }
+  str8->assign(buffer.get());
+  return true;
+}
 
 // Get CFDictionaryRef from |id| and call |on_window| against it. This function
 // returns false if native APIs fail, typically it indicates that the |id| does
@@ -66,7 +81,8 @@ bool GetWindowRef(CGWindowID id,
 }  // namespace
 
 bool GetWindowList(rtc::FunctionView<bool(CFDictionaryRef)> on_window,
-                   bool ignore_minimized) {
+                   bool ignore_minimized,
+                   bool only_zero_layer) {
   RTC_DCHECK(on_window);
 
   // Only get on screen, non-desktop windows.
@@ -110,7 +126,7 @@ bool GetWindowList(rtc::FunctionView<bool(CFDictionaryRef)> on_window,
     if (!CFNumberGetValue(window_layer, kCFNumberIntType, &layer)) {
       continue;
     }
-    if (layer != 0) {
+    if (only_zero_layer && layer != 0) {
       continue;
     }
 
@@ -139,7 +155,8 @@ bool GetWindowList(rtc::FunctionView<bool(CFDictionaryRef)> on_window,
 }
 
 bool GetWindowList(DesktopCapturer::SourceList* windows,
-                   bool ignore_minimized) {
+                   bool ignore_minimized,
+                   bool only_zero_layer) {
   // Use a std::list so that iterators are preversed upon insertion and
   // deletion.
   std::list<DesktopCapturer::Source> sources;
@@ -189,7 +206,7 @@ bool GetWindowList(DesktopCapturer::SourceList* windows,
         }
         return true;
       },
-      ignore_minimized);
+      ignore_minimized, only_zero_layer);
 
   if (!ret)
     return false;
@@ -227,6 +244,15 @@ bool IsWindowFullScreen(const MacDesktopConfiguration& desktop_config,
   return fullscreen;
 }
 
+bool IsWindowFullScreen(const MacDesktopConfiguration& desktop_config,
+                        CGWindowID id) {
+  bool fullscreen = false;
+  GetWindowRef(id, [&](CFDictionaryRef window) {
+    fullscreen = IsWindowFullScreen(desktop_config, window);
+  });
+  return fullscreen;
+}
+
 bool IsWindowOnScreen(CFDictionaryRef window) {
   CFBooleanRef on_screen = reinterpret_cast<CFBooleanRef>(
       CFDictionaryGetValue(window, kCGWindowIsOnscreen));
@@ -247,7 +273,7 @@ std::string GetWindowTitle(CFDictionaryRef window) {
   CFStringRef title = reinterpret_cast<CFStringRef>(
       CFDictionaryGetValue(window, kCGWindowName));
   std::string result;
-  if (title && rtc::ToUtf8(title, &result)) {
+  if (title && ToUtf8(title, &result)) {
     return result;
   }
 
@@ -268,7 +294,7 @@ std::string GetWindowOwnerName(CFDictionaryRef window) {
   CFStringRef owner_name = reinterpret_cast<CFStringRef>(
       CFDictionaryGetValue(window, kCGWindowOwnerName));
   std::string result;
-  if (owner_name && rtc::ToUtf8(owner_name, &result)) {
+  if (owner_name && ToUtf8(owner_name, &result)) {
     return result;
   }
   return std::string();

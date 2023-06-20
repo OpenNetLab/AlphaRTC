@@ -17,6 +17,7 @@
 #include <direct.h>
 #include <tchar.h>
 #include <windows.h>
+
 #include <algorithm>
 #include <codecvt>
 #include <locale>
@@ -127,7 +128,7 @@ std::string OutputPath() {
 std::string WorkingDir() {
 #if defined(WEBRTC_ANDROID)
   return kAndroidChromiumTestsRoot;
-#endif
+#else
   char path_buffer[FILENAME_MAX];
   if (!GET_CURRENT_DIR(path_buffer, sizeof(path_buffer))) {
     fprintf(stderr, "Cannot get current directory!\n");
@@ -135,6 +136,7 @@ std::string WorkingDir() {
   } else {
     return std::string(path_buffer);
   }
+#endif
 }
 
 std::string ResourcePath(const std::string& name,

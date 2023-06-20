@@ -8,11 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "modules/pacing/packet_router.h"
+
 #include <cstddef>
 #include <cstdint>
+#include <memory>
+#include <utility>
 
 #include "api/units/time_delta.h"
-#include "modules/pacing/packet_router.h"
+#include "modules/rtp_rtcp/include/rtp_header_extension_map.h"
 #include "modules/rtp_rtcp/mocks/mock_rtp_rtcp.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/transport_feedback.h"
 #include "rtc_base/checks.h"
@@ -36,8 +40,8 @@ using ::testing::Field;
 using ::testing::Gt;
 using ::testing::Le;
 using ::testing::NiceMock;
+using ::testing::Property;
 using ::testing::Return;
-using ::testing::ReturnPointee;
 using ::testing::SaveArg;
 
 constexpr int kProbeMinProbes = 5;
@@ -45,236 +49,53 @@ constexpr int kProbeMinBytes = 1000;
 
 }  // namespace
 
-TEST(PacketRouterTest, Sanity_NoModuleRegistered_TimeToSendPacket) {
-  PacketRouter packet_router;
+class PacketRouterTest : public ::testing::Test {
+ public:
+  PacketRouterTest() {
+    extension_manager.Register<TransportSequenceNumber>(/*id=*/1);
+  }
 
-  constexpr uint16_t ssrc = 1234;
-  constexpr uint16_t sequence_number = 17;
-  constexpr uint64_t timestamp = 7890;
-  constexpr bool retransmission = false;
-  const PacedPacketInfo paced_info(1, kProbeMinProbes, kProbeMinBytes);
+ protected:
+  std::unique_ptr<RtpPacketToSend> BuildRtpPacket(uint32_t ssrc) {
+    std::unique_ptr<RtpPacketToSend> packet =
+        std::make_unique<RtpPacketToSend>(&extension_manager);
+    packet->SetSsrc(ssrc);
+    return packet;
+  }
 
-  EXPECT_EQ(RtpPacketSendResult::kPacketNotFound,
-            packet_router.TimeToSendPacket(ssrc, sequence_number, timestamp,
-                                           retransmission, paced_info));
-}
+  PacketRouter packet_router_;
+  RtpHeaderExtensionMap extension_manager;
+};
 
-TEST(PacketRouterTest, Sanity_NoModuleRegistered_TimeToSendPadding) {
-  PacketRouter packet_router;
-
+TEST_F(PacketRouterTest, Sanity_NoModuleRegistered_GeneratePadding) {
   constexpr size_t bytes = 300;
   const PacedPacketInfo paced_info(1, kProbeMinProbes, kProbeMinBytes);
 
-  EXPECT_EQ(packet_router.TimeToSendPadding(bytes, paced_info), 0u);
+  EXPECT_TRUE(packet_router_.GeneratePadding(bytes).empty());
 }
 
-TEST(PacketRouterTest, Sanity_NoModuleRegistered_OnReceiveBitrateChanged) {
-  PacketRouter packet_router;
-
+TEST_F(PacketRouterTest, Sanity_NoModuleRegistered_OnReceiveBitrateChanged) {
   const std::vector<uint32_t> ssrcs = {1, 2, 3};
   constexpr uint32_t bitrate_bps = 10000;
 
-  packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_bps);
+  packet_router_.OnReceiveBitrateChanged(ssrcs, bitrate_bps);
 }
 
-TEST(PacketRouterTest, Sanity_NoModuleRegistered_SendRemb) {
-  PacketRouter packet_router;
-
+TEST_F(PacketRouterTest, Sanity_NoModuleRegistered_SendRemb) {
   const std::vector<uint32_t> ssrcs = {1, 2, 3};
   constexpr uint32_t bitrate_bps = 10000;
 
-  EXPECT_FALSE(packet_router.SendRemb(bitrate_bps, ssrcs));
+  EXPECT_FALSE(packet_router_.SendRemb(bitrate_bps, ssrcs));
 }
 
-TEST(PacketRouterTest, Sanity_NoModuleRegistered_SendTransportFeedback) {
-  PacketRouter packet_router;
+TEST_F(PacketRouterTest, Sanity_NoModuleRegistered_SendTransportFeedback) {
+  std::vector<std::unique_ptr<rtcp::RtcpPacket>> feedback;
+  feedback.push_back(std::make_unique<rtcp::TransportFeedback>());
 
-  rtcp::TransportFeedback feedback;
-
-  EXPECT_FALSE(packet_router.SendTransportFeedback(&feedback));
+  EXPECT_FALSE(packet_router_.SendCombinedRtcpPacket(std::move(feedback)));
 }
 
-TEST(PacketRouterTest, TimeToSendPacket) {
-  PacketRouter packet_router;
-  NiceMock<MockRtpRtcp> rtp_1;
-  NiceMock<MockRtpRtcp> rtp_2;
-
-  packet_router.AddSendRtpModule(&rtp_1, false);
-  packet_router.AddSendRtpModule(&rtp_2, false);
-
-  const uint16_t kSsrc1 = 1234;
-  uint16_t sequence_number = 17;
-  uint64_t timestamp = 7890;
-  bool retransmission = false;
-
-  // Send on the first module by letting rtp_1 be sending with correct ssrc.
-  ON_CALL(rtp_1, SendingMedia).WillByDefault(Return(true));
-  ON_CALL(rtp_1, SSRC).WillByDefault(Return(kSsrc1));
-  EXPECT_CALL(rtp_1, TimeToSendPacket(
-                         kSsrc1, sequence_number, timestamp, retransmission,
-                         Field(&PacedPacketInfo::probe_cluster_id, 1)))
-      .Times(1)
-      .WillOnce(Return(RtpPacketSendResult::kSuccess));
-  EXPECT_CALL(rtp_2, TimeToSendPacket).Times(0);
-  EXPECT_EQ(RtpPacketSendResult::kSuccess,
-            packet_router.TimeToSendPacket(
-                kSsrc1, sequence_number, timestamp, retransmission,
-                PacedPacketInfo(1, kProbeMinProbes, kProbeMinBytes)));
-
-  // Send on the second module by letting rtp_2 be sending, but not rtp_1.
-  ++sequence_number;
-  timestamp += 30;
-  retransmission = true;
-  const uint16_t kSsrc2 = 4567;
-  ON_CALL(rtp_1, SendingMedia).WillByDefault(Return(false));
-  ON_CALL(rtp_2, SendingMedia).WillByDefault(Return(true));
-  ON_CALL(rtp_2, SSRC).WillByDefault(Return(kSsrc2));
-  EXPECT_CALL(rtp_1, TimeToSendPacket).Times(0);
-  EXPECT_CALL(rtp_2, TimeToSendPacket(
-                         kSsrc2, sequence_number, timestamp, retransmission,
-                         Field(&PacedPacketInfo::probe_cluster_id, 2)))
-      .Times(1)
-      .WillOnce(Return(RtpPacketSendResult::kSuccess));
-  EXPECT_EQ(RtpPacketSendResult::kSuccess,
-            packet_router.TimeToSendPacket(
-                kSsrc2, sequence_number, timestamp, retransmission,
-                PacedPacketInfo(2, kProbeMinProbes, kProbeMinBytes)));
-
-  // No module is sending, hence no packet should be sent.
-  ON_CALL(rtp_1, SendingMedia).WillByDefault(Return(false));
-  ON_CALL(rtp_2, SendingMedia).WillByDefault(Return(false));
-  EXPECT_CALL(rtp_1, TimeToSendPacket).Times(0);
-  EXPECT_CALL(rtp_2, TimeToSendPacket).Times(0);
-  EXPECT_EQ(RtpPacketSendResult::kPacketNotFound,
-            packet_router.TimeToSendPacket(
-                kSsrc1, sequence_number, timestamp, retransmission,
-                PacedPacketInfo(1, kProbeMinProbes, kProbeMinBytes)));
-
-  // Add a packet with incorrect ssrc and test it's dropped in the router.
-  ON_CALL(rtp_1, SendingMedia).WillByDefault(Return(true));
-  ON_CALL(rtp_1, SSRC).WillByDefault(Return(kSsrc1));
-  ON_CALL(rtp_2, SendingMedia).WillByDefault(Return(true));
-  ON_CALL(rtp_2, SSRC).WillByDefault(Return(kSsrc2));
-  EXPECT_CALL(rtp_1, TimeToSendPacket).Times(0);
-  EXPECT_CALL(rtp_2, TimeToSendPacket).Times(0);
-  EXPECT_EQ(RtpPacketSendResult::kPacketNotFound,
-            packet_router.TimeToSendPacket(
-                kSsrc1 + kSsrc2, sequence_number, timestamp, retransmission,
-                PacedPacketInfo(1, kProbeMinProbes, kProbeMinBytes)));
-
-  packet_router.RemoveSendRtpModule(&rtp_1);
-
-  // rtp_1 has been removed, try sending a packet on that ssrc and make sure
-  // it is dropped as expected by not expecting any calls to rtp_1.
-  ON_CALL(rtp_2, SendingMedia).WillByDefault(Return(true));
-  ON_CALL(rtp_2, SSRC).WillByDefault(Return(kSsrc2));
-  EXPECT_CALL(rtp_2, TimeToSendPacket).Times(0);
-  EXPECT_EQ(RtpPacketSendResult::kPacketNotFound,
-            packet_router.TimeToSendPacket(
-                kSsrc1, sequence_number, timestamp, retransmission,
-                PacedPacketInfo(PacedPacketInfo::kNotAProbe, kProbeMinBytes,
-                                kProbeMinBytes)));
-
-  packet_router.RemoveSendRtpModule(&rtp_2);
-}
-
-TEST(PacketRouterTest, TimeToSendPadding) {
-  PacketRouter packet_router;
-
-  const uint16_t kSsrc1 = 1234;
-  const uint16_t kSsrc2 = 4567;
-
-  NiceMock<MockRtpRtcp> rtp_1;
-  EXPECT_CALL(rtp_1, RtxSendStatus()).WillOnce(Return(kRtxOff));
-  EXPECT_CALL(rtp_1, SSRC()).WillRepeatedly(Return(kSsrc1));
-  NiceMock<MockRtpRtcp> rtp_2;
-  // rtp_2 will be prioritized for padding.
-  EXPECT_CALL(rtp_2, RtxSendStatus()).WillOnce(Return(kRtxRedundantPayloads));
-  EXPECT_CALL(rtp_2, SSRC()).WillRepeatedly(Return(kSsrc2));
-  packet_router.AddSendRtpModule(&rtp_1, false);
-  packet_router.AddSendRtpModule(&rtp_2, false);
-
-  // Default configuration, sending padding on all modules sending media,
-  // ordered by priority (based on rtx mode).
-  const size_t requested_padding_bytes = 1000;
-  const size_t sent_padding_bytes = 890;
-  EXPECT_CALL(rtp_2, SendingMedia()).Times(1).WillOnce(Return(true));
-  EXPECT_CALL(rtp_2, HasBweExtensions()).Times(1).WillOnce(Return(true));
-  EXPECT_CALL(rtp_2,
-              TimeToSendPadding(requested_padding_bytes,
-                                Field(&PacedPacketInfo::probe_cluster_id, 111)))
-      .Times(1)
-      .WillOnce(Return(sent_padding_bytes));
-  EXPECT_CALL(rtp_1, SendingMedia()).Times(1).WillOnce(Return(true));
-  EXPECT_CALL(rtp_1, HasBweExtensions()).Times(1).WillOnce(Return(true));
-  EXPECT_CALL(rtp_1,
-              TimeToSendPadding(requested_padding_bytes - sent_padding_bytes,
-                                Field(&PacedPacketInfo::probe_cluster_id, 111)))
-      .Times(1)
-      .WillOnce(Return(requested_padding_bytes - sent_padding_bytes));
-  EXPECT_EQ(requested_padding_bytes,
-            packet_router.TimeToSendPadding(
-                requested_padding_bytes,
-                PacedPacketInfo(111, kProbeMinBytes, kProbeMinBytes)));
-
-  // Let only the lower priority module be sending and verify the padding
-  // request is routed there.
-  EXPECT_CALL(rtp_2, SendingMedia()).Times(1).WillOnce(Return(false));
-  EXPECT_CALL(rtp_2, TimeToSendPadding(requested_padding_bytes, _)).Times(0);
-  EXPECT_CALL(rtp_1, SendingMedia()).Times(1).WillOnce(Return(true));
-  EXPECT_CALL(rtp_1, HasBweExtensions()).Times(1).WillOnce(Return(true));
-  EXPECT_CALL(rtp_1, TimeToSendPadding(_, _))
-      .Times(1)
-      .WillOnce(Return(sent_padding_bytes));
-  EXPECT_EQ(sent_padding_bytes,
-            packet_router.TimeToSendPadding(
-                requested_padding_bytes,
-                PacedPacketInfo(PacedPacketInfo::kNotAProbe, kProbeMinBytes,
-                                kProbeMinBytes)));
-
-  // No sending module at all.
-  EXPECT_CALL(rtp_1, SendingMedia()).Times(1).WillOnce(Return(false));
-  EXPECT_CALL(rtp_1, TimeToSendPadding(requested_padding_bytes, _)).Times(0);
-  EXPECT_CALL(rtp_2, SendingMedia()).Times(1).WillOnce(Return(false));
-  EXPECT_CALL(rtp_2, TimeToSendPadding(_, _)).Times(0);
-  EXPECT_EQ(0u, packet_router.TimeToSendPadding(
-                    requested_padding_bytes,
-                    PacedPacketInfo(PacedPacketInfo::kNotAProbe, kProbeMinBytes,
-                                    kProbeMinBytes)));
-
-  // Only one module has BWE extensions.
-  EXPECT_CALL(rtp_1, SendingMedia()).Times(1).WillOnce(Return(true));
-  EXPECT_CALL(rtp_1, HasBweExtensions()).Times(1).WillOnce(Return(false));
-  EXPECT_CALL(rtp_1, TimeToSendPadding(requested_padding_bytes, _)).Times(0);
-  EXPECT_CALL(rtp_2, SendingMedia()).Times(1).WillOnce(Return(true));
-  EXPECT_CALL(rtp_2, HasBweExtensions()).Times(1).WillOnce(Return(true));
-  EXPECT_CALL(rtp_2, TimeToSendPadding(requested_padding_bytes, _))
-      .Times(1)
-      .WillOnce(Return(sent_padding_bytes));
-  EXPECT_EQ(sent_padding_bytes,
-            packet_router.TimeToSendPadding(
-                requested_padding_bytes,
-                PacedPacketInfo(PacedPacketInfo::kNotAProbe, kProbeMinBytes,
-                                kProbeMinBytes)));
-
-  packet_router.RemoveSendRtpModule(&rtp_1);
-
-  // rtp_1 has been removed, try sending padding and make sure rtp_1 isn't asked
-  // to send by not expecting any calls. Instead verify rtp_2 is called.
-  EXPECT_CALL(rtp_2, SendingMedia()).Times(1).WillOnce(Return(true));
-  EXPECT_CALL(rtp_2, HasBweExtensions()).Times(1).WillOnce(Return(true));
-  EXPECT_CALL(rtp_2, TimeToSendPadding(requested_padding_bytes, _)).Times(1);
-  EXPECT_EQ(0u, packet_router.TimeToSendPadding(
-                    requested_padding_bytes,
-                    PacedPacketInfo(PacedPacketInfo::kNotAProbe, kProbeMinBytes,
-                                    kProbeMinBytes)));
-
-  packet_router.RemoveSendRtpModule(&rtp_2);
-}
-
-TEST(PacketRouterTest, GeneratePaddingPicksCorrectModule) {
-  PacketRouter packet_router;
-
+TEST_F(PacketRouterTest, GeneratePaddingPrioritizesRtx) {
   // Two RTP modules. The first (prioritized due to rtx) isn't sending media so
   // should not be called.
   const uint16_t kSsrc1 = 1234;
@@ -283,198 +104,339 @@ TEST(PacketRouterTest, GeneratePaddingPicksCorrectModule) {
   NiceMock<MockRtpRtcp> rtp_1;
   ON_CALL(rtp_1, RtxSendStatus()).WillByDefault(Return(kRtxRedundantPayloads));
   ON_CALL(rtp_1, SSRC()).WillByDefault(Return(kSsrc1));
-  ON_CALL(rtp_1, SendingMedia()).WillByDefault(Return(false));
-  ON_CALL(rtp_1, HasBweExtensions()).WillByDefault(Return(false));
+  ON_CALL(rtp_1, SupportsPadding).WillByDefault(Return(false));
 
   NiceMock<MockRtpRtcp> rtp_2;
   ON_CALL(rtp_2, RtxSendStatus()).WillByDefault(Return(kRtxOff));
   ON_CALL(rtp_2, SSRC()).WillByDefault(Return(kSsrc2));
-  ON_CALL(rtp_2, SendingMedia()).WillByDefault(Return(true));
-  ON_CALL(rtp_2, HasBweExtensions()).WillByDefault(Return(true));
+  ON_CALL(rtp_2, SupportsPadding).WillByDefault(Return(true));
 
-  packet_router.AddSendRtpModule(&rtp_1, false);
-  packet_router.AddSendRtpModule(&rtp_2, false);
+  packet_router_.AddSendRtpModule(&rtp_1, false);
+  packet_router_.AddSendRtpModule(&rtp_2, false);
 
   const size_t kPaddingSize = 123;
+  const size_t kExpectedPaddingPackets = 1;
   EXPECT_CALL(rtp_1, GeneratePadding(_)).Times(0);
-  EXPECT_CALL(rtp_2, GeneratePadding(kPaddingSize)).Times(1);
-  packet_router.GeneratePadding(kPaddingSize);
+  EXPECT_CALL(rtp_2, GeneratePadding(kPaddingSize))
+      .WillOnce([&](size_t padding_size) {
+        return std::vector<std::unique_ptr<RtpPacketToSend>>(
+            kExpectedPaddingPackets);
+      });
+  auto generated_padding = packet_router_.GeneratePadding(kPaddingSize);
+  EXPECT_EQ(generated_padding.size(), kExpectedPaddingPackets);
 
-  packet_router.RemoveSendRtpModule(&rtp_1);
-  packet_router.RemoveSendRtpModule(&rtp_2);
+  packet_router_.RemoveSendRtpModule(&rtp_1);
+  packet_router_.RemoveSendRtpModule(&rtp_2);
 }
 
-TEST(PacketRouterTest, PadsOnLastActiveMediaStream) {
-  PacketRouter packet_router;
+TEST_F(PacketRouterTest, GeneratePaddingPrioritizesVideo) {
+  // Two RTP modules. Neither support RTX, both support padding,
+  // but the first one is for audio and second for video.
+  const uint16_t kSsrc1 = 1234;
+  const uint16_t kSsrc2 = 4567;
+  const size_t kPaddingSize = 123;
+  const size_t kExpectedPaddingPackets = 1;
 
+  auto generate_padding = [&](size_t padding_size) {
+    return std::vector<std::unique_ptr<RtpPacketToSend>>(
+        kExpectedPaddingPackets);
+  };
+
+  NiceMock<MockRtpRtcp> audio_module;
+  ON_CALL(audio_module, RtxSendStatus()).WillByDefault(Return(kRtxOff));
+  ON_CALL(audio_module, SSRC()).WillByDefault(Return(kSsrc1));
+  ON_CALL(audio_module, SupportsPadding).WillByDefault(Return(true));
+  ON_CALL(audio_module, IsAudioConfigured).WillByDefault(Return(true));
+
+  NiceMock<MockRtpRtcp> video_module;
+  ON_CALL(video_module, RtxSendStatus()).WillByDefault(Return(kRtxOff));
+  ON_CALL(video_module, SSRC()).WillByDefault(Return(kSsrc2));
+  ON_CALL(video_module, SupportsPadding).WillByDefault(Return(true));
+  ON_CALL(video_module, IsAudioConfigured).WillByDefault(Return(false));
+
+  // First add only the audio module. Since this is the only choice we have,
+  // padding should be sent on the audio ssrc.
+  packet_router_.AddSendRtpModule(&audio_module, false);
+  EXPECT_CALL(audio_module, GeneratePadding(kPaddingSize))
+      .WillOnce(generate_padding);
+  packet_router_.GeneratePadding(kPaddingSize);
+
+  // Add the video module, this should now be prioritized since we cannot
+  // guarantee that audio packets will be included in the BWE.
+  packet_router_.AddSendRtpModule(&video_module, false);
+  EXPECT_CALL(audio_module, GeneratePadding).Times(0);
+  EXPECT_CALL(video_module, GeneratePadding(kPaddingSize))
+      .WillOnce(generate_padding);
+  packet_router_.GeneratePadding(kPaddingSize);
+
+  // Remove and the add audio module again. Module order shouldn't matter;
+  // video should still be prioritized.
+  packet_router_.RemoveSendRtpModule(&audio_module);
+  packet_router_.AddSendRtpModule(&audio_module, false);
+  EXPECT_CALL(audio_module, GeneratePadding).Times(0);
+  EXPECT_CALL(video_module, GeneratePadding(kPaddingSize))
+      .WillOnce(generate_padding);
+  packet_router_.GeneratePadding(kPaddingSize);
+
+  // Remove and the video module, we should fall back to padding on the
+  // audio module again.
+  packet_router_.RemoveSendRtpModule(&video_module);
+  EXPECT_CALL(audio_module, GeneratePadding(kPaddingSize))
+      .WillOnce(generate_padding);
+  packet_router_.GeneratePadding(kPaddingSize);
+
+  packet_router_.RemoveSendRtpModule(&audio_module);
+}
+
+TEST_F(PacketRouterTest, PadsOnLastActiveMediaStream) {
   const uint16_t kSsrc1 = 1234;
   const uint16_t kSsrc2 = 4567;
   const uint16_t kSsrc3 = 8901;
 
   // First two rtp modules send media and have rtx.
   NiceMock<MockRtpRtcp> rtp_1;
-  EXPECT_CALL(rtp_1, RtxSendStatus())
-      .WillRepeatedly(Return(kRtxRedundantPayloads));
   EXPECT_CALL(rtp_1, SSRC()).WillRepeatedly(Return(kSsrc1));
-  EXPECT_CALL(rtp_1, SendingMedia()).WillRepeatedly(Return(true));
-  EXPECT_CALL(rtp_1, HasBweExtensions()).WillRepeatedly(Return(true));
+  EXPECT_CALL(rtp_1, SupportsPadding).WillRepeatedly(Return(true));
+  EXPECT_CALL(rtp_1, SupportsRtxPayloadPadding).WillRepeatedly(Return(true));
+  EXPECT_CALL(rtp_1, TrySendPacket).WillRepeatedly(Return(false));
+  EXPECT_CALL(
+      rtp_1,
+      TrySendPacket(
+          ::testing::Pointee(Property(&RtpPacketToSend::Ssrc, kSsrc1)), _))
+      .WillRepeatedly(Return(true));
 
   NiceMock<MockRtpRtcp> rtp_2;
-  EXPECT_CALL(rtp_2, RtxSendStatus())
-      .WillRepeatedly(Return(kRtxRedundantPayloads));
   EXPECT_CALL(rtp_2, SSRC()).WillRepeatedly(Return(kSsrc2));
-  EXPECT_CALL(rtp_2, SendingMedia()).WillRepeatedly(Return(true));
-  EXPECT_CALL(rtp_2, HasBweExtensions()).WillRepeatedly(Return(true));
+  EXPECT_CALL(rtp_2, SupportsPadding).WillRepeatedly(Return(true));
+  EXPECT_CALL(rtp_2, SupportsRtxPayloadPadding).WillRepeatedly(Return(true));
+  EXPECT_CALL(rtp_2, TrySendPacket).WillRepeatedly(Return(false));
+  EXPECT_CALL(
+      rtp_2,
+      TrySendPacket(
+          ::testing::Pointee(Property(&RtpPacketToSend::Ssrc, kSsrc2)), _))
+      .WillRepeatedly(Return(true));
 
   // Third module is sending media, but does not support rtx.
   NiceMock<MockRtpRtcp> rtp_3;
-  EXPECT_CALL(rtp_3, RtxSendStatus()).WillRepeatedly(Return(kRtxOff));
   EXPECT_CALL(rtp_3, SSRC()).WillRepeatedly(Return(kSsrc3));
-  EXPECT_CALL(rtp_3, SendingMedia()).WillRepeatedly(Return(true));
-  EXPECT_CALL(rtp_3, HasBweExtensions()).WillRepeatedly(Return(true));
+  EXPECT_CALL(rtp_3, SupportsPadding).WillRepeatedly(Return(true));
+  EXPECT_CALL(rtp_3, SupportsRtxPayloadPadding).WillRepeatedly(Return(false));
+  EXPECT_CALL(rtp_3, TrySendPacket).WillRepeatedly(Return(false));
+  EXPECT_CALL(
+      rtp_3,
+      TrySendPacket(
+          ::testing::Pointee(Property(&RtpPacketToSend::Ssrc, kSsrc3)), _))
+      .WillRepeatedly(Return(true));
 
-  packet_router.AddSendRtpModule(&rtp_1, false);
-  packet_router.AddSendRtpModule(&rtp_2, false);
-  packet_router.AddSendRtpModule(&rtp_3, false);
+  packet_router_.AddSendRtpModule(&rtp_1, false);
+  packet_router_.AddSendRtpModule(&rtp_2, false);
+  packet_router_.AddSendRtpModule(&rtp_3, false);
 
   const size_t kPaddingBytes = 100;
 
   // Initially, padding will be sent on last added rtp module that sends media
   // and supports rtx.
-  EXPECT_CALL(rtp_2, TimeToSendPadding(kPaddingBytes, _))
+  EXPECT_CALL(rtp_2, GeneratePadding(kPaddingBytes))
       .Times(1)
-      .WillOnce(Return(kPaddingBytes));
-  packet_router.TimeToSendPadding(kPaddingBytes, PacedPacketInfo());
+      .WillOnce([&](size_t target_size_bytes) {
+        std::vector<std::unique_ptr<RtpPacketToSend>> packets;
+        packets.push_back(BuildRtpPacket(kSsrc2));
+        return packets;
+      });
+  packet_router_.GeneratePadding(kPaddingBytes);
 
   // Send media on first module. Padding should be sent on that module.
-  EXPECT_CALL(rtp_1, TimeToSendPacket(kSsrc1, _, _, _, _));
-  packet_router.TimeToSendPacket(kSsrc1, 0, 0, false, PacedPacketInfo());
+  packet_router_.SendPacket(BuildRtpPacket(kSsrc1), PacedPacketInfo());
 
-  EXPECT_CALL(rtp_1, TimeToSendPadding(kPaddingBytes, _))
+  EXPECT_CALL(rtp_1, GeneratePadding(kPaddingBytes))
       .Times(1)
-      .WillOnce(Return(kPaddingBytes));
-  packet_router.TimeToSendPadding(kPaddingBytes, PacedPacketInfo());
+      .WillOnce([&](size_t target_size_bytes) {
+        std::vector<std::unique_ptr<RtpPacketToSend>> packets;
+        packets.push_back(BuildRtpPacket(kSsrc1));
+        return packets;
+      });
+  packet_router_.GeneratePadding(kPaddingBytes);
 
   // Send media on second module. Padding should be sent there.
-  EXPECT_CALL(rtp_2, TimeToSendPacket(kSsrc2, _, _, _, _));
-  packet_router.TimeToSendPacket(kSsrc2, 0, 0, false, PacedPacketInfo());
+  packet_router_.SendPacket(BuildRtpPacket(kSsrc2), PacedPacketInfo());
 
-  EXPECT_CALL(rtp_2, TimeToSendPadding(kPaddingBytes, _))
+  // If the last active module is removed, and no module sends media before
+  // the next padding request, and arbitrary module will be selected.
+  packet_router_.RemoveSendRtpModule(&rtp_2);
+
+  // Send on and then remove all remaining modules.
+  RtpRtcp* last_send_module;
+  EXPECT_CALL(rtp_1, GeneratePadding(kPaddingBytes))
       .Times(1)
-      .WillOnce(Return(kPaddingBytes));
-  packet_router.TimeToSendPadding(kPaddingBytes, PacedPacketInfo());
-
-  // Remove second module, padding should now fall back to first module.
-  packet_router.RemoveSendRtpModule(&rtp_2);
-  EXPECT_CALL(rtp_1, TimeToSendPadding(kPaddingBytes, _))
+      .WillOnce([&](size_t target_size_bytes) {
+        last_send_module = &rtp_1;
+        std::vector<std::unique_ptr<RtpPacketToSend>> packets;
+        packets.push_back(BuildRtpPacket(kSsrc1));
+        return packets;
+      });
+  EXPECT_CALL(rtp_3, GeneratePadding(kPaddingBytes))
       .Times(1)
-      .WillOnce(Return(kPaddingBytes));
-  packet_router.TimeToSendPadding(kPaddingBytes, PacedPacketInfo());
+      .WillOnce([&](size_t target_size_bytes) {
+        last_send_module = &rtp_3;
+        std::vector<std::unique_ptr<RtpPacketToSend>> packets;
+        packets.push_back(BuildRtpPacket(kSsrc3));
+        return packets;
+      });
 
-  // Remove first module too, leaving only the one without rtx.
-  packet_router.RemoveSendRtpModule(&rtp_1);
-
-  EXPECT_CALL(rtp_3, TimeToSendPadding(kPaddingBytes, _))
-      .Times(1)
-      .WillOnce(Return(kPaddingBytes));
-  packet_router.TimeToSendPadding(kPaddingBytes, PacedPacketInfo());
-
-  packet_router.RemoveSendRtpModule(&rtp_3);
-}
-
-TEST(PacketRouterTest, SenderOnlyFunctionsRespectSendingMedia) {
-  PacketRouter packet_router;
-  NiceMock<MockRtpRtcp> rtp;
-  packet_router.AddSendRtpModule(&rtp, false);
-  static const uint16_t kSsrc = 1234;
-  EXPECT_CALL(rtp, SSRC()).WillRepeatedly(Return(kSsrc));
-  EXPECT_CALL(rtp, SendingMedia()).WillRepeatedly(Return(false));
-
-  // Verify that TimeToSendPacket does not end up in a receiver.
-  EXPECT_CALL(rtp, TimeToSendPacket(_, _, _, _, _)).Times(0);
-  EXPECT_EQ(RtpPacketSendResult::kPacketNotFound,
-            packet_router.TimeToSendPacket(
-                kSsrc, 1, 1, false,
-                PacedPacketInfo(PacedPacketInfo::kNotAProbe, kProbeMinBytes,
-                                kProbeMinBytes)));
-  // Verify that TimeToSendPadding does not end up in a receiver.
-  EXPECT_CALL(rtp, TimeToSendPadding(_, _)).Times(0);
-  EXPECT_EQ(0u, packet_router.TimeToSendPadding(
-                    200, PacedPacketInfo(PacedPacketInfo::kNotAProbe,
-                                         kProbeMinBytes, kProbeMinBytes)));
-
-  packet_router.RemoveSendRtpModule(&rtp);
-}
-
-TEST(PacketRouterTest, AllocateSequenceNumbers) {
-  PacketRouter packet_router;
-
-  const uint16_t kStartSeq = 0xFFF0;
-  const size_t kNumPackets = 32;
-
-  packet_router.SetTransportWideSequenceNumber(kStartSeq - 1);
-
-  for (size_t i = 0; i < kNumPackets; ++i) {
-    uint16_t seq = packet_router.AllocateSequenceNumber();
-    uint32_t expected_unwrapped_seq = static_cast<uint32_t>(kStartSeq) + i;
-    EXPECT_EQ(static_cast<uint16_t>(expected_unwrapped_seq & 0xFFFF), seq);
+  for (int i = 0; i < 2; ++i) {
+    last_send_module = nullptr;
+    packet_router_.GeneratePadding(kPaddingBytes);
+    EXPECT_NE(last_send_module, nullptr);
+    packet_router_.RemoveSendRtpModule(last_send_module);
   }
 }
 
-TEST(PacketRouterTest, SendTransportFeedback) {
-  PacketRouter packet_router;
+TEST_F(PacketRouterTest, AllocatesTransportSequenceNumbers) {
+  const uint16_t kStartSeq = 0xFFF0;
+  const size_t kNumPackets = 32;
+  const uint16_t kSsrc1 = 1234;
+
+  PacketRouter packet_router(kStartSeq - 1);
+  NiceMock<MockRtpRtcp> rtp_1;
+  EXPECT_CALL(rtp_1, SSRC()).WillRepeatedly(Return(kSsrc1));
+  EXPECT_CALL(rtp_1, TrySendPacket).WillRepeatedly(Return(true));
+  packet_router.AddSendRtpModule(&rtp_1, false);
+
+  for (size_t i = 0; i < kNumPackets; ++i) {
+    auto packet = BuildRtpPacket(kSsrc1);
+    EXPECT_TRUE(packet->ReserveExtension<TransportSequenceNumber>());
+    packet_router.SendPacket(std::move(packet), PacedPacketInfo());
+    uint32_t expected_unwrapped_seq = static_cast<uint32_t>(kStartSeq) + i;
+    EXPECT_EQ(static_cast<uint16_t>(expected_unwrapped_seq & 0xFFFF),
+              packet_router.CurrentTransportSequenceNumber());
+  }
+
+  packet_router.RemoveSendRtpModule(&rtp_1);
+}
+
+TEST_F(PacketRouterTest, SendTransportFeedback) {
   NiceMock<MockRtpRtcp> rtp_1;
   NiceMock<MockRtpRtcp> rtp_2;
 
-  packet_router.AddSendRtpModule(&rtp_1, false);
-  packet_router.AddReceiveRtpModule(&rtp_2, false);
+  ON_CALL(rtp_1, RTCP()).WillByDefault(Return(RtcpMode::kCompound));
+  ON_CALL(rtp_2, RTCP()).WillByDefault(Return(RtcpMode::kCompound));
 
-  rtcp::TransportFeedback feedback;
-  EXPECT_CALL(rtp_1, SendFeedbackPacket(_)).Times(1).WillOnce(Return(true));
-  packet_router.SendTransportFeedback(&feedback);
-  packet_router.RemoveSendRtpModule(&rtp_1);
-  EXPECT_CALL(rtp_2, SendFeedbackPacket(_)).Times(1).WillOnce(Return(true));
-  packet_router.SendTransportFeedback(&feedback);
-  packet_router.RemoveReceiveRtpModule(&rtp_2);
+  packet_router_.AddSendRtpModule(&rtp_1, false);
+  packet_router_.AddReceiveRtpModule(&rtp_2, false);
+
+  std::vector<std::unique_ptr<rtcp::RtcpPacket>> feedback;
+  feedback.push_back(std::make_unique<rtcp::TransportFeedback>());
+  EXPECT_CALL(rtp_1, SendCombinedRtcpPacket).Times(1);
+  packet_router_.SendCombinedRtcpPacket(std::move(feedback));
+  packet_router_.RemoveSendRtpModule(&rtp_1);
+  EXPECT_CALL(rtp_2, SendCombinedRtcpPacket).Times(1);
+  std::vector<std::unique_ptr<rtcp::RtcpPacket>> new_feedback;
+  new_feedback.push_back(std::make_unique<rtcp::TransportFeedback>());
+  packet_router_.SendCombinedRtcpPacket(std::move(new_feedback));
+  packet_router_.RemoveReceiveRtpModule(&rtp_2);
+}
+
+TEST_F(PacketRouterTest, SendPacketWithoutTransportSequenceNumbers) {
+  const uint16_t kSsrc1 = 1234;
+  NiceMock<MockRtpRtcp> rtp_1;
+  ON_CALL(rtp_1, SendingMedia).WillByDefault(Return(true));
+  ON_CALL(rtp_1, SSRC).WillByDefault(Return(kSsrc1));
+  packet_router_.AddSendRtpModule(&rtp_1, false);
+
+  // Send a packet without TransportSequenceNumber extension registered,
+  // packets sent should not have the extension set.
+  RtpHeaderExtensionMap extension_manager;
+  auto packet = std::make_unique<RtpPacketToSend>(&extension_manager);
+  packet->SetSsrc(kSsrc1);
+  EXPECT_CALL(
+      rtp_1,
+      TrySendPacket(
+          Property(&RtpPacketToSend::HasExtension<TransportSequenceNumber>,
+                   false),
+          _))
+      .WillOnce(Return(true));
+  packet_router_.SendPacket(std::move(packet), PacedPacketInfo());
+
+  packet_router_.RemoveSendRtpModule(&rtp_1);
+}
+
+TEST_F(PacketRouterTest, SendPacketAssignsTransportSequenceNumbers) {
+  NiceMock<MockRtpRtcp> rtp_1;
+  NiceMock<MockRtpRtcp> rtp_2;
+
+  const uint16_t kSsrc1 = 1234;
+  const uint16_t kSsrc2 = 2345;
+
+  ON_CALL(rtp_1, SSRC).WillByDefault(Return(kSsrc1));
+  ON_CALL(rtp_2, SSRC).WillByDefault(Return(kSsrc2));
+
+  packet_router_.AddSendRtpModule(&rtp_1, false);
+  packet_router_.AddSendRtpModule(&rtp_2, false);
+
+  // Transport sequence numbers start at 1, for historical reasons.
+  uint16_t transport_sequence_number = 1;
+
+  auto packet = BuildRtpPacket(kSsrc1);
+  EXPECT_TRUE(packet->ReserveExtension<TransportSequenceNumber>());
+  EXPECT_CALL(
+      rtp_1,
+      TrySendPacket(
+          Property(&RtpPacketToSend::GetExtension<TransportSequenceNumber>,
+                   transport_sequence_number),
+          _))
+      .WillOnce(Return(true));
+  packet_router_.SendPacket(std::move(packet), PacedPacketInfo());
+
+  ++transport_sequence_number;
+  packet = BuildRtpPacket(kSsrc2);
+  EXPECT_TRUE(packet->ReserveExtension<TransportSequenceNumber>());
+
+  EXPECT_CALL(
+      rtp_2,
+      TrySendPacket(
+          Property(&RtpPacketToSend::GetExtension<TransportSequenceNumber>,
+                   transport_sequence_number),
+          _))
+      .WillOnce(Return(true));
+  packet_router_.SendPacket(std::move(packet), PacedPacketInfo());
+
+  packet_router_.RemoveSendRtpModule(&rtp_1);
+  packet_router_.RemoveSendRtpModule(&rtp_2);
 }
 
 #if RTC_DCHECK_IS_ON && GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
-TEST(PacketRouterTest, DoubleRegistrationOfSendModuleDisallowed) {
-  PacketRouter packet_router;
+TEST_F(PacketRouterTest, DoubleRegistrationOfSendModuleDisallowed) {
   NiceMock<MockRtpRtcp> module;
 
   constexpr bool remb_candidate = false;  // Value irrelevant.
-  packet_router.AddSendRtpModule(&module, remb_candidate);
-  EXPECT_DEATH(packet_router.AddSendRtpModule(&module, remb_candidate), "");
+  packet_router_.AddSendRtpModule(&module, remb_candidate);
+  EXPECT_DEATH(packet_router_.AddSendRtpModule(&module, remb_candidate), "");
 
   // Test tear-down
-  packet_router.RemoveSendRtpModule(&module);
+  packet_router_.RemoveSendRtpModule(&module);
 }
 
-TEST(PacketRouterTest, DoubleRegistrationOfReceiveModuleDisallowed) {
-  PacketRouter packet_router;
+TEST_F(PacketRouterTest, DoubleRegistrationOfReceiveModuleDisallowed) {
   NiceMock<MockRtpRtcp> module;
 
   constexpr bool remb_candidate = false;  // Value irrelevant.
-  packet_router.AddReceiveRtpModule(&module, remb_candidate);
-  EXPECT_DEATH(packet_router.AddReceiveRtpModule(&module, remb_candidate), "");
+  packet_router_.AddReceiveRtpModule(&module, remb_candidate);
+  EXPECT_DEATH(packet_router_.AddReceiveRtpModule(&module, remb_candidate), "");
 
   // Test tear-down
-  packet_router.RemoveReceiveRtpModule(&module);
+  packet_router_.RemoveReceiveRtpModule(&module);
 }
 
-TEST(PacketRouterTest, RemovalOfNeverAddedSendModuleDisallowed) {
-  PacketRouter packet_router;
+TEST_F(PacketRouterTest, RemovalOfNeverAddedSendModuleDisallowed) {
   NiceMock<MockRtpRtcp> module;
 
-  EXPECT_DEATH(packet_router.RemoveSendRtpModule(&module), "");
+  EXPECT_DEATH(packet_router_.RemoveSendRtpModule(&module), "");
 }
 
-TEST(PacketRouterTest, RemovalOfNeverAddedReceiveModuleDisallowed) {
-  PacketRouter packet_router;
+TEST_F(PacketRouterTest, RemovalOfNeverAddedReceiveModuleDisallowed) {
   NiceMock<MockRtpRtcp> module;
 
-  EXPECT_DEATH(packet_router.RemoveReceiveRtpModule(&module), "");
+  EXPECT_DEATH(packet_router_.RemoveReceiveRtpModule(&module), "");
 }
 #endif  // RTC_DCHECK_IS_ON && GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
 
@@ -491,7 +453,7 @@ TEST(PacketRouterRembTest, LowerEstimateToSendRemb) {
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
   // Call OnReceiveBitrateChanged twice to get a first estimate.
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   EXPECT_CALL(rtp, SetRemb(bitrate_estimate, ssrcs)).Times(1);
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
@@ -517,7 +479,7 @@ TEST(PacketRouterRembTest, VerifyIncreasingAndDecreasing) {
 
   // Call OnReceiveBitrateChanged twice to get a first estimate.
   EXPECT_CALL(rtp, SetRemb(bitrate_estimate[0], ssrcs)).Times(1);
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate[0]);
 
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate[1] + 100);
@@ -542,7 +504,7 @@ TEST(PacketRouterRembTest, NoRembForIncreasedBitrate) {
 
   // Call OnReceiveBitrateChanged twice to get a first estimate.
   EXPECT_CALL(rtp, SetRemb(bitrate_estimate, ssrcs)).Times(1);
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
   // Increased estimate shouldn't trigger a callback right away.
@@ -571,7 +533,7 @@ TEST(PacketRouterRembTest, ChangeSendRtpModule) {
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
   // Call OnReceiveBitrateChanged twice to get a first estimate.
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   EXPECT_CALL(rtp_send, SetRemb(bitrate_estimate, ssrcs)).Times(1);
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
@@ -604,7 +566,7 @@ TEST(PacketRouterRembTest, OnlyOneRembForRepeatedOnReceiveBitrateChanged) {
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
   // Call OnReceiveBitrateChanged twice to get a first estimate.
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   EXPECT_CALL(rtp, SetRemb(_, _)).Times(1);
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
@@ -622,7 +584,7 @@ TEST(PacketRouterRembTest, OnlyOneRembForRepeatedOnReceiveBitrateChanged) {
 TEST(PacketRouterRembTest, SetMaxDesiredReceiveBitrateLimitsSetRemb) {
   rtc::ScopedFakeClock clock;
   PacketRouter packet_router;
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   NiceMock<MockRtpRtcp> remb_sender;
   constexpr bool remb_candidate = true;
   packet_router.AddSendRtpModule(&remb_sender, remb_candidate);
@@ -634,7 +596,7 @@ TEST(PacketRouterRembTest, SetMaxDesiredReceiveBitrateLimitsSetRemb) {
   const std::vector<uint32_t> ssrcs = {1234};
   packet_router.SetMaxDesiredReceiveBitrate(cap_bitrate);
   packet_router.OnReceiveBitrateChanged(ssrcs, cap_bitrate + 5000);
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   packet_router.OnReceiveBitrateChanged(ssrcs, cap_bitrate - 5000);
 
   // Test tear-down.
@@ -645,7 +607,7 @@ TEST(PacketRouterRembTest,
      SetMaxDesiredReceiveBitrateTriggersRembWhenMoreRestrictive) {
   rtc::ScopedFakeClock clock;
   PacketRouter packet_router;
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   NiceMock<MockRtpRtcp> remb_sender;
   constexpr bool remb_candidate = true;
   packet_router.AddSendRtpModule(&remb_sender, remb_candidate);
@@ -667,7 +629,7 @@ TEST(PacketRouterRembTest,
      SetMaxDesiredReceiveBitrateDoesNotTriggerRembWhenAsRestrictive) {
   rtc::ScopedFakeClock clock;
   PacketRouter packet_router;
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   NiceMock<MockRtpRtcp> remb_sender;
   constexpr bool remb_candidate = true;
   packet_router.AddSendRtpModule(&remb_sender, remb_candidate);
@@ -689,7 +651,7 @@ TEST(PacketRouterRembTest,
      SetMaxDesiredReceiveBitrateDoesNotTriggerRembWhenLessRestrictive) {
   rtc::ScopedFakeClock clock;
   PacketRouter packet_router;
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   NiceMock<MockRtpRtcp> remb_sender;
   constexpr bool remb_candidate = true;
   packet_router.AddSendRtpModule(&remb_sender, remb_candidate);
@@ -711,7 +673,7 @@ TEST(PacketRouterRembTest,
      SetMaxDesiredReceiveBitrateTriggersRembWhenNoRecentMeasure) {
   rtc::ScopedFakeClock clock;
   PacketRouter packet_router;
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   NiceMock<MockRtpRtcp> remb_sender;
   constexpr bool remb_candidate = true;
   packet_router.AddSendRtpModule(&remb_sender, remb_candidate);
@@ -721,7 +683,7 @@ TEST(PacketRouterRembTest,
   const std::vector<uint32_t> ssrcs = {1234};
   EXPECT_CALL(remb_sender, SetRemb(measured_bitrate_bps, _));
   packet_router.OnReceiveBitrateChanged(ssrcs, measured_bitrate_bps);
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
 
   EXPECT_CALL(remb_sender, SetRemb(cap_bitrate_bps, _));
   packet_router.SetMaxDesiredReceiveBitrate(cap_bitrate_bps);
@@ -734,7 +696,7 @@ TEST(PacketRouterRembTest,
      SetMaxDesiredReceiveBitrateTriggersRembWhenNoMeasures) {
   rtc::ScopedFakeClock clock;
   PacketRouter packet_router;
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   NiceMock<MockRtpRtcp> remb_sender;
   constexpr bool remb_candidate = true;
   packet_router.AddSendRtpModule(&remb_sender, remb_candidate);
@@ -768,7 +730,7 @@ TEST(PacketRouterRembTest, NoSendingRtpModule) {
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
   // Call OnReceiveBitrateChanged twice to get a first estimate.
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   EXPECT_CALL(rtp, SetRemb(bitrate_estimate, ssrcs)).Times(1);
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
@@ -792,7 +754,7 @@ TEST(PacketRouterRembTest, NonCandidateSendRtpModuleNotUsedForRemb) {
   constexpr uint32_t bitrate_estimate = 456;
   const std::vector<uint32_t> ssrcs = {1234};
   EXPECT_CALL(module, SetRemb(_, _)).Times(0);
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
   // Test tear-down
@@ -811,7 +773,7 @@ TEST(PacketRouterRembTest, CandidateSendRtpModuleUsedForRemb) {
   constexpr uint32_t bitrate_estimate = 456;
   const std::vector<uint32_t> ssrcs = {1234};
   EXPECT_CALL(module, SetRemb(bitrate_estimate, ssrcs)).Times(1);
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
   // Test tear-down
@@ -830,7 +792,7 @@ TEST(PacketRouterRembTest, NonCandidateReceiveRtpModuleNotUsedForRemb) {
   constexpr uint32_t bitrate_estimate = 456;
   const std::vector<uint32_t> ssrcs = {1234};
   EXPECT_CALL(module, SetRemb(_, _)).Times(0);
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
   // Test tear-down
@@ -849,7 +811,7 @@ TEST(PacketRouterRembTest, CandidateReceiveRtpModuleUsedForRemb) {
   constexpr uint32_t bitrate_estimate = 456;
   const std::vector<uint32_t> ssrcs = {1234};
   EXPECT_CALL(module, SetRemb(bitrate_estimate, ssrcs)).Times(1);
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
   // Test tear-down
@@ -876,7 +838,7 @@ TEST(PacketRouterRembTest,
   EXPECT_CALL(send_module, SetRemb(bitrate_estimate, ssrcs)).Times(1);
   EXPECT_CALL(receive_module, SetRemb(_, _)).Times(0);
 
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
   // Test tear-down
@@ -904,7 +866,7 @@ TEST(PacketRouterRembTest,
   EXPECT_CALL(send_module, SetRemb(bitrate_estimate, ssrcs)).Times(1);
   EXPECT_CALL(receive_module, SetRemb(_, _)).Times(0);
 
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
   // Test tear-down
@@ -931,7 +893,7 @@ TEST(PacketRouterRembTest, ReceiveModuleTakesOverWhenLastSendModuleRemoved) {
   EXPECT_CALL(send_module, SetRemb(_, _)).Times(0);
   EXPECT_CALL(receive_module, SetRemb(bitrate_estimate, ssrcs)).Times(1);
 
-  clock.AdvanceTime(TimeDelta::ms(1000));
+  clock.AdvanceTime(TimeDelta::Millis(1000));
   packet_router.OnReceiveBitrateChanged(ssrcs, bitrate_estimate);
 
   // Test tear-down

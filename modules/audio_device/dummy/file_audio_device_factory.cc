@@ -11,6 +11,7 @@
 #include "modules/audio_device/dummy/file_audio_device_factory.h"
 
 #include <stdio.h>
+
 #include <cstdlib>
 
 #include "modules/audio_device/dummy/file_audio_device.h"
@@ -28,8 +29,8 @@ FileAudioDevice* FileAudioDeviceFactory::CreateFileAudioDevice() {
   if (!_isConfigured) {
     RTC_LOG(LS_WARNING)
         << "WebRTC configured with WEBRTC_DUMMY_FILE_DEVICES but "
-        << "no device files supplied. Will fall back to dummy "
-        << "audio.";
+           "no device files supplied. Will fall back to dummy "
+           "audio.";
 
     return nullptr;
   }

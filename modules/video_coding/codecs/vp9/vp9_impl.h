@@ -19,14 +19,12 @@
 #include <string>
 #include <vector>
 
-#include "modules/video_coding/codecs/vp9/include/vp9.h"
-
 #include "api/fec_controller_override.h"
 #include "api/video_codecs/video_encoder.h"
 #include "media/base/vp9_profile.h"
+#include "modules/video_coding/codecs/vp9/include/vp9.h"
 #include "modules/video_coding/codecs/vp9/vp9_frame_buffer_pool.h"
 #include "modules/video_coding/utility/framerate_controller.h"
-
 #include "vpx/vp8cx.h"
 #include "vpx/vpx_decoder.h"
 #include "vpx/vpx_encoder.h"
@@ -121,19 +119,20 @@ class VP9EncoderImpl : public VP9Encoder {
   uint8_t num_temporal_layers_;
   uint8_t num_spatial_layers_;         // Number of configured SLs
   uint8_t num_active_spatial_layers_;  // Number of actively encoded SLs
+  uint8_t first_active_layer_;
   bool layer_deactivation_requires_key_frame_;
   bool is_svc_;
   InterLayerPredMode inter_layer_pred_;
   bool external_ref_control_;
   const bool trusted_rate_controller_;
   const bool dynamic_rate_settings_;
+  bool layer_buffering_;
   const bool full_superframe_drop_;
-  bool dropping_only_base_layer_;
   vpx_svc_frame_drop_t svc_drop_frame_;
   bool first_frame_in_picture_;
   VideoBitrateAllocation current_bitrate_allocation_;
-  absl::optional<RateControlParameters> requested_rate_settings_;
   bool ss_info_needed_;
+  bool force_all_active_layers_;
 
   std::vector<FramerateController> framerate_controller_;
 
@@ -177,6 +176,8 @@ class VP9EncoderImpl : public VP9Encoder {
       std::string group_name);
   FramerateController variable_framerate_controller_;
   int num_steady_state_frames_;
+  // Only set config when this flag is set.
+  bool config_changed_;
 };
 
 class VP9DecoderImpl : public VP9Decoder {
@@ -198,7 +199,10 @@ class VP9DecoderImpl : public VP9Decoder {
   const char* ImplementationName() const override;
 
  private:
-  int ReturnFrame(const vpx_image_t* img, uint32_t timestamp, int qp);
+  int ReturnFrame(const vpx_image_t* img,
+                  uint32_t timestamp,
+                  int qp,
+                  const webrtc::ColorSpace* explicit_color_space);
 
   // Memory pool used to share buffers between libvpx and webrtc.
   Vp9FrameBufferPool frame_buffer_pool_;

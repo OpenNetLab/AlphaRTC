@@ -17,8 +17,9 @@ jobs:
   pool:
     vmImage: 'ubuntu-latest'
 
-  steps:
-  - checkout: self
+steps:
+
+- checkout: self
 
   - script: make init
     displayName: 'build compile environment'

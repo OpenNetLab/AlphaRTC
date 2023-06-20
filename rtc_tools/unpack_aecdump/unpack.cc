@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -27,7 +28,6 @@
 #include "common_audio/wav_file.h"
 #include "modules/audio_processing/test/protobuf_utils.h"
 #include "modules/audio_processing/test/test_utils.h"
-#include "rtc_base/flags.h"
 #include "rtc_base/format_macros.h"
 #include "rtc_base/ignore_wundef.h"
 #include "rtc_base/strings/string_builder.h"
@@ -95,9 +95,9 @@ ABSL_FLAG(bool,
 namespace webrtc {
 
 using audioproc::Event;
+using audioproc::Init;
 using audioproc::ReverseStream;
 using audioproc::Stream;
-using audioproc::Init;
 
 namespace {
 
@@ -291,7 +291,7 @@ int do_main(int argc, char* argv[]) {
           reverse_raw_file.reset(
               new RawFile(absl::GetFlag(FLAGS_reverse_file) + ".float"));
         }
-        std::unique_ptr<const float* []> data(
+        std::unique_ptr<const float*[]> data(
             new const float*[num_reverse_channels]);
         for (size_t i = 0; i < num_reverse_channels; ++i) {
           data[i] = reinterpret_cast<const float*>(msg.channel(i).data());
@@ -327,7 +327,7 @@ int do_main(int argc, char* argv[]) {
           input_raw_file.reset(
               new RawFile(absl::GetFlag(FLAGS_input_file) + ".float"));
         }
-        std::unique_ptr<const float* []> data(
+        std::unique_ptr<const float*[]> data(
             new const float*[num_input_channels]);
         for (size_t i = 0; i < num_input_channels; ++i) {
           data[i] = reinterpret_cast<const float*>(msg.input_channel(i).data());
@@ -350,7 +350,7 @@ int do_main(int argc, char* argv[]) {
           output_raw_file.reset(
               new RawFile(absl::GetFlag(FLAGS_output_file) + ".float"));
         }
-        std::unique_ptr<const float* []> data(
+        std::unique_ptr<const float*[]> data(
             new const float*[num_output_channels]);
         for (size_t i = 0; i < num_output_channels; ++i) {
           data[i] =
@@ -463,13 +463,13 @@ int do_main(int argc, char* argv[]) {
       fprintf(settings_file, "  Reverse sample rate: %d\n",
               reverse_sample_rate);
       num_input_channels = msg.num_input_channels();
-      fprintf(settings_file, "  Input channels: %" PRIuS "\n",
+      fprintf(settings_file, "  Input channels: %" RTC_PRIuS "\n",
               num_input_channels);
       num_output_channels = msg.num_output_channels();
-      fprintf(settings_file, "  Output channels: %" PRIuS "\n",
+      fprintf(settings_file, "  Output channels: %" RTC_PRIuS "\n",
               num_output_channels);
       num_reverse_channels = msg.num_reverse_channels();
-      fprintf(settings_file, "  Reverse channels: %" PRIuS "\n",
+      fprintf(settings_file, "  Reverse channels: %" RTC_PRIuS "\n",
               num_reverse_channels);
       if (msg.has_timestamp_ms()) {
         const int64_t timestamp = msg.timestamp_ms();

@@ -11,6 +11,7 @@
 #include "pc/peer_connection_wrapper.h"
 
 #include <stdint.h>
+
 #include <memory>
 #include <string>
 #include <utility>
@@ -122,6 +123,11 @@ PeerConnectionWrapper::CreateAnswerAndSetAsLocal(
   }
   EXPECT_TRUE(SetLocalDescription(CloneSessionDescription(answer.get())));
   return answer;
+}
+
+std::unique_ptr<SessionDescriptionInterface>
+PeerConnectionWrapper::CreateRollback() {
+  return CreateSessionDescription(SdpType::kRollback, "");
 }
 
 std::unique_ptr<SessionDescriptionInterface> PeerConnectionWrapper::CreateSdp(

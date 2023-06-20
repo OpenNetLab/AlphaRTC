@@ -8,15 +8,16 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "p2p/stunprober/stun_prober.h"
+
 #include <map>
 #include <memory>
 #include <set>
 #include <string>
 #include <utility>
 
-#include "p2p/base/packet_socket_factory.h"
-#include "p2p/base/stun.h"
-#include "p2p/stunprober/stun_prober.h"
+#include "api/packet_socket_factory.h"
+#include "api/transport/stun.h"
 #include "rtc_base/async_packet_socket.h"
 #include "rtc_base/async_resolver_interface.h"
 #include "rtc_base/bind.h"

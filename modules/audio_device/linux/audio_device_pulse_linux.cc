@@ -8,9 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include "modules/audio_device/linux/audio_device_pulse_linux.h"
+
 #include <string.h>
 
-#include "modules/audio_device/linux/audio_device_pulse_linux.h"
 #include "modules/audio_device/linux/latebindingsymboltable_linux.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
@@ -49,7 +50,6 @@ AudioDeviceLinuxPulse::AudioDeviceLinuxPulse()
       update_speaker_volume_at_startup_(false),
       quit_(false),
       _sndCardPlayDelay(0),
-      _sndCardRecDelay(0),
       _writeErrors(0),
       _deviceIndex(-1),
       _numPlayDevices(0),
@@ -871,8 +871,11 @@ int32_t AudioDeviceLinuxPulse::InitPlayout() {
   playSampleSpec.rate = sample_rate_hz_;
 
   // Create a new play stream
-  _playStream =
-      LATE(pa_stream_new)(_paContext, "playStream", &playSampleSpec, NULL);
+  {
+    rtc::CritScope lock(&_critSect);
+    _playStream =
+        LATE(pa_stream_new)(_paContext, "playStream", &playSampleSpec, NULL);
+  }
 
   if (!_playStream) {
     RTC_LOG(LS_ERROR) << "failed to create play stream, err="
@@ -941,9 +944,11 @@ int32_t AudioDeviceLinuxPulse::InitPlayout() {
   LATE(pa_stream_set_state_callback)(_playStream, PaStreamStateCallback, this);
 
   // Mark playout side as initialized
-  _playIsInitialized = true;
-  _sndCardPlayDelay = 0;
-  _sndCardRecDelay = 0;
+  {
+    rtc::CritScope lock(&_critSect);
+    _playIsInitialized = true;
+    _sndCardPlayDelay = 0;
+  }
 
   return 0;
 }
@@ -1213,7 +1218,6 @@ int32_t AudioDeviceLinuxPulse::StopPlayout() {
   _playIsInitialized = false;
   _playing = false;
   _sndCardPlayDelay = 0;
-  _sndCardRecDelay = 0;
 
   RTC_LOG(LS_VERBOSE) << "stopping playback";
 
@@ -1890,8 +1894,6 @@ int32_t AudioDeviceLinuxPulse::ReadRecordedData(const void* bufferData,
       (uint32_t)((LatencyUsecs(_recStream) / 1000) +
                  10 * ((size + _recordBufferUsed) / _recordBufferSize));
 
-  _sndCardRecDelay = recDelay;
-
   if (_playStream) {
     // Get the playout delay.
     _sndCardPlayDelay = (uint32_t)(LatencyUsecs(_playStream) / 1000);
@@ -2255,8 +2257,6 @@ bool AudioDeviceLinuxPulse::RecThreadProcess() {
                           << LATE(pa_context_errno)(_paContext);
         break;
       }
-
-      _sndCardRecDelay = (uint32_t)(LatencyUsecs(_recStream) / 1000);
 
       // Drop lock for sigslot dispatch, which could take a while.
       PaUnLock();

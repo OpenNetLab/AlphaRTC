@@ -242,18 +242,20 @@ bool ValidateOutputFilesOptions(bool textlog,
   bool output_files_base_name_specified = !output_files_base_name.empty();
   if (!textlog && !plotting && output_files_base_name_specified) {
     std::cout << "Error: --output_files_base_name cannot be used without at "
-              << "least one of the following flags: --textlog, --matlabplot, "
-              << "--pythonplot." << std::endl;
+                 "least one of the following flags: --textlog, --matlabplot, "
+                 "--pythonplot."
+              << std::endl;
     return false;
   }
   // Without |output_audio_filename|, |output_files_base_name| is required when
-  // one or more output files must be generated (in order to form a valid output
+  // plotting output files must be generated (in order to form a valid output
   // file name).
-  if (output_audio_filename.empty() && (textlog || plotting) &&
+  if (output_audio_filename.empty() && plotting &&
       !output_files_base_name_specified) {
-    std::cout << "Error: when no output audio file is specified and --textlog, "
-              << "--matlabplot and/or --pythonplot are used, "
-              << "--output_files_base_name must be also used." << std::endl;
+    std::cout << "Error: when no output audio file is specified and "
+                 "--matlabplot and/or --pythonplot are used, "
+                 "--output_files_base_name must be also used."
+              << std::endl;
     return false;
   }
   return true;
@@ -336,8 +338,12 @@ int main(int argc, char* argv[]) {
   RTC_CHECK(ValidateExtensionId(absl::GetFlag(FLAGS_video_content_type)));
   RTC_CHECK(ValidateExtensionId(absl::GetFlag(FLAGS_video_timing)));
 
-  webrtc::field_trial::InitFieldTrialsFromString(
-      absl::GetFlag(FLAGS_force_fieldtrials).c_str());
+  // Make force_fieldtrials persistent string during entire program live as
+  // absl::GetFlag creates temporary string and c_str() will point to
+  // deallocated string.
+  const std::string force_fieldtrials = absl::GetFlag(FLAGS_force_fieldtrials);
+  webrtc::field_trial::InitFieldTrialsFromString(force_fieldtrials.c_str());
+
   webrtc::test::NetEqTestFactory::Config config;
   config.pcmu = absl::GetFlag(FLAGS_pcmu);
   config.pcma = absl::GetFlag(FLAGS_pcma);
@@ -374,6 +380,7 @@ int main(int argc, char* argv[]) {
   if (!output_audio_filename.empty()) {
     config.output_audio_filename = output_audio_filename;
   }
+  config.textlog = absl::GetFlag(FLAGS_textlog);
   config.textlog_filename = CreateOptionalOutputFileName(
       absl::GetFlag(FLAGS_textlog), output_files_base_name,
       output_audio_filename, ".text_log.txt");
@@ -390,7 +397,8 @@ int main(int argc, char* argv[]) {
   }
 
   std::unique_ptr<webrtc::test::NetEqTest> test =
-      factory.InitializeTestFromFile(/*input_filename=*/args[1], config);
+      factory.InitializeTestFromFile(/*input_filename=*/args[1],
+                                     /*factory=*/nullptr, config);
   RTC_CHECK(test) << "ERROR: Unable to run test";
   test->Run();
   return 0;

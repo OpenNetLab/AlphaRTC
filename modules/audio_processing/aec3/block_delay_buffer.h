@@ -12,6 +12,7 @@
 #define MODULES_AUDIO_PROCESSING_AEC3_BLOCK_DELAY_BUFFER_H_
 
 #include <stddef.h>
+
 #include <vector>
 
 #include "modules/audio_processing/audio_buffer.h"
@@ -22,7 +23,10 @@ namespace webrtc {
 // the audiobuffer band-splitting scheme.
 class BlockDelayBuffer {
  public:
-  BlockDelayBuffer(size_t num_bands, size_t frame_length, size_t delay_samples);
+  BlockDelayBuffer(size_t num_channels,
+                   size_t num_bands,
+                   size_t frame_length,
+                   size_t delay_samples);
   ~BlockDelayBuffer();
 
   // Delays the samples by the specified delay.
@@ -31,7 +35,7 @@ class BlockDelayBuffer {
  private:
   const size_t frame_length_;
   const size_t delay_;
-  std::vector<std::vector<float>> buf_;
+  std::vector<std::vector<std::vector<float>>> buf_;
   size_t last_insert_ = 0;
 };
 }  // namespace webrtc

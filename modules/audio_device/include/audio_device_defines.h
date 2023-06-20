@@ -12,6 +12,7 @@
 #define MODULES_AUDIO_DEVICE_INCLUDE_AUDIO_DEVICE_DEFINES_H_
 
 #include <stddef.h>
+
 #include <string>
 
 #include "rtc_base/checks.h"
@@ -94,9 +95,9 @@ class AudioParameters {
     frames_per_10ms_buffer_ = static_cast<size_t>(sample_rate / 100);
   }
   size_t bits_per_sample() const { return kBitsPerSample; }
-  void reset(int sample_rate, size_t channels, double ms_per_buffer) {
+  void reset(int sample_rate, size_t channels, double buffer_duration) {
     reset(sample_rate, channels,
-          static_cast<size_t>(sample_rate * ms_per_buffer + 0.5));
+          static_cast<size_t>(sample_rate * buffer_duration + 0.5));
   }
   void reset(int sample_rate, size_t channels) {
     reset(sample_rate, channels, static_cast<size_t>(0));

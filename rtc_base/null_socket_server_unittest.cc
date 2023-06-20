@@ -11,12 +11,12 @@
 #include "rtc_base/null_socket_server.h"
 
 #include <stdint.h>
+
 #include <memory>
 
 #include "rtc_base/gunit.h"
 #include "rtc_base/location.h"
 #include "rtc_base/message_handler.h"
-#include "rtc_base/message_queue.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/time_utils.h"
 #include "test/gtest.h"

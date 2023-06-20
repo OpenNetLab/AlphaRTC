@@ -27,6 +27,7 @@
 *~
 .*.sw?
 .cipd
+.clangd
 .classpath
 .cproject
 .gdb_history
@@ -64,6 +65,8 @@
 /rtc_tools/testing/*.gz
 /rtc_tools/testing/golang/*/*.gz
 /rtc_tools/testing/golang/*/*.zip
+/rtc_tools/testing/webrtc_apprtc_browsertest/*
+/rtc_tools/testing/browsertest/*
 /x86-generic_out/
 /xcodebuild
 /.vscode

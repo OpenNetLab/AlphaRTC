@@ -29,7 +29,7 @@ VideoFrameMatcher::VideoFrameMatcher(
       task_queue_("VideoAnalyzer") {}
 
 VideoFrameMatcher::~VideoFrameMatcher() {
-  task_queue_.SendTask([this] { Finalize(); });
+  task_queue_.SendTask([this] { Finalize(); }, RTC_FROM_HERE);
 }
 
 void VideoFrameMatcher::RegisterLayer(int layer_id) {
@@ -112,7 +112,9 @@ void VideoFrameMatcher::HandleMatch(VideoFrameMatcher::CapturedFrame captured,
     frame_pair.decode_id = captured.best_decode->id;
     frame_pair.decoded = captured.best_decode->frame;
     frame_pair.decoded_time = captured.best_decode->decoded_time;
-    frame_pair.render_time = captured.best_decode->render_time;
+    // We can't render frames before they have been decoded.
+    frame_pair.render_time = std::max(captured.best_decode->render_time,
+                                      captured.best_decode->decoded_time);
     frame_pair.repeated = captured.best_decode->repeat_count++;
   }
   for (auto& handler : frame_pair_handlers_)
@@ -126,6 +128,16 @@ void VideoFrameMatcher::Finalize() {
       layer.second.captured_frames.pop_front();
     }
   }
+}
+
+CapturedFrameTap::CapturedFrameTap(Clock* clock, VideoFrameMatcher* matcher)
+    : clock_(clock), matcher_(matcher) {}
+
+void CapturedFrameTap::OnFrame(const VideoFrame& frame) {
+  matcher_->OnCapturedFrame(frame, clock_->CurrentTime());
+}
+void CapturedFrameTap::OnDiscardedFrame() {
+  discarded_count_++;
 }
 
 ForwardingCapturedFrameTap::ForwardingCapturedFrameTap(
@@ -148,7 +160,9 @@ void ForwardingCapturedFrameTap::OnDiscardedFrame() {
 void ForwardingCapturedFrameTap::AddOrUpdateSink(
     VideoSinkInterface<VideoFrame>* sink,
     const rtc::VideoSinkWants& wants) {
-  sink_ = sink;
+  if (!sink_)
+    sink_ = sink;
+  RTC_DCHECK_EQ(sink_, sink);
   source_->AddOrUpdateSink(this, wants);
 }
 void ForwardingCapturedFrameTap::RemoveSink(
@@ -166,7 +180,7 @@ DecodedFrameTap::DecodedFrameTap(Clock* clock,
 
 void DecodedFrameTap::OnFrame(const VideoFrame& frame) {
   matcher_->OnDecodedFrame(frame, layer_id_,
-                           Timestamp::ms(frame.render_time_ms()),
+                           Timestamp::Millis(frame.render_time_ms()),
                            clock_->CurrentTime());
 }
 

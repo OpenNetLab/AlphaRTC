@@ -8,16 +8,16 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#import <Cocoa/Cocoa.h>
+#import <AppKit/AppKit.h>
 
 #import "RTCVideoRenderer.h"
 
 NS_AVAILABLE_MAC(10.11)
 
 RTC_OBJC_EXPORT
-@interface RTCMTLNSVideoView : NSView <RTCVideoRenderer>
+@interface RTC_OBJC_TYPE (RTCMTLNSVideoView) : NSView <RTC_OBJC_TYPE(RTCVideoRenderer)>
 
-@property(nonatomic, weak) id<RTCVideoViewDelegate> delegate;
+@property(nonatomic, weak) id<RTC_OBJC_TYPE(RTCVideoViewDelegate)> delegate;
 
 + (BOOL)isMetalAvailable;
 

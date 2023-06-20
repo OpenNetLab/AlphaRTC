@@ -11,6 +11,7 @@
 #include "p2p/base/basic_packet_socket_factory.h"
 
 #include <stddef.h>
+
 #include <string>
 
 #include "p2p/base/async_stun_tcp_socket.h"
@@ -101,18 +102,6 @@ AsyncPacketSocket* BasicPacketSocketFactory::CreateClientTcpSocket(
     const SocketAddress& remote_address,
     const ProxyInfo& proxy_info,
     const std::string& user_agent,
-    int opts) {
-  PacketSocketTcpOptions tcp_options;
-  tcp_options.opts = opts;
-  return CreateClientTcpSocket(local_address, remote_address, proxy_info,
-                               user_agent, tcp_options);
-}
-
-AsyncPacketSocket* BasicPacketSocketFactory::CreateClientTcpSocket(
-    const SocketAddress& local_address,
-    const SocketAddress& remote_address,
-    const ProxyInfo& proxy_info,
-    const std::string& user_agent,
     const PacketSocketTcpOptions& tcp_options) {
   AsyncSocket* socket =
       socket_factory()->CreateAsyncSocket(local_address.family(), SOCK_STREAM);
@@ -168,7 +157,7 @@ AsyncPacketSocket* BasicPacketSocketFactory::CreateClientTcpSocket(
 
     socket = ssl_adapter;
 
-    if (ssl_adapter->StartSSL(remote_address.hostname().c_str(), false) != 0) {
+    if (ssl_adapter->StartSSL(remote_address.hostname().c_str()) != 0) {
       delete ssl_adapter;
       return NULL;
     }

@@ -12,10 +12,8 @@
 
 #include <memory>
 
-#include "absl/memory/memory.h"
-#include "api/media_transport_config.h"
 #include "api/rtc_error.h"
-#include "api/test/fake_media_transport.h"
+#include "api/transport/media/media_transport_config.h"
 #include "api/video/builtin_video_bitrate_allocator_factory.h"
 #include "media/base/fake_media_engine.h"
 #include "media/base/test_utils.h"
@@ -36,11 +34,14 @@ const bool kDefaultSrtpRequired = true;
 namespace cricket {
 
 static const AudioCodec kAudioCodecs[] = {
-    AudioCodec(97, "voice", 1, 2, 3), AudioCodec(111, "OPUS", 48000, 32000, 2),
+    AudioCodec(97, "voice", 1, 2, 3),
+    AudioCodec(111, "OPUS", 48000, 32000, 2),
 };
 
 static const VideoCodec kVideoCodecs[] = {
-    VideoCodec(99, "H264"), VideoCodec(100, "VP8"), VideoCodec(96, "rtx"),
+    VideoCodec(99, "H264"),
+    VideoCodec(100, "VP8"),
+    VideoCodec(96, "rtx"),
 };
 
 class ChannelManagerTest : public ::testing::Test {
@@ -63,25 +64,13 @@ class ChannelManagerTest : public ::testing::Test {
   }
 
   std::unique_ptr<webrtc::RtpTransportInternal> CreateDtlsSrtpTransport() {
-    rtp_dtls_transport_ = absl::make_unique<FakeDtlsTransport>(
+    rtp_dtls_transport_ = std::make_unique<FakeDtlsTransport>(
         "fake_dtls_transport", cricket::ICE_CANDIDATE_COMPONENT_RTP);
-    auto dtls_srtp_transport = absl::make_unique<webrtc::DtlsSrtpTransport>(
+    auto dtls_srtp_transport = std::make_unique<webrtc::DtlsSrtpTransport>(
         /*rtcp_mux_required=*/true);
     dtls_srtp_transport->SetDtlsTransports(rtp_dtls_transport_.get(),
                                            /*rtcp_dtls_transport=*/nullptr);
     return dtls_srtp_transport;
-  }
-
-  std::unique_ptr<webrtc::MediaTransportInterface> CreateMediaTransport(
-      rtc::PacketTransportInternal* packet_transport) {
-    webrtc::MediaTransportSettings settings;
-    settings.is_caller = true;
-    auto media_transport_result =
-        fake_media_transport_factory_.CreateMediaTransport(
-            packet_transport, network_.get(),
-            /*is_caller=*/settings);
-    RTC_CHECK(media_transport_result.ok());
-    return media_transport_result.MoveValue();
   }
 
   void TestCreateDestroyChannels(
@@ -120,7 +109,6 @@ class ChannelManagerTest : public ::testing::Test {
   cricket::FakeDataEngine* fdme_;
   std::unique_ptr<cricket::ChannelManager> cm_;
   cricket::FakeCall fake_call_;
-  webrtc::FakeMediaTransportFactory fake_media_transport_factory_;
   rtc::UniqueRandomIdGenerator ssrc_generator_;
 };
 
@@ -154,22 +142,29 @@ TEST_F(ChannelManagerTest, StartupShutdownOnThread) {
 }
 
 TEST_F(ChannelManagerTest, SetVideoRtxEnabled) {
-  std::vector<VideoCodec> codecs;
+  std::vector<VideoCodec> send_codecs;
+  std::vector<VideoCodec> recv_codecs;
   const VideoCodec rtx_codec(96, "rtx");
 
   // By default RTX is disabled.
-  cm_->GetSupportedVideoCodecs(&codecs);
-  EXPECT_FALSE(ContainsMatchingCodec(codecs, rtx_codec));
+  cm_->GetSupportedVideoSendCodecs(&send_codecs);
+  EXPECT_FALSE(ContainsMatchingCodec(send_codecs, rtx_codec));
+  cm_->GetSupportedVideoSendCodecs(&recv_codecs);
+  EXPECT_FALSE(ContainsMatchingCodec(recv_codecs, rtx_codec));
 
   // Enable and check.
   EXPECT_TRUE(cm_->SetVideoRtxEnabled(true));
-  cm_->GetSupportedVideoCodecs(&codecs);
-  EXPECT_TRUE(ContainsMatchingCodec(codecs, rtx_codec));
+  cm_->GetSupportedVideoSendCodecs(&send_codecs);
+  EXPECT_TRUE(ContainsMatchingCodec(send_codecs, rtx_codec));
+  cm_->GetSupportedVideoSendCodecs(&recv_codecs);
+  EXPECT_TRUE(ContainsMatchingCodec(recv_codecs, rtx_codec));
 
   // Disable and check.
   EXPECT_TRUE(cm_->SetVideoRtxEnabled(false));
-  cm_->GetSupportedVideoCodecs(&codecs);
-  EXPECT_FALSE(ContainsMatchingCodec(codecs, rtx_codec));
+  cm_->GetSupportedVideoSendCodecs(&send_codecs);
+  EXPECT_FALSE(ContainsMatchingCodec(send_codecs, rtx_codec));
+  cm_->GetSupportedVideoSendCodecs(&recv_codecs);
+  EXPECT_FALSE(ContainsMatchingCodec(recv_codecs, rtx_codec));
 
   // Cannot toggle rtx after initialization.
   EXPECT_TRUE(cm_->Init());
@@ -179,8 +174,10 @@ TEST_F(ChannelManagerTest, SetVideoRtxEnabled) {
   // Can set again after terminate.
   cm_->Terminate();
   EXPECT_TRUE(cm_->SetVideoRtxEnabled(true));
-  cm_->GetSupportedVideoCodecs(&codecs);
-  EXPECT_TRUE(ContainsMatchingCodec(codecs, rtx_codec));
+  cm_->GetSupportedVideoSendCodecs(&send_codecs);
+  EXPECT_TRUE(ContainsMatchingCodec(send_codecs, rtx_codec));
+  cm_->GetSupportedVideoSendCodecs(&recv_codecs);
+  EXPECT_TRUE(ContainsMatchingCodec(recv_codecs, rtx_codec));
 }
 
 TEST_F(ChannelManagerTest, CreateDestroyChannels) {
@@ -188,14 +185,6 @@ TEST_F(ChannelManagerTest, CreateDestroyChannels) {
   auto rtp_transport = CreateDtlsSrtpTransport();
   TestCreateDestroyChannels(rtp_transport.get(),
                             webrtc::MediaTransportConfig());
-}
-
-TEST_F(ChannelManagerTest, CreateDestroyChannelsWithMediaTransport) {
-  EXPECT_TRUE(cm_->Init());
-  auto rtp_transport = CreateDtlsSrtpTransport();
-  auto media_transport = CreateMediaTransport(rtp_dtls_transport_.get());
-  TestCreateDestroyChannels(
-      rtp_transport.get(), webrtc::MediaTransportConfig(media_transport.get()));
 }
 
 TEST_F(ChannelManagerTest, CreateDestroyChannelsOnThread) {

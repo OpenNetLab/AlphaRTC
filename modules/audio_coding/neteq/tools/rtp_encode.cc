@@ -35,7 +35,6 @@
 #include "modules/audio_coding/codecs/cng/audio_encoder_cng.h"
 #include "modules/audio_coding/include/audio_coding_module.h"
 #include "modules/audio_coding/neteq/tools/input_audio_file.h"
-#include "rtc_base/flags.h"
 #include "rtc_base/numerics/safe_conversions.h"
 
 ABSL_FLAG(bool, list_codecs, false, "Enumerate all codecs");
@@ -113,7 +112,8 @@ class Packetizer : public AudioPacketizationCallback {
                    uint8_t payload_type,
                    uint32_t timestamp,
                    const uint8_t* payload_data,
-                   size_t payload_len_bytes) override {
+                   size_t payload_len_bytes,
+                   int64_t absolute_capture_timestamp_ms) override {
     if (payload_len_bytes == 0) {
       return 0;
     }

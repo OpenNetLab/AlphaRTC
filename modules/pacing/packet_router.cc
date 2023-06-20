@@ -13,13 +13,14 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <utility>
 
 #include "absl/types/optional.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp_defines.h"
+#include "modules/rtp_rtcp/source/rtcp_packet.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/transport_feedback.h"
-#include "rtc_base/atomic_ops.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/time_utils.h"
@@ -31,17 +32,20 @@ constexpr int kRembSendIntervalMs = 200;
 
 }  // namespace
 
-PacketRouter::PacketRouter()
+PacketRouter::PacketRouter() : PacketRouter(0) {}
+
+PacketRouter::PacketRouter(uint16_t start_transport_seq)
     : last_send_module_(nullptr),
       last_remb_time_ms_(rtc::TimeMillis()),
       last_send_bitrate_bps_(0),
       bitrate_bps_(0),
       max_bitrate_bps_(std::numeric_limits<decltype(max_bitrate_bps_)>::max()),
       active_remb_module_(nullptr),
-      transport_seq_(0) {}
+      transport_seq_(start_transport_seq) {}
 
 PacketRouter::~PacketRouter() {
-  RTC_DCHECK(rtp_send_modules_.empty());
+  RTC_DCHECK(send_modules_map_.empty());
+  RTC_DCHECK(send_modules_list_.empty());
   RTC_DCHECK(rtcp_feedback_senders_.empty());
   RTC_DCHECK(sender_remb_candidates_.empty());
   RTC_DCHECK(receiver_remb_candidates_.empty());
@@ -50,14 +54,17 @@ PacketRouter::~PacketRouter() {
 
 void PacketRouter::AddSendRtpModule(RtpRtcp* rtp_module, bool remb_candidate) {
   rtc::CritScope cs(&modules_crit_);
-  RTC_DCHECK(std::find(rtp_send_modules_.begin(), rtp_send_modules_.end(),
-                       rtp_module) == rtp_send_modules_.end());
-  // Put modules which can use regular payload packets (over rtx) instead of
-  // padding first as it's less of a waste
-  if ((rtp_module->RtxSendStatus() & kRtxRedundantPayloads) > 0) {
-    rtp_send_modules_.push_front(rtp_module);
-  } else {
-    rtp_send_modules_.push_back(rtp_module);
+
+  AddSendRtpModuleToMap(rtp_module, rtp_module->SSRC());
+  if (absl::optional<uint32_t> rtx_ssrc = rtp_module->RtxSsrc()) {
+    AddSendRtpModuleToMap(rtp_module, *rtx_ssrc);
+  }
+  if (absl::optional<uint32_t> flexfec_ssrc = rtp_module->FlexfecSsrc()) {
+    AddSendRtpModuleToMap(rtp_module, *flexfec_ssrc);
+  }
+
+  if (rtp_module->SupportsRtxPayloadPadding()) {
+    last_send_module_ = rtp_module;
   }
 
   if (remb_candidate) {
@@ -65,14 +72,39 @@ void PacketRouter::AddSendRtpModule(RtpRtcp* rtp_module, bool remb_candidate) {
   }
 }
 
+void PacketRouter::AddSendRtpModuleToMap(RtpRtcp* rtp_module, uint32_t ssrc) {
+  RTC_DCHECK(send_modules_map_.find(ssrc) == send_modules_map_.end());
+  // Always keep the audio modules at the back of the list, so that when we
+  // iterate over the modules in order to find one that can send padding we
+  // will prioritize video. This is important to make sure they are counted
+  // into the bandwidth estimate properly.
+  if (rtp_module->IsAudioConfigured()) {
+    send_modules_list_.push_back(rtp_module);
+  } else {
+    send_modules_list_.push_front(rtp_module);
+  }
+  send_modules_map_[ssrc] = rtp_module;
+}
+
+void PacketRouter::RemoveSendRtpModuleFromMap(uint32_t ssrc) {
+  auto kv = send_modules_map_.find(ssrc);
+  RTC_DCHECK(kv != send_modules_map_.end());
+  send_modules_list_.remove(kv->second);
+  send_modules_map_.erase(kv);
+}
+
 void PacketRouter::RemoveSendRtpModule(RtpRtcp* rtp_module) {
   rtc::CritScope cs(&modules_crit_);
-  rtp_module_cache_map_.clear();
   MaybeRemoveRembModuleCandidate(rtp_module, /* media_sender = */ true);
-  auto it =
-      std::find(rtp_send_modules_.begin(), rtp_send_modules_.end(), rtp_module);
-  RTC_DCHECK(it != rtp_send_modules_.end());
-  rtp_send_modules_.erase(it);
+
+  RemoveSendRtpModuleFromMap(rtp_module->SSRC());
+  if (absl::optional<uint32_t> rtx_ssrc = rtp_module->RtxSsrc()) {
+    RemoveSendRtpModuleFromMap(*rtx_ssrc);
+  }
+  if (absl::optional<uint32_t> flexfec_ssrc = rtp_module->FlexfecSsrc()) {
+    RemoveSendRtpModuleFromMap(*flexfec_ssrc);
+  }
+
   if (last_send_module_ == rtp_module) {
     last_send_module_ = nullptr;
   }
@@ -102,149 +134,75 @@ void PacketRouter::RemoveReceiveRtpModule(
   rtcp_feedback_senders_.erase(it);
 }
 
-RtpPacketSendResult PacketRouter::TimeToSendPacket(
-    uint32_t ssrc,
-    uint16_t sequence_number,
-    int64_t capture_timestamp,
-    bool retransmission,
-    const PacedPacketInfo& pacing_info) {
+void PacketRouter::SendPacket(std::unique_ptr<RtpPacketToSend> packet,
+                              const PacedPacketInfo& cluster_info) {
   rtc::CritScope cs(&modules_crit_);
-  RtpRtcp* rtp_module = FindRtpModule(ssrc);
-  if (rtp_module == nullptr || !rtp_module->SendingMedia()) {
-    return RtpPacketSendResult::kPacketNotFound;
+  // With the new pacer code path, transport sequence numbers are only set here,
+  // on the pacer thread. Therefore we don't need atomics/synchronization.
+  if (packet->HasExtension<TransportSequenceNumber>()) {
+    packet->SetExtension<TransportSequenceNumber>((++transport_seq_) & 0xFFFF);
   }
 
-  if ((rtp_module->RtxSendStatus() & kRtxRedundantPayloads) &&
-      rtp_module->HasBweExtensions()) {
+  uint32_t ssrc = packet->Ssrc();
+  auto kv = send_modules_map_.find(ssrc);
+  if (kv == send_modules_map_.end()) {
+    RTC_LOG(LS_WARNING)
+        << "Failed to send packet, matching RTP module not found "
+           "or transport error. SSRC = "
+        << packet->Ssrc() << ", sequence number " << packet->SequenceNumber();
+    return;
+  }
+
+  RtpRtcp* rtp_module = kv->second;
+  if (!rtp_module->TrySendPacket(packet.get(), cluster_info)) {
+    RTC_LOG(LS_WARNING) << "Failed to send packet, rejected by RTP module.";
+    return;
+  }
+
+  if (rtp_module->SupportsRtxPayloadPadding()) {
     // This is now the last module to send media, and has the desired
     // properties needed for payload based padding. Cache it for later use.
     last_send_module_ = rtp_module;
   }
-  return rtp_module->TimeToSendPacket(ssrc, sequence_number, capture_timestamp,
-                                      retransmission, pacing_info);
 }
 
-RtpRtcp* PacketRouter::FindRtpModule(uint32_t ssrc) {
-  auto it = rtp_module_cache_map_.find(ssrc);
-  if (it != rtp_module_cache_map_.end()) {
-    if (ssrc == it->second->SSRC() || ssrc == it->second->FlexfecSsrc()) {
-      return it->second;
-    }
-    // This entry is stale due to a changed ssrc - remove it.
-    rtp_module_cache_map_.erase(it);
-  }
-  // Slow path - find and cache matching module
-  for (RtpRtcp* rtp_module : rtp_send_modules_) {
-    if (ssrc == rtp_module->SSRC() || ssrc == rtp_module->FlexfecSsrc()) {
-      rtp_module_cache_map_[ssrc] = rtp_module;
-      return rtp_module;
-    }
-  }
-  return nullptr;
-}
-
-void PacketRouter::SendPacket(std::unique_ptr<RtpPacketToSend> packet,
-                              const PacedPacketInfo& cluster_info) {
+std::vector<std::unique_ptr<RtpPacketToSend>> PacketRouter::GeneratePadding(
+    size_t target_size_bytes) {
   rtc::CritScope cs(&modules_crit_);
-  for (auto* rtp_module : rtp_send_modules_) {
-    if (rtp_module->TrySendPacket(packet.get(), cluster_info)) {
-      const bool can_send_padding =
-          (rtp_module->RtxSendStatus() & kRtxRedundantPayloads) &&
-          rtp_module->HasBweExtensions();
-      if (can_send_padding) {
-        // This is now the last module to send media, and has the desired
-        // properties needed for payload based padding. Cache it for later use.
+  // First try on the last rtp module to have sent media. This increases the
+  // the chance that any payload based padding will be useful as it will be
+  // somewhat distributed over modules according the packet rate, even if it
+  // will be more skewed towards the highest bitrate stream. At the very least
+  // this prevents sending payload padding on a disabled stream where it's
+  // guaranteed not to be useful.
+  std::vector<std::unique_ptr<RtpPacketToSend>> padding_packets;
+  if (last_send_module_ != nullptr &&
+      last_send_module_->SupportsRtxPayloadPadding()) {
+    padding_packets = last_send_module_->GeneratePadding(target_size_bytes);
+    if (!padding_packets.empty()) {
+      return padding_packets;
+    }
+  }
+
+  // Iterate over all modules send module. Video modules will be at the front
+  // and so will be prioritized. This is important since audio packets may not
+  // be taken into account by the bandwidth estimator, e.g. in FF.
+  for (RtpRtcp* rtp_module : send_modules_list_) {
+    if (rtp_module->SupportsPadding()) {
+      padding_packets = rtp_module->GeneratePadding(target_size_bytes);
+      if (!padding_packets.empty()) {
         last_send_module_ = rtp_module;
-      }
-      return;
-    }
-  }
-
-  RTC_LOG(LS_WARNING) << "Failed to send packet, matching RTP module not found "
-                         "or transport error. SSRC = "
-                      << packet->Ssrc() << ", sequence number "
-                      << packet->SequenceNumber();
-}
-
-size_t PacketRouter::TimeToSendPadding(size_t bytes_to_send,
-                                       const PacedPacketInfo& pacing_info) {
-  size_t total_bytes_sent = 0;
-  rtc::CritScope cs(&modules_crit_);
-  // First try on the last rtp module to have sent media. This increases the
-  // the chance that any payload based padding will be useful as it will be
-  // somewhat distributed over modules according the packet rate, even if it
-  // will be more skewed towards the highest bitrate stream. At the very least
-  // this prevents sending payload padding on a disabled stream where it's
-  // guaranteed not to be useful.
-  if (last_send_module_ != nullptr) {
-    RTC_DCHECK(std::find(rtp_send_modules_.begin(), rtp_send_modules_.end(),
-                         last_send_module_) != rtp_send_modules_.end());
-    RTC_DCHECK(last_send_module_->HasBweExtensions());
-    total_bytes_sent += last_send_module_->TimeToSendPadding(
-        bytes_to_send - total_bytes_sent, pacing_info);
-    if (total_bytes_sent >= bytes_to_send) {
-      return total_bytes_sent;
-    }
-  }
-
-  // Rtp modules are ordered by which stream can most benefit from padding.
-  for (RtpRtcp* module : rtp_send_modules_) {
-    if (module->SendingMedia() && module->HasBweExtensions()) {
-      size_t bytes_sent = module->TimeToSendPadding(
-          bytes_to_send - total_bytes_sent, pacing_info);
-      total_bytes_sent += bytes_sent;
-      if (total_bytes_sent >= bytes_to_send)
         break;
+      }
     }
   }
-  return total_bytes_sent;
+
+  return padding_packets;
 }
 
-void PacketRouter::GeneratePadding(size_t target_size_bytes) {
-  rtc::CritScope cs(&modules_crit_);
-  // First try on the last rtp module to have sent media. This increases the
-  // the chance that any payload based padding will be useful as it will be
-  // somewhat distributed over modules according the packet rate, even if it
-  // will be more skewed towards the highest bitrate stream. At the very least
-  // this prevents sending payload padding on a disabled stream where it's
-  // guaranteed not to be useful.
-  if (last_send_module_ != nullptr) {
-    RTC_DCHECK(std::find(rtp_send_modules_.begin(), rtp_send_modules_.end(),
-                         last_send_module_) != rtp_send_modules_.end());
-    RTC_DCHECK(last_send_module_->HasBweExtensions());
-    last_send_module_->GeneratePadding(target_size_bytes);
-    return;
-  }
-
-  // Rtp modules are ordered by which stream can most benefit from padding.
-  for (RtpRtcp* rtp_module : rtp_send_modules_) {
-    if (rtp_module->SendingMedia() && rtp_module->HasBweExtensions()) {
-      rtp_module->GeneratePadding(target_size_bytes);
-      return;
-    }
-  }
-}
-
-void PacketRouter::SetTransportWideSequenceNumber(uint16_t sequence_number) {
-  rtc::AtomicOps::ReleaseStore(&transport_seq_, sequence_number);
-}
-
-uint16_t PacketRouter::AllocateSequenceNumber() {
-  int prev_seq = rtc::AtomicOps::AcquireLoad(&transport_seq_);
-  int desired_prev_seq;
-  int new_seq;
-  do {
-    desired_prev_seq = prev_seq;
-    new_seq = (desired_prev_seq + 1) & 0xFFFF;
-    // Note: CompareAndSwap returns the actual value of transport_seq at the
-    // time the CAS operation was executed. Thus, if prev_seq is returned, the
-    // operation was successful - otherwise we need to retry. Saving the
-    // return value saves us a load on retry.
-    prev_seq = rtc::AtomicOps::CompareAndSwap(&transport_seq_, desired_prev_seq,
-                                              new_seq);
-  } while (prev_seq != desired_prev_seq);
-
-  return new_seq;
+uint16_t PacketRouter::CurrentTransportSequenceNumber() const {
+  rtc::CritScope lock(&modules_crit_);
+  return transport_seq_ & 0xFFFF;
 }
 
 void PacketRouter::OnReceiveBitrateChanged(const std::vector<uint32_t>& ssrcs,
@@ -317,33 +275,25 @@ bool PacketRouter::SendRemb(int64_t bitrate_bps,
   return true;
 }
 
-bool PacketRouter::SendTransportFeedback(rtcp::TransportFeedback* packet) {
+bool PacketRouter::SendCombinedRtcpPacket(
+    std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets) {
   rtc::CritScope cs(&modules_crit_);
-  // Prefer send modules.
-  for (auto* rtp_module : rtp_send_modules_) {
-    packet->SetSenderSsrc(rtp_module->SSRC());
-    if (rtp_module->SendFeedbackPacket(*packet)) {
-      return true;
-    }
-  }
-  for (auto* rtcp_sender : rtcp_feedback_senders_) {
-    packet->SetSenderSsrc(rtcp_sender->SSRC());
-    if (rtcp_sender->SendFeedbackPacket(*packet)) {
-      return true;
-    }
-  }
-  return false;
-}
 
-bool PacketRouter::SendApplicationPacket(rtcp::App* packet) {
-  rtc::CritScope cs(&modules_crit_);
-  for (auto* rtp_module : rtp_send_modules_) {
-    packet->SetSsrc(rtp_module->SSRC());
-    if (rtp_module->SendApplicationPacket(*packet)) {
-      return true;
+  // Prefer send modules.
+  for (RtpRtcp* rtp_module : send_modules_list_) {
+    if (rtp_module->RTCP() == RtcpMode::kOff) {
+      continue;
     }
+    rtp_module->SendCombinedRtcpPacket(std::move(packets));
+    return true;
   }
-  return false;
+
+  if (rtcp_feedback_senders_.empty()) {
+    return false;
+  }
+  auto* rtcp_sender = rtcp_feedback_senders_[0];
+  rtcp_sender->SendCombinedRtcpPacket(std::move(packets));
+  return true;
 }
 
 void PacketRouter::AddRembModuleCandidate(

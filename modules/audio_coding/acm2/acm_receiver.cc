@@ -12,16 +12,17 @@
 
 #include <stdlib.h>
 #include <string.h>
+
 #include <cstdint>
 #include <vector>
 
 #include "absl/strings/match.h"
 #include "api/audio/audio_frame.h"
 #include "api/audio_codecs/audio_decoder.h"
+#include "api/neteq/neteq.h"
 #include "modules/audio_coding/acm2/acm_resampler.h"
 #include "modules/audio_coding/acm2/call_statistics.h"
-#include "modules/audio_coding/neteq/include/neteq.h"
-#include "modules/include/module_common_types.h"
+#include "modules/audio_coding/neteq/default_neteq_factory.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/safe_conversions.h"
@@ -32,11 +33,27 @@ namespace webrtc {
 
 namespace acm2 {
 
+namespace {
+
+std::unique_ptr<NetEq> CreateNetEq(
+    NetEqFactory* neteq_factory,
+    const NetEq::Config& config,
+    Clock* clock,
+    const rtc::scoped_refptr<AudioDecoderFactory>& decoder_factory) {
+  if (neteq_factory) {
+    return neteq_factory->CreateNetEq(config, decoder_factory, clock);
+  }
+  return DefaultNetEqFactory().CreateNetEq(config, decoder_factory, clock);
+}
+
+}  // namespace
+
 AcmReceiver::AcmReceiver(const AudioCodingModule::Config& config)
     : last_audio_buffer_(new int16_t[AudioFrame::kMaxDataSizeSamples]),
-      neteq_(NetEq::Create(config.neteq_config,
-                           config.clock,
-                           config.decoder_factory)),
+      neteq_(CreateNetEq(config.neteq_factory,
+                         config.neteq_config,
+                         config.clock,
+                         config.decoder_factory)),
       clock_(config.clock),
       resampled_last_output_frame_(true) {
   RTC_DCHECK(clock_);
@@ -73,7 +90,7 @@ absl::optional<int> AcmReceiver::last_packet_sample_rate_hz() const {
   if (!last_decoder_) {
     return absl::nullopt;
   }
-  return last_decoder_->second.clockrate_hz;
+  return last_decoder_->sample_rate_hz;
 }
 
 int AcmReceiver::last_output_sample_rate_hz() const {
@@ -89,35 +106,34 @@ int AcmReceiver::InsertPacket(const RTPHeader& rtp_header,
 
   int payload_type = rtp_header.payloadType;
   auto format = neteq_->GetDecoderFormat(payload_type);
-  if (format && absl::EqualsIgnoreCase(format->name, "red")) {
+  if (format && absl::EqualsIgnoreCase(format->sdp_format.name, "red")) {
     // This is a RED packet. Get the format of the audio codec.
     payload_type = incoming_payload[0] & 0x7f;
     format = neteq_->GetDecoderFormat(payload_type);
   }
   if (!format) {
-    RTC_LOG_F(LS_ERROR) << "Payload-type "
-                        << payload_type
+    RTC_LOG_F(LS_ERROR) << "Payload-type " << payload_type
                         << " is not registered.";
     return -1;
   }
 
   {
     rtc::CritScope lock(&crit_sect_);
-    if (absl::EqualsIgnoreCase(format->name, "cn")) {
-      if (last_decoder_ && last_decoder_->second.num_channels > 1) {
+    if (absl::EqualsIgnoreCase(format->sdp_format.name, "cn")) {
+      if (last_decoder_ && last_decoder_->num_channels > 1) {
         // This is a CNG and the audio codec is not mono, so skip pushing in
         // packets into NetEq.
         return 0;
       }
     } else {
-      RTC_DCHECK(format);
-      last_decoder_ = std::make_pair(payload_type, *format);
+      last_decoder_ = DecoderInfo{/*payload_type=*/payload_type,
+                                  /*sample_rate_hz=*/format->sample_rate_hz,
+                                  /*num_channels=*/format->num_channels,
+                                  /*sdp_format=*/std::move(format->sdp_format)};
     }
   }  // |crit_sect_| is released.
 
-  uint32_t receive_timestamp = NowInTimestamp(format->clockrate_hz);
-  if (neteq_->InsertPacket(rtp_header, incoming_payload, receive_timestamp) <
-      0) {
+  if (neteq_->InsertPacket(rtp_header, incoming_payload) < 0) {
     RTC_LOG(LERROR) << "AcmReceiver::InsertPacket "
                     << static_cast<int>(rtp_header.payloadType)
                     << " Failed to insert packet";
@@ -218,17 +234,17 @@ int AcmReceiver::TargetDelayMs() const {
   return neteq_->TargetDelayMs();
 }
 
-absl::optional<std::pair<int, SdpAudioFormat>>
-    AcmReceiver::LastDecoder() const {
+absl::optional<std::pair<int, SdpAudioFormat>> AcmReceiver::LastDecoder()
+    const {
   rtc::CritScope lock(&crit_sect_);
   if (!last_decoder_) {
     return absl::nullopt;
   }
-  RTC_DCHECK_NE(-1, last_decoder_->first);  // Payload type should be valid.
-  return last_decoder_;
+  RTC_DCHECK_NE(-1, last_decoder_->payload_type);
+  return std::make_pair(last_decoder_->payload_type, last_decoder_->sdp_format);
 }
 
-void AcmReceiver::GetNetworkStatistics(NetworkStatistics* acm_stat) {
+void AcmReceiver::GetNetworkStatistics(NetworkStatistics* acm_stat) const {
   NetEqNetworkStatistics neteq_stat;
   // NetEq function always returns zero, so we don't check the return value.
   neteq_->NetworkStatistics(&neteq_stat);
@@ -243,7 +259,6 @@ void AcmReceiver::GetNetworkStatistics(NetworkStatistics* acm_stat) {
   acm_stat->currentAccelerateRate = neteq_stat.accelerate_rate;
   acm_stat->currentSecondaryDecodedRate = neteq_stat.secondary_decoded_rate;
   acm_stat->currentSecondaryDiscardedRate = neteq_stat.secondary_discarded_rate;
-  acm_stat->clockDriftPPM = neteq_stat.clockdrift_ppm;
   acm_stat->addedSamples = neteq_stat.added_zero_samples;
   acm_stat->meanWaitingTimeMs = neteq_stat.mean_waiting_time_ms;
   acm_stat->medianWaitingTimeMs = neteq_stat.median_waiting_time_ms;
@@ -257,6 +272,8 @@ void AcmReceiver::GetNetworkStatistics(NetworkStatistics* acm_stat) {
       neteq_lifetime_stat.silent_concealed_samples;
   acm_stat->concealmentEvents = neteq_lifetime_stat.concealment_events;
   acm_stat->jitterBufferDelayMs = neteq_lifetime_stat.jitter_buffer_delay_ms;
+  acm_stat->jitterBufferTargetDelayMs =
+      neteq_lifetime_stat.jitter_buffer_target_delay_ms;
   acm_stat->jitterBufferEmittedCount =
       neteq_lifetime_stat.jitter_buffer_emitted_count;
   acm_stat->delayedPacketOutageSamples =

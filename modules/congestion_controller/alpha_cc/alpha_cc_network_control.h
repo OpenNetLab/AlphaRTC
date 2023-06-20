@@ -12,12 +12,14 @@
 #define MODULES_CONGESTION_CONTROLLER_GOOG_CC_GOOG_CC_NETWORK_CONTROL_H_
 
 #include <stdint.h>
+
 #include <deque>
 #include <memory>
 #include <vector>
 
 #include "absl/types/optional.h"
 #include "api/network_state_predictor.h"
+#include "api/rtc_event_log/rtc_event_log.h"
 #include "api/transport/field_trial_based_config.h"
 #include "api/transport/network_control.h"
 #include "rtc_base/constructor_magic.h"
@@ -73,6 +75,7 @@ class GoogCcNetworkController : public NetworkControllerInterface {
 
   absl::optional<NetworkControllerConfig> initial_config_;
 
+  DataRate min_target_rate_ = DataRate::Zero();
   DataRate min_data_rate_ = DataRate::Zero();
   DataRate max_data_rate_ = DataRate::PlusInfinity();
   absl::optional<DataRate> starting_rate_;

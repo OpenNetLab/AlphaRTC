@@ -13,9 +13,13 @@
 #endif  //  WIN32
 
 #include "modules/remote_bitrate_estimator/remote_estimator_proxy.h"
+#include "modules/third_party/cmdinfer/cmdinfer.h"
 
 #include <algorithm>
 #include <limits>
+#include <memory>
+#include <utility>
+#include <iostream>
 
 #include "api/alphacc_config.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/transport_feedback.h"
@@ -37,11 +41,13 @@ static constexpr int64_t kMaxTimeMs =
 RemoteEstimatorProxy::RemoteEstimatorProxy(
     Clock* clock,
     TransportFeedbackSenderInterface* feedback_sender,
-    const WebRtcKeyValueConfig* key_value_config)
+    const WebRtcKeyValueConfig* key_value_config,
+    NetworkStateEstimator* network_state_estimator)
     : clock_(clock),
       feedback_sender_(feedback_sender),
       send_config_(key_value_config),
       last_process_time_ms_(-1),
+      network_state_estimator_(network_state_estimator),
       media_ssrc_(0),
       feedback_packet_count_(0),
       send_interval_ms_(send_config_.default_interval->ms()),
@@ -50,11 +56,15 @@ RemoteEstimatorProxy::RemoteEstimatorProxy(
       last_bwe_sendback_ms_(clock->TimeInMilliseconds()),
       stats_collect_(StatCollect::SC_TYPE_STRUCT),
       cycles_(-1),
-      max_abs_send_time_(0) {
-  onnx_infer_ = onnxinfer::CreateONNXInferInterface(
-      GetAlphaCCConfig()->onnx_model_path.c_str());
-  if (!onnxinfer::IsReady(onnx_infer_)) {
-    RTC_LOG(LS_ERROR) << "Failed to create onnx_infer_.";
+      max_abs_send_time_(0),
+      onnx_infer_(nullptr) {
+
+  if (!GetAlphaCCConfig()->onnx_model_path.empty()) {
+    onnx_infer_ = onnxinfer::CreateONNXInferInterface(
+        GetAlphaCCConfig()->onnx_model_path.c_str());
+    if (!onnxinfer::IsReady(onnx_infer_)) {
+      RTC_LOG(LS_ERROR) << "Failed to create onnx_infer_.";
+    }
   }
   RTC_LOG(LS_INFO)
       << "Maximum interval between transport feedback RTCP messages (ms): "
@@ -70,10 +80,8 @@ RemoteEstimatorProxy::~RemoteEstimatorProxy() {
 void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
                                           size_t payload_size,
                                           const RTPHeader& header) {
-  if (!header.extension.hasTransportSequenceNumber) {
-    RTC_LOG(LS_WARNING)
-        << "RemoteEstimatorProxy: Incoming packet "
-           "is missing the transport sequence number extension!";
+  if (arrival_time_ms < 0 || arrival_time_ms > kMaxTimeMs) {
+    RTC_LOG(LS_WARNING) << "Arrival time out of bounds: " << arrival_time_ms;
     return;
   }
   rtc::CritScope cs(&lock_);
@@ -87,16 +95,32 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
 
   // lossCound and RTT field for onnxinfer::OnReceived() are set to -1 since
   // no available lossCound and RTT in webrtc
-  onnxinfer::OnReceived(onnx_infer_, header.payloadType, header.sequenceNumber,
-                        send_time_ms, header.ssrc, header.paddingLength,
-                        header.headerLength, arrival_time_ms, payload_size, -1, -1);
+  if (onnx_infer_) {
+    onnxinfer::OnReceived(onnx_infer_, header.payloadType, header.sequenceNumber,
+                          send_time_ms, header.ssrc, header.paddingLength,
+                          header.headerLength, arrival_time_ms, payload_size, -1, -1);
+  } else {
+    cmdinfer::ReportStates(
+        send_time_ms,
+        arrival_time_ms,
+        payload_size,
+        header.payloadType,
+        header.sequenceNumber,
+        header.ssrc,
+        header.paddingLength,
+        header.headerLength);
+  }
 
   //--- BandWidthControl: Send back bandwidth estimation into to sender ---
   bool time_to_send_bew_message = TimeToSendBweMessage();
   float estimation = 0;
   if (time_to_send_bew_message) {
     BweMessage bwe;
-    estimation = onnxinfer::GetBweEstimate(onnx_infer_);
+    if (onnx_infer_) {
+      estimation = onnxinfer::GetBweEstimate(onnx_infer_);
+    } else {
+      estimation = cmdinfer::GetEstimatedBandwidth();
+    }
     bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
     bwe.timestamp_ms = clock_->TimeInMilliseconds();
     SendbackBweEstimation(bwe);
@@ -250,18 +274,35 @@ void RemoteEstimatorProxy::SendPeriodicFeedbacks() {
   if (!periodic_window_start_seq_)
     return;
 
+  std::unique_ptr<rtcp::RemoteEstimate> remote_estimate;
+  if (network_state_estimator_) {
+    absl::optional<NetworkStateEstimate> state_estimate =
+        network_state_estimator_->GetCurrentEstimate();
+    if (state_estimate) {
+      remote_estimate = std::make_unique<rtcp::RemoteEstimate>();
+      remote_estimate->SetEstimate(state_estimate.value());
+    }
+  }
+
   for (auto begin_iterator =
            packet_arrival_times_.lower_bound(*periodic_window_start_seq_);
        begin_iterator != packet_arrival_times_.cend();
        begin_iterator =
            packet_arrival_times_.lower_bound(*periodic_window_start_seq_)) {
-    rtcp::TransportFeedback feedback_packet;
+    auto feedback_packet = std::make_unique<rtcp::TransportFeedback>();
     periodic_window_start_seq_ = BuildFeedbackPacket(
         feedback_packet_count_++, media_ssrc_, *periodic_window_start_seq_,
-        begin_iterator, packet_arrival_times_.cend(), &feedback_packet);
+        begin_iterator, packet_arrival_times_.cend(), feedback_packet.get());
 
     RTC_DCHECK(feedback_sender_ != nullptr);
-    feedback_sender_->SendTransportFeedback(&feedback_packet);
+
+    std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets;
+    if (remote_estimate) {
+      packets.push_back(std::move(remote_estimate));
+    }
+    packets.push_back(std::move(feedback_packet));
+
+    feedback_sender_->SendCombinedRtcpPacket(std::move(packets));
     // Note: Don't erase items from packet_arrival_times_ after sending, in case
     // they need to be re-sent after a reordering. Removal will be handled
     // by OnPacketArrival once packets are too old.
@@ -274,7 +315,9 @@ void RemoteEstimatorProxy::SendFeedbackOnRequest(
   if (feedback_request.sequence_count == 0) {
     return;
   }
-  rtcp::TransportFeedback feedback_packet(feedback_request.include_timestamps);
+
+  auto feedback_packet = std::make_unique<rtcp::TransportFeedback>(
+      feedback_request.include_timestamps);
 
   int64_t first_sequence_number =
       sequence_number - feedback_request.sequence_count + 1;
@@ -284,23 +327,26 @@ void RemoteEstimatorProxy::SendFeedbackOnRequest(
 
   BuildFeedbackPacket(feedback_packet_count_++, media_ssrc_,
                       first_sequence_number, begin_iterator, end_iterator,
-                      &feedback_packet);
+                      feedback_packet.get());
 
   // Clear up to the first packet that is included in this feedback packet.
   packet_arrival_times_.erase(packet_arrival_times_.begin(), begin_iterator);
 
   RTC_DCHECK(feedback_sender_ != nullptr);
-  feedback_sender_->SendTransportFeedback(&feedback_packet);
+  std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets;
+  packets.push_back(std::move(feedback_packet));
+  feedback_sender_->SendCombinedRtcpPacket(std::move(packets));
 }
 
 void RemoteEstimatorProxy::SendbackBweEstimation(const BweMessage& bwe) {
-  rtcp::App app_packet;
+  auto app_packet = std::make_unique<rtcp::App>();
+  app_packet->SetSubType(kAppPacketSubType);
+  app_packet->SetName(kAppPacketName);
 
-  app_packet.SetSubType(kAppPacketSubType);
-  app_packet.SetName(kAppPacketName);
-
-  app_packet.SetData(reinterpret_cast<const uint8_t*>(&bwe), sizeof(bwe));
-  feedback_sender_->SendApplicationPacket(&app_packet);
+  app_packet->SetData(reinterpret_cast<const uint8_t*>(&bwe), sizeof(bwe));
+  std::vector<std::unique_ptr<rtcp::RtcpPacket>> packets;
+  packets.push_back(std::move(app_packet));
+  feedback_sender_->SendCombinedRtcpPacket(std::move(packets));
 }
 
 int64_t RemoteEstimatorProxy::BuildFeedbackPacket(

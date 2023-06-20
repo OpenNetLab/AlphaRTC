@@ -9,6 +9,7 @@
  */
 
 #include <string.h>
+
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -55,7 +56,7 @@ TestClient* CreateTestClient(SocketFactory* factory,
 }
 
 TestClient* CreateTCPTestClient(AsyncSocket* socket) {
-  return new TestClient(absl::make_unique<AsyncTCPSocket>(socket, false));
+  return new TestClient(std::make_unique<AsyncTCPSocket>(socket, false));
 }
 
 // Tests that when sending from internal_addr to external_addrs through the
