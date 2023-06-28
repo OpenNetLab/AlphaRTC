@@ -45,40 +45,42 @@ Users can plug in custom bandwidth estimators with AlphaRTC's interfaces for Pyt
 ## Installation
 
 
-```
+``` shell
 # Install depot tools
-$ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
-$ export DEPOT_TOOLS_HOME=/path/to/depot_tools
+git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+export DEPOT_TOOLS_HOME=/path/to/depot_tools
 # NOTE: DEPOT_TOOLS_HOME should locate at the front of the PATH
-$ export PATH=:$DEPOT_TOOLS_HOME:$PATH
+export PATH=:$DEPOT_TOOLS_HOME:$PATH
 
 # Fetch chromium
-$ git config --global core.autocrlf false
-$ git config --global core.filemode false
-$ cd src && sudo ./build/install-build-deps.sh
+git config --global core.autocrlf false
+git config --global core.filemode false
+cd $DEPOT_TOOLS_HOME/src && sudo ./build/install-build-deps.sh
 
-# Get the code
-$ git clone https://github.com/OpenNetLab/AlphaRTC.git
+# Get the AlphaRTC code
+git clone https://github.com/OpenNetLab/AlphaRTC.git
 ```
 
 ## Compilation
 
-```
-# Compile AlphaRTC and peerconnection_serverless, the video call app that uses the custom bandwidth estimator
-$ ./onl-build.sh
+``` shell
+# Compile AlphaRTC and peerconnection_serverless,
+# the video call app that uses the custom bandwidth estimator
+./onl-build.sh
 
-# Compile AlphaRTC and peerconnection_serverless_gcc, the video call app that uses GCC, the default bandwidth estimator of WebRTC
-$ git checkout gcc
-$ ./gcc-build.sh
+# Compile AlphaRTC and peerconnection_serverless_gcc,
+# the video call app that uses GCC, the default bandwidth estimator of WebRTC
+git checkout gcc
+./gcc-build.sh
 ```
 
 ## Evaluation
 
-- Running end-to-end video call app
+- Running an end-to-end video call app
   - In case of running an app with GCC, use `peerconnection_serverless_gcc` instead of `peerconnection_serverless` following the [guideline](#compilation)
-  - Results will be saved as `receiver`
+  - Results will be saved as `receiver-*.log` and `sender-*.log`.
 
-```
+``` shell
 # Running 360p (640x360) video at fps=25:
 # Receiver side
 ./peerconnection_serverless receiver_360p.json
@@ -94,70 +96,100 @@ $ ./gcc-build.sh
 
 ## Using Docker
 
-**We recommend you directly fetch the pre-provided Docker images from `opennetlab.azurecr.io/alphartc` or [Github release](https://github.com/OpenNetLab/AlphaRTC/releases/latest/download/alphartc.tar.gz)**
+### Getting the docker image
 
-### From docker registry
-``` bash
+- We recommend you directly fetch the pre-provided Docker images from `opennetlab.azurecr.io/alphartc` or [Github release](https://github.com/OpenNetLab/AlphaRTC/releases/latest/download/alphartc.tar.gz)
+- Supported distros: Ubuntu 18.04 or 20.04
+
+
+``` shell
+# From docker registry:
 docker pull opennetlab.azurecr.io/alphartc
 docker image tag opennetlab.azurecr.io/alphartc alphartc
-```
 
-### From github release
-``` bash
+# From github release:
 wget https://github.com/OpenNetLab/AlphaRTC/releases/latest/download/alphartc.tar.gz
 docker load -i alphartc.tar.gz
 ```
 
-Ubuntu 18.04 or 20.04 is the only officially supported distro at this moment. For other distros, you may be able to compile your own binary, or use our pre-provided Docker images.
+### Compilation
 
-## Compilation
+``` shell
+# Install Docker
+curl -fsSL get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker ${USER}
 
-To compile AlphaRTC, please refer to the following steps
+# Get the AlphaRTC code
+git clone https://github.com/OpenNetLab/AlphaRTC.git
 
-1. Prerequisites
+# Build Docker images
+cd AlphaRTC
+make all
 
-   Make sure Docker is installed on your system and add user to docker group.
+# Should show `alphartc` and `alphartc-compile`
+docker images
+```
 
-   ``` shell
-   # Install Docker
-   curl -fsSL get.docker.com -o get-docker.sh
-   sudo sh get-docker.sh
-   sudo usermod -aG docker ${USER}
-   ```
+### Evaluation
 
-2. Clone the code
-
-   ``` shell
-   git clone https://github.com/OpenNetLab/AlphaRTC.git
-   ```
-
-3. Build Docker images
-
-   ``` shell
-   cd AlphaRTC
-   make all
-   ```
-
-   You should then be able to see two Docker images, `alphartc` and `alphartc-compile` using `sudo docker images`
-
-
-## Demo
-
-AlphaRTC consists of many different components. `peerconnection_serverless` is an application for demo purposes that comes with AlphaRTC. It establishes RTC communication with another peer without the need of a server.
-
-In order to run the application, you will need a configuration file in json format. The details are explained in the next chapter.
-
-In addition to the config file, you will also need other files, such as video/audio source files and an ONNX model.
-
-To run an AlphaRTC instance, put the config files in a directory, e.g., `config_files`, then mount it to an endpoint inside `alphartc` container
+- `peerconnection_serverless` is an end-to-end video call app that runs on AlphaRTC. It establishes RTC communication with another peer without the need of a server.
+- Since `peerconnection_serverless` needs two peers, spawn two instances (a receiver and a sender) in the same network and make them talk to each other. For more information on Docker networking, check [Docker Networking](https://docs.docker.com/network/network-tutorial-standalone/)
 
 ``` shell
 sudo docker run -v config_files:/app/config_files alphartc peerconnection_serverless /app/config_files/config.json
 ```
 
-Since `peerconnection_serverless` needs two peers, you may spawn two instances (a receiver and a sender) in the same network and make them talk to each other. For more information on Docker networking, check [Docker Networking](https://docs.docker.com/network/network-tutorial-standalone/)
+### Using PyInfer and ONNXInfer
 
-### Configurations for *peerconnection_serverless*
+- **PyInfer**: Implement a Python `Estimator` class with required methods `report_states` and `get_estimated_bandwidth` in `BandwidthEstimator.py` and put this file in your workspace.
+- Below is a sample skeleton `BandwidthEstimator.py` with 1Mbps fixed estimated bandwidth.
+
+```python
+class Estimator(object):
+    def report_states(self, stats: dict):
+        '''
+        stats is a dict with the following items
+        {
+            "send_time_ms": uint,
+            "arrival_time_ms": uint,
+            "payload_type": int,
+            "sequence_number": uint,
+            "ssrc": int,
+            "padding_length": uint,
+            "header_length": uint,
+            "payload_size": uint
+        }
+        '''
+        pass
+
+    def get_estimated_bandwidth(self)->int:
+        return int(1e6) # 1Mbps
+
+```
+
+- **ONNXInfer**: Specify the path of onnx model in the config file. Here is an example receiver-side configuration [receiver.json](examples/peerconnection/serverless/corpus/receiver.json)
+
+
+### Evaluation
+- Dockerized environment
+
+    To better demonstrate the usage of peerconnection_serverless, we provide an all-inclusive corpus in `examples/peerconnection/serverless/corpus`. You can use the following commands to execute a tiny example. After these commands terminates, you will get `outvideo.yuv` and `outaudio.wav`.
+
+
+    PyInfer:
+    ```shell
+    sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver_pyinfer.json
+    sudo docker exec alphartc peerconnection_serverless sender_pyinfer.json
+    ```
+
+    ONNXInfer:
+    ``` shell
+    sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
+    sudo docker exec alphartc peerconnection_serverless sender.json
+    ```
+
+## Receiver- and Sender-side Configurations
 
 This section describes required fields for the json configuration file.
 
@@ -210,104 +242,6 @@ This section describes required fields for the json configuration file.
     - **fps**: Frames per second of the output video file
     - **file_path**: The file path of the output video file in YUV format
 
-#### Use PyInfer or ONNXInfer
-
-##### PyInfer
-
-The default bandwidth estimator is PyInfer, You should implement your Python class named `Estimator` with required methods `report_states` and `get_estimated_bandwidth` in Python file `BandwidthEstimator.py ` and put this file in your workspace.
-There is an example of Estimator with fixed estimated bandwidth 1Mbps. Here is an example [BandwidthEstimator.py](examples/peerconnection/serverless/corpus/BandwidthEstimator.py).
-
-```python
-class Estimator(object):
-    def report_states(self, stats: dict):
-        '''
-        stats is a dict with the following items
-        {
-            "send_time_ms": uint,
-            "arrival_time_ms": uint,
-            "payload_type": int,
-            "sequence_number": uint,
-            "ssrc": int,
-            "padding_length": uint,
-            "header_length": uint,
-            "payload_size": uint
-        }
-        '''
-        pass
-
-    def get_estimated_bandwidth(self)->int:
-        return int(1e6) # 1Mbps
-
-```
-
-##### ONNXInfer
-
-If you want to use the ONNXInfer as the bandwidth estimator, you should specify the path of onnx model in the config file. Here is an example configuration [receiver.json](examples/peerconnection/serverless/corpus/receiver.json)
-
-- **onnx**
-  - **onnx_model_path**: The path of the [onnx](https://www.onnxruntime.ai/) model
-
-
-#### Run peerconnection_serverless
-- Dockerized environment
-
-    To better demonstrate the usage of peerconnection_serverless, we provide an all-inclusive corpus in `examples/peerconnection/serverless/corpus`. You can use the following commands to execute a tiny example. After these commands terminates, you will get `outvideo.yuv` and `outaudio.wav`.
-
-
-    PyInfer:
-    ```shell
-    sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver_pyinfer.json
-    sudo docker exec alphartc peerconnection_serverless sender_pyinfer.json
-    ```
-
-    ONNXInfer:
-    ``` shell
-    sudo docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
-    sudo docker exec alphartc peerconnection_serverless sender.json
-    ```
-
-- Bare metal
-
-    If you compiled your own binary, you can also run it on your bare-metal machine.
-
-    - Linux users:
-        1. Copy the provided corpus to a new directory
-
-            ```shell
-            cp -r examples/peerconnection/serverless/corpus/* /path/to/your/runtime
-            ```
-        2. Copy the essential dynanmic libraries and add them to searching directory
-
-            ```shell
-            cp modules/third_party/onnxinfer/lib/*.so /path/to/your/dll
-            export LD_LIBRARY_PATH=/path/to/your/dll:$LD_LIBRARY_PATH
-            ```
-        3. Start the receiver and the sender
-
-            ```shell
-            cd /path/to/your/runtime
-            /path/to/alphartc/out/Default/peerconnection ./receiver.json
-            /path/to/alphartc/out/Default/peerconnection ./sender.json
-            ```
-    - Windows users:
-        1. Copy the provided corpus to a new directory
-
-            ```shell
-            cp -Recursive examples/peerconnection/serverless/corpus/* /path/to/your/runtime
-            ```
-        2. Copy the essential dynanmic libraries and add them to searching directory
-
-            ```shell
-            cp modules/third_party/onnxinfer/bin/*.dll /path/to/your/dll
-            set PATH=/path/to/your/dll;%PATH%
-            ```
-        3. Start the receiver and the sender
-
-            ```shell
-            cd /path/to/your/runtime
-            /path/to/alphartc/out/Default/peerconnection ./receiver.json
-            /path/to/alphartc/out/Default/peerconnection ./sender.json
-            ```
 
 ## OpenNetLab Team
 
