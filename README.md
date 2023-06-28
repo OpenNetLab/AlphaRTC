@@ -35,14 +35,15 @@
     </tr>
 </table>
 
-## Short Intro on AlphaRTC
+## AlphaRTC
 
 AlphaRTC is an evaluation framework for ML-based bandwidth estimation in real-time communications based on [WebRTC](https://webrtc.googlesource.com/), delivered by the OpenNetLab team. Our mission is to facilitate data-driven, ML-based bandwidth estimation research that learns to improve the quality of experience (QoE) in diverse use cases of real-time communications, e.g. video conferencing.
 
 Users can plug in custom bandwidth estimators with AlphaRTC's interfaces for Python-based and [ONNX](https://github.com/microsoft/onnxruntime)-based model checkpoints. By using the interfaces, the trained model checkpoint is used for bandwidth estimation instead of [GCC](https://dl.acm.org/doi/abs/10.1145/2910017.2910605)(Google Congestion Control), a default bandwidth estimation module of WebRTC.
 
 
-## Evaluation
+## Installation
+
 
 ```
 # Install depot tools
@@ -56,17 +57,42 @@ $ git config --global core.autocrlf false
 $ git config --global core.filemode false
 $ cd src && sudo ./build/install-build-deps.sh
 
-# Get the code and install required packages
+# Get the code
 $ git clone https://github.com/OpenNetLab/AlphaRTC.git
-
-# Compile AlphaRTC and the video call app that uses the custom bandwidth estimator
-$ cd .. && ./onl-build.sh
-
-# Compile AlphaRTC and the video call app that uses GCC, the default bandwidth estimator of WebRTC
-$ cd .. && ./gcc-build.sh
 ```
 
-## Evaluation using Docker
+## Compilation
+
+```
+# Compile AlphaRTC and peerconnection_serverless, the video call app that uses the custom bandwidth estimator
+$ ./onl-build.sh
+
+# Compile AlphaRTC and peerconnection_serverless_gcc, the video call app that uses GCC, the default bandwidth estimator of WebRTC
+$ git checkout gcc
+$ ./gcc-build.sh
+```
+
+## Evaluation
+
+- Running end-to-end video call app
+  - In case of running an app with GCC, use `peerconnection_serverless_gcc` instead of `peerconnection_serverless` following the [guideline](#compilation)
+  - Results will be saved as `receiver`
+
+```
+# Running 360p (640x360) video at fps=25:
+# Receiver side
+./peerconnection_serverless receiver_360p.json
+# Sender side
+./peerconnection_serverless sender_360p.json
+
+# Running 720p (1280x720) video at fps=25:
+# Receiver side
+./peerconnection_serverless receiver_720p.json
+# Sender side
+./peerconnection_serverless sender_720p.json
+```
+
+## Using Docker
 
 **We recommend you directly fetch the pre-provided Docker images from `opennetlab.azurecr.io/alphartc` or [Github release](https://github.com/OpenNetLab/AlphaRTC/releases/latest/download/alphartc.tar.gz)**
 
