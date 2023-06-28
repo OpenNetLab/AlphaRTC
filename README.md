@@ -94,6 +94,22 @@ git checkout gcc
 ./peerconnection_serverless sender_720p.json
 ```
 
+- Checking the call quality with receiver- and sender-side QoE statistics in the `receiver-*.log` and `sender-*.log`
+
+``` shell
+# Example receiver-side statistics
+WebRTC.Video.ReceivedWidthInPixels 575
+WebRTC.Video.ReceivedHeightInPixels 323
+WebRTC.Video.MediaBitrateReceivedInKbps 1350
+WebRTC.Video.HarmonicFrameRate 24
+
+# Example sender-side statistics
+WebRTC.Video.SentWidthInPixels 584
+WebRTC.Video.SentHeightInPixels 329
+WebRTC.Video.MediaBitrateSentInBps periodic_samples:14, {min:434864, avg:1301272, max:1535160}
+WebRTC.Video.SentFramesPerSecond periodic_samples:14, {min:25, avg:25, max:26}
+```
+
 ## Using Docker
 
 ### Getting the docker image
