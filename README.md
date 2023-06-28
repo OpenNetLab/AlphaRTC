@@ -133,8 +133,7 @@ docker images
 
 ### Evaluation
 
-- `peerconnection_serverless` is an end-to-end video call app that runs on AlphaRTC. It establishes RTC communication with another peer without the need of a server.
-- Since `peerconnection_serverless` needs two peers, spawn two instances (a receiver and a sender) in the same network and make them talk to each other. For more information on Docker networking, check [Docker Networking](https://docs.docker.com/network/network-tutorial-standalone/)
+- Since the `peerconnection_serverless` needs two peers, one sender and another receiver, spawn two instances (a receiver and a sender) in the same network and make them talk to each other. For more information on Docker networking, check [Docker Networking](https://docs.docker.com/network/network-tutorial-standalone/)
 
 ``` shell
 sudo docker run -v config_files:/app/config_files alphartc peerconnection_serverless /app/config_files/config.json
