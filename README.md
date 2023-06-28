@@ -59,6 +59,10 @@ cd $DEPOT_TOOLS_HOME/src && sudo ./build/install-build-deps.sh
 
 # Get the AlphaRTC code
 git clone https://github.com/OpenNetLab/AlphaRTC.git
+export ALPHARTC_HOME=/path/to/AlphaRTC
+export PATH=:$PATH:$ALPHARTC_HOME
+export ONNX_HOME=$ALPHARTC_HOME/modules/third_party/onnxinfer
+export LD_LIBRARY_PATH=$ONNX_HOME/lib:$LD_LIBRARY_PATH
 ```
 
 ## Compilation
@@ -81,17 +85,17 @@ git checkout gcc
 - Results will be saved as `receiver-*.log` and `sender-*.log`.
 
 ``` shell
-# Running 360p (640x360) video at fps=25:
-# Receiver side
-./peerconnection_serverless receiver_360p.json
+## Running a call with custom bandwidth estimator:
+# Receiver side (Note: receiver should be running first)
+python peerconnection_serverless.py receiver_360p.json
 # Sender side
-./peerconnection_serverless sender_360p.json
+python peerconnection_serverless.py sender_360p.json
 
-# Running 720p (1280x720) video at fps=25:
-# Receiver side
-./peerconnection_serverless receiver_720p.json
+## Running a call with GCC:
+# Receiver side (Note: receiver should be running first)
+./peerconnection_serverless_gcc receiver_360p.json
 # Sender side
-./peerconnection_serverless sender_720p.json
+./peerconnection_serverless_gcc sender_360p.json
 ```
 
 - Check the call quality with receiver- and sender-side QoE statistics in the logs. Below are example statistics from `receiver-360p.log` and `sender-360p.log` when running a video call app with 360p video at fps=25:

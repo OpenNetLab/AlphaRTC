@@ -58,6 +58,7 @@ GoogCcNetworkController::GoogCcNetworkController(NetworkControllerConfig config,
   ParseFieldTrial(
       {&safe_reset_on_route_change_, &safe_reset_acknowledged_rate_},
       key_value_config_->Lookup("WebRTC-Bwe-SafeResetOnRouteChange"));
+  RTC_LOG(LS_INFO) << "Using AlphaRTC";
 }
 
 GoogCcNetworkController::~GoogCcNetworkController() {}
@@ -110,8 +111,9 @@ NetworkControlUpdate GoogCcNetworkController::OnTargetRateConstraints(
 
 NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
     Timestamp at_time) {
+  RTC_LOG(LS_VERBOSE) << "AlphaRTC: GetDefaultState " << last_estimated_bitrate_bps_ << " bps";
   //*-----Set target_rate-----*//
-  constexpr int32_t default_bitrate_bps = 300000;  // default: 300000 bps = 300 kbps
+  int32_t default_bitrate_bps = last_estimated_bitrate_bps_;  // default: 300000 bps = 300 kbps
   DataRate bandwidth = DataRate::BitsPerSec(default_bitrate_bps);
   TimeDelta rtt = TimeDelta::Millis(last_estimated_rtt_ms_);
   NetworkControlUpdate update;
@@ -159,8 +161,10 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
-  int32_t default_bitrate_bps = static_cast<int32_t>(bwe.target_rate);  // default: 300000 bps = 300 kbps
+  int32_t default_bitrate_bps = static_cast<int32_t>(bwe.target_rate);
   DataRate bandwidth = DataRate::BitsPerSec(default_bitrate_bps);
+  last_estimated_bitrate_bps_ = default_bitrate_bps;
+  RTC_LOG(LS_VERBOSE) << "AlphaRTC: OnReceiveBwe " << bwe.target_rate << " bandwidth " << bandwidth.bps() << " bps";
   TimeDelta rtt = TimeDelta::Millis(last_estimated_rtt_ms_);
   NetworkControlUpdate update;
   update.target_rate = TargetTransferRate();
@@ -174,9 +178,10 @@ NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
   update.target_rate->network_estimate.bwe_period = default_bwe_period;
   update.target_rate->at_time = Timestamp::Millis(bwe.timestamp_ms);
   update.target_rate->target_rate = bandwidth;
+  update.target_rate->stable_target_rate = bandwidth;
 
   //*-----Set pacing & padding_rate-----*//
-  int32_t default_pacing_rate = static_cast<int32_t>(bwe.pacing_rate); 
+  int32_t default_pacing_rate = static_cast<int32_t>(bwe.pacing_rate);
   int32_t default_padding_rate = 0;  // default: 0bps = 0kbps
   DataRate pacing_rate = DataRate::BitsPerSec(default_pacing_rate * pacing_factor_);
   DataRate padding_rate = DataRate::BitsPerSec(default_padding_rate);
