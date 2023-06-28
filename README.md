@@ -35,13 +35,38 @@
     </tr>
 </table>
 
-## Motivation
+## Short Intro on AlphaRTC
 
-AlphaRTC is a fork of Google's WebRTC project using ML-based bandwidth estimation, delivered by the OpenNetLab team. By equipping WebRTC with a more accurate bandwidth estimator, our mission is to eventually increase the quality of transmission.
+AlphaRTC is an evaluation framework for ML-based bandwidth estimation in real-time communications based on [WebRTC](https://webrtc.googlesource.com/), delivered by the OpenNetLab team. Our mission is to facilitate data-driven, ML-based bandwidth estimation research that learns to improve the quality of experience (QoE) in diverse use cases of real-time communications, e.g. video conferencing.
 
-AlphaRTC replaces Google Congestion Control (GCC) with two customized congestion control interfaces, PyInfer and ONNXInfer. The PyInfer provides an opportunity to load external bandwidth estimator written by Python. The external bandwidth estimator could be based on ML framework, like PyTorch or TensorFlow, or a pure Python algorithm without any dependencies. And the ONNXInfer is an ML-powered bandwidth estimator, which takes in an ONNX model to make bandwidth estimation more accurate. ONNXInfer is proudly powered by Microsoft's [ONNXRuntime](https://github.com/microsoft/onnxruntime).
+Users can plug in custom bandwidth estimators with AlphaRTC's interfaces for Python-based and [ONNX](https://github.com/microsoft/onnxruntime)-based model checkpoints. By using the interfaces, the trained model checkpoint is used for bandwidth estimation instead of [GCC](https://dl.acm.org/doi/abs/10.1145/2910017.2910605)(Google Congestion Control), a default bandwidth estimation module of WebRTC.
 
-## Environment
+
+## Evaluation
+
+```
+# Install depot tools
+$ git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+$ export DEPOT_TOOLS_HOME=/path/to/depot_tools
+# NOTE: DEPOT_TOOLS_HOME should locate at the front of the PATH
+$ export PATH=:$DEPOT_TOOLS_HOME:$PATH
+
+# Fetch chromium
+$ git config --global core.autocrlf false
+$ git config --global core.filemode false
+$ cd src && sudo ./build/install-build-deps.sh
+
+# Get the code and install required packages
+$ git clone https://github.com/OpenNetLab/AlphaRTC.git
+
+# Compile AlphaRTC and the video call app that uses the custom bandwidth estimator
+$ cd .. && ./onl-build.sh
+
+# Compile AlphaRTC and the video call app that uses GCC, the default bandwidth estimator of WebRTC
+$ cd .. && ./gcc-build.sh
+```
+
+## Evaluation using Docker
 
 **We recommend you directly fetch the pre-provided Docker images from `opennetlab.azurecr.io/alphartc` or [Github release](https://github.com/OpenNetLab/AlphaRTC/releases/latest/download/alphartc.tar.gz)**
 
@@ -60,8 +85,6 @@ docker load -i alphartc.tar.gz
 Ubuntu 18.04 or 20.04 is the only officially supported distro at this moment. For other distros, you may be able to compile your own binary, or use our pre-provided Docker images.
 
 ## Compilation
-
-### Option 1: Docker (recommended)
 
 To compile AlphaRTC, please refer to the following steps
 
@@ -91,45 +114,7 @@ To compile AlphaRTC, please refer to the following steps
 
    You should then be able to see two Docker images, `alphartc` and `alphartc-compile` using `sudo docker images`
 
-### Option 2: Compile from Scratch
-If you don't want to use Docker, or have other reasons to compile from scratch (e.g., you want a native Windows build), you may use this method.
 
-Note: all commands below work for both Linux (sh) and Windows (pwsh), unless otherwise specified
-
-1. Grab essential tools
-
-    You may follow the guide [here](https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up) to obtain a copy of `depot_tools`
-
-2. Clone the repo
-
-    ```shell
-    git clone https://github.com/OpenNetLab/AlphaRTC.git
-    ```
-
-3. Sync the dependencies
-    ```shell
-    cd AlphaRTC
-    gclient sync
-    mv src/* .
-    ```
-
-4. Generate build rules
-
-    _Windows users_: Please use __x64 Native Tools Command Prompt for VS2017__. The clang version comes with the project is 9.0.0, hence incompatible with VS2019. In addition, environmental variable `DEPOT_TOOLS_WIN_TOOLSCHAIN` has to be set to `0` and `GYP_MSVS_VERSION` has to be set to `2017`.
-    
-    ```shell
-    gn gen out/Default
-    ```
-
-5. Compile
-    ```shell
-    ninja -C out/Default peerconnection_serverless
-    ```
-    For Windows users, we also provide a GUI version. You may compile it via
-    ```shell
-    ninja -C out/Default peerconnection_serverless_win_gui
-    ```
-    
 ## Demo
 
 AlphaRTC consists of many different components. `peerconnection_serverless` is an application for demo purposes that comes with AlphaRTC. It establishes RTC communication with another peer without the need of a server.
@@ -153,7 +138,7 @@ This section describes required fields for the json configuration file.
 - **serverless_connection**
   - **sender**
     - **enabled**: If set to `true`, the client will act as sender and automatically connect to receiver when launched
-    - **send_to_ip**: The IP of serverless peerconnection receiver 
+    - **send_to_ip**: The IP of serverless peerconnection receiver
     - **send_to_port**: The port of serverless peerconnection receiver
   - **receiver**
     - **enabled**: If set to `true`, the client will act as receiver and wait for sender to connect.
@@ -258,7 +243,7 @@ If you want to use the ONNXInfer as the bandwidth estimator, you should specify 
 - Bare metal
 
     If you compiled your own binary, you can also run it on your bare-metal machine.
-    
+
     - Linux users:
         1. Copy the provided corpus to a new directory
 
@@ -298,10 +283,6 @@ If you want to use the ONNXInfer as the bandwidth estimator, you should specify 
             /path/to/alphartc/out/Default/peerconnection ./sender.json
             ```
 
-## Who Are We
+## OpenNetLab Team
 
-The OpenNetLab is an open-networking research community. Our members are from Microsoft Research Asia, Tsinghua Univeristy, Peking University, Nanjing University, KAIST, Seoul National University, National University of Singapore, SUSTech, Shanghai Jiaotong Univerisity. 
-
-## WebRTC
-
-You can find the Readme of the original WebRTC project [here](./README.webrtc.md)
+The OpenNetLab is an open-networking research community. Our members are from Microsoft Research Asia, Tsinghua Univeristy, Peking University, Nanjing University, KAIST, Seoul National University, National University of Singapore, SUSTech, Shanghai Jiaotong Univerisity.
