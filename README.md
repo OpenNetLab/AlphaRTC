@@ -49,7 +49,7 @@ Users can plug in custom bandwidth estimators with AlphaRTC's interfaces for Pyt
 # Install depot tools
 git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 export DEPOT_TOOLS_HOME=/path/to/depot_tools
-# NOTE: DEPOT_TOOLS_HOME should locate at the front of the PATH
+# NOTE: DEPOT_TOOLS_HOME should be located at the front of the PATH
 export PATH=:$DEPOT_TOOLS_HOME:$PATH
 
 # Fetch chromium
@@ -76,9 +76,9 @@ git checkout gcc
 
 ## Evaluation
 
-- Running an end-to-end video call app
-  - In case of running an app with GCC, use `peerconnection_serverless_gcc` instead of `peerconnection_serverless` following the [guideline](#compilation)
-  - Results will be saved as `receiver-*.log` and `sender-*.log`.
+- Evaluate the bandwidth estimation by running end-to-end video call app, `peerconnection_serverless`. It makes quick and easy testing of the bandwidth estimator, as it establishes RTC communication with a peer without the need of a signaling server.
+- In case of running an app with GCC, use `peerconnection_serverless_gcc` instead of `peerconnection_serverless` following the [guideline](#compilation)
+- Results will be saved as `receiver-*.log` and `sender-*.log`.
 
 ``` shell
 # Running 360p (640x360) video at fps=25:
