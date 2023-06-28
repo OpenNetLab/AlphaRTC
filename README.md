@@ -94,7 +94,7 @@ git checkout gcc
 ./peerconnection_serverless sender_720p.json
 ```
 
-- Checking the call quality with receiver- and sender-side QoE statistics in the `receiver-*.log` and `sender-*.log`
+- Check the call quality with receiver- and sender-side QoE statistics in the logs. Below are example statistics from `receiver-360p.log` and `sender-360p.log` when running a video call app with 360p video at fps=25:
 
 ``` shell
 # Example receiver-side statistics
