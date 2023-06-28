@@ -17,11 +17,41 @@ steps:
 
 - checkout: self
 
-- script: ./onl-build.sh
-  displayName: 'build docker-free app'
+- script: make init
+  displayName: 'build compile environment'
 
-- script: python peerconnection_serverless.py receiver_360p.json
-  displayName: 'run a receiver'
+- script: make sync
+  displayName: 'sync dependencies'
 
-- script: python peerconnection_serverless.py sender_360p.json
-  displayName: 'run a sender'
+- script: make app
+  displayName: 'build application'
+
+- script: make release
+  displayName: 'build release image'
+
+- script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc alphartc peerconnection_serverless receiver.json
+            && docker exec alphartc peerconnection_serverless sender.json
+  displayName: 'run example'
+
+- script: docker run -d --rm -v `pwd`/examples/peerconnection/serverless/corpus:/app -w /app --name alphartc_pyinfer alphartc peerconnection_serverless receiver_pyinfer.json
+            && docker exec alphartc_pyinfer peerconnection_serverless sender_pyinfer.json
+  displayName: 'run pyinfer example'
+
+- script: docker save alphartc | gzip > alphartc.tar.gz
+  displayName: "Export alphartc docker image"
+
+- publish: $(System.DefaultWorkingDirectory)/alphartc.tar.gz
+  continueOnError: true
+  artifact: alphartc.tar.gz
+  displayName: "Archive AlphaRTC Peerconnection"
+
+- script: docker image tag alphartc:latest $(dockerRegistry)/alphartc:latest
+  displayName: 'Tag alphartc image'
+
+- task: Docker@2
+  inputs:
+    containerRegistry: 'opennetlab Azure registry'
+    repository: 'alphartc'
+    command: 'push'
+    tags: 'latest'
+  displayName: "Push alphartc image"
