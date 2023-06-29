@@ -81,7 +81,7 @@ git checkout gcc
 ## Evaluation
 
 - Evaluate the bandwidth estimation by running end-to-end video call app, `peerconnection_serverless`. It makes quick and easy testing of the bandwidth estimator, as it establishes RTC communication with a peer without the need of a signaling server.
-- In case of running an app with GCC, use `peerconnection_serverless_gcc` instead of `peerconnection_serverless` following the [guideline](#compilation)
+- In case of running an app with GCC, use `peerconnection_serverless_gcc` instead of `peerconnection_serverless` following the [compilation guideline](#compilation)
 - Results will be saved as `receiver-*.log` and `sender-*.log`.
 
 ``` shell
