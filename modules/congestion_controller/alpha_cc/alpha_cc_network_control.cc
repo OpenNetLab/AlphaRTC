@@ -58,6 +58,7 @@ GoogCcNetworkController::GoogCcNetworkController(NetworkControllerConfig config,
   ParseFieldTrial(
       {&safe_reset_on_route_change_, &safe_reset_acknowledged_rate_},
       key_value_config_->Lookup("WebRTC-Bwe-SafeResetOnRouteChange"));
+  RTC_LOG(LS_INFO) << "Using AlphaRTC";
 }
 
 GoogCcNetworkController::~GoogCcNetworkController() {}
@@ -176,7 +177,7 @@ NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
   update.target_rate->target_rate = bandwidth;
 
   //*-----Set pacing & padding_rate-----*//
-  int32_t default_pacing_rate = static_cast<int32_t>(bwe.pacing_rate); 
+  int32_t default_pacing_rate = static_cast<int32_t>(bwe.pacing_rate);
   int32_t default_padding_rate = 0;  // default: 0bps = 0kbps
   DataRate pacing_rate = DataRate::BitsPerSec(default_pacing_rate * pacing_factor_);
   DataRate padding_rate = DataRate::BitsPerSec(default_padding_rate);
