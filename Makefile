@@ -22,24 +22,23 @@ all: init sync app release
 init:
 	docker build dockers --build-arg UID=$(shell id -u) --build-arg GUID=$(shell id -g) -f $(build_dockerfile) -t $(compile_docker)
 
-release:
-	docker build $(target_dir) -f $(release_dockerfile) -t $(release_docker)
-
 sync:
 	docker run $(docker_flags) $(compile_docker) \
 		make docker-$@ \
 		output_dir=$(output_dir) \
 		gn_flags=$(gn_flags)
 
-app: peerconnection_serverless
-
-peerconnection_serverless:
+app:
 	docker run $(docker_flags) $(compile_docker) \
 		make docker-$@ \
 		output_dir=$(output_dir) \
 		target_lib_dir=$(target_lib_dir) \
 		target_bin_dir=$(target_bin_dir) \
 		target_pylib_dir=$(target_pylib_dir)
+
+release:
+	docker build $(target_dir) -f $(release_dockerfile) -t $(release_docker)
+
 
 # Docker internal command
 
@@ -49,9 +48,7 @@ docker-sync:
 	rm -rf src
 	gn gen $(output_dir) $(gn_flags)
 
-docker-app: docker-peerconnection_serverless
-
-docker-peerconnection_serverless:
+docker-app:
 	ninja -C $(output_dir) peerconnection_serverless
 
 	mkdir -p $(target_lib_dir)
