@@ -40,7 +40,7 @@ const int kDefaultBitrateBps = 300000;
 const double kToggleFactor = 0.1;
 const uint32_t kMinToggleBitrateBps = 20000;
 
-const int64_t kBweLogIntervalMs = 5000;
+const int64_t kBweLogIntervalMs = 500;
 
 double MediaRatio(uint32_t allocated_bitrate, uint32_t protection_bitrate) {
   RTC_DCHECK_GT(allocated_bitrate, 0);
@@ -391,7 +391,7 @@ void BitrateAllocator::OnNetworkEstimateChanged(TargetTransferRate msg) {
   // Periodically log the incoming BWE.
   int64_t now = msg.at_time.ms();
   if (now > last_bwe_log_time_ + kBweLogIntervalMs) {
-    RTC_LOG(LS_INFO) << "Current BWE " << last_target_bps_;
+    RTC_LOG(LS_INFO) << "AlphaRTC: Current BWE " << last_target_bps_;
     last_bwe_log_time_ = now;
   }
 
