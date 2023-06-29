@@ -124,30 +124,6 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
     bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
     bwe.timestamp_ms = clock_->TimeInMilliseconds();
     SendbackBweEstimation(bwe);
-
-    // Save per-packet info locally on receiving
-    // ---------- Collect packet-related info into a local file ----------
-    double pacing_rate =
-        time_to_send_bew_message ? estimation : SC_PACER_PACING_RATE_EMPTY;
-    double padding_rate =
-        time_to_send_bew_message ? estimation : SC_PACER_PADDING_RATE_EMPTY;
-
-    // Save per-packet info locally on receiving
-    auto res = stats_collect_.StatsCollect(
-        pacing_rate, padding_rate, header.payloadType,
-                                header.sequenceNumber, send_time_ms, header.ssrc,
-                                header.paddingLength, header.headerLength,
-                                arrival_time_ms, payload_size, 0);
-    if (res != StatCollect::SCResult::SC_SUCCESS)
-    {
-      RTC_LOG(LS_ERROR) << "Collect data failed";
-    }
-    std::string out_data = stats_collect_.DumpData();
-    if (out_data.empty())
-    {
-      RTC_LOG(LS_ERROR) << "Save data failed";
-    }
-    RTC_LOG(LS_INFO) << out_data;
   }
 }
 
