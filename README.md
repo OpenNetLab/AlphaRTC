@@ -128,11 +128,11 @@ Note: all commands below work for both Linux (sh) and Windows (pwsh), unless oth
 
 5. Compile
     ```shell
-    ninja -C out/Default peerconnection_challenge_client
+    ninja -C out/Default peerconnection_gcc
     ```
     For Windows users, we also provide a GUI version. You may compile it via
     ```shell
-    ninja -C out/Default peerconnection_challenge_client
+    ninja -C out/Default peerconnection_gcc
     ```
 
 ## Demo

@@ -54,11 +54,11 @@ docker-app: docker-peerconnection
 docker-peerconnection:
 	ninja -C $(output_dir) peerconnection_server
 	ninja -C $(output_dir) peerconnection_client
-	ninja -C $(output_dir) peerconnection_challenge_client
+	ninja -C $(output_dir) peerconnection_gcc
 
 	mkdir -p $(target_lib_dir)
 
 	mkdir -p $(target_bin_dir)
 	cp $(output_dir)/peerconnection_client $(target_bin_dir)/peerconnection_client
 	cp $(output_dir)/peerconnection_server $(target_bin_dir)/peerconnection_server
-	cp $(output_dir)/peerconnection_challenge_client $(target_bin_dir)/peerconnection_challenge_client
+	cp $(output_dir)/peerconnection_gcc $(target_bin_dir)/peerconnection_gcc

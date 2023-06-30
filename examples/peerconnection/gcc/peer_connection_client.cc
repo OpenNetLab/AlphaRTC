@@ -8,9 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "examples/peerconnection/challenge_client/peer_connection_client.h"
+#include "examples/peerconnection/gcc/peer_connection_client.h"
 
-#include "examples/peerconnection/challenge_client/defaults.h"
+#include "examples/peerconnection/gcc/defaults.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/net_helpers.h"

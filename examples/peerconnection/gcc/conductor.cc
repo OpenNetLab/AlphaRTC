@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "examples/peerconnection/challenge_client/conductor.h"
+#include "examples/peerconnection/gcc/conductor.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -32,7 +32,7 @@
 #include "api/video_codecs/builtin_video_encoder_factory.h"
 #include "api/video_codecs/video_decoder_factory.h"
 #include "api/video_codecs/video_encoder_factory.h"
-#include "examples/peerconnection/challenge_client/defaults.h"
+#include "examples/peerconnection/gcc/defaults.h"
 #include "modules/audio_device/include/audio_device.h"
 #include "modules/audio_device/include/test_audio_device.h"
 #include "modules/audio_processing/include/audio_processing.h"

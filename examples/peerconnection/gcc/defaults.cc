@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "examples/peerconnection/challenge_client/defaults.h"
+#include "examples/peerconnection/gcc/defaults.h"
 
 #include <stdlib.h>
 

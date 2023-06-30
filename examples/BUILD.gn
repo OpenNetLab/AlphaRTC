@@ -52,7 +52,7 @@ group("examples") {
     ]
     if (current_os != "winuwp") {
       deps += [ ":peerconnection_client" ]
-      deps += [ ":peerconnection_challenge_client" ]
+      deps += [ ":peerconnection_gcc" ]
     }
   }
 
@@ -721,18 +721,18 @@ if (is_linux || is_win) {
     ]
   }
 
-  rtc_executable("peerconnection_challenge_client") {
+  rtc_executable("peerconnection_gcc") {
     testonly = true
     sources = [
-      "peerconnection/challenge_client/main.cc",
-      "peerconnection/challenge_client/logger.cc",
-      "peerconnection/challenge_client/logger.h",
-      "peerconnection/challenge_client/conductor.cc",
-      "peerconnection/challenge_client/conductor.h",
-      "peerconnection/challenge_client/defaults.cc",
-      "peerconnection/challenge_client/defaults.h",
-      "peerconnection/challenge_client/peer_connection_client.cc",
-      "peerconnection/challenge_client/peer_connection_client.h",
+      "peerconnection/gcc/main.cc",
+      "peerconnection/gcc/logger.cc",
+      "peerconnection/gcc/logger.h",
+      "peerconnection/gcc/conductor.cc",
+      "peerconnection/gcc/conductor.h",
+      "peerconnection/gcc/defaults.cc",
+      "peerconnection/gcc/defaults.h",
+      "peerconnection/gcc/peer_connection_client.cc",
+      "peerconnection/gcc/peer_connection_client.h",
     ]
 
     deps = [
@@ -761,10 +761,10 @@ if (is_linux || is_win) {
     ]
     if (is_win) {
       sources += [
-        "peerconnection/challenge_client/flag_defs.h",
-        "peerconnection/challenge_client/main.cc",
-        "peerconnection/challenge_client/main_wnd.cc",
-        "peerconnection/challenge_client/main_wnd.h",
+        "peerconnection/gcc/flag_defs.h",
+        "peerconnection/gcc/main.cc",
+        "peerconnection/gcc/main_wnd.cc",
+        "peerconnection/gcc/main_wnd.h",
       ]
       configs += [ "//build/config/win:windowed" ]
       deps += [ "../media:rtc_media_base" ]
