@@ -111,25 +111,30 @@ Note: all commands below work for both Linux (sh) and Windows (pwsh), unless oth
     cd AlphaRTC
     gclient sync
     mv src/* .
+    ./build/install-build-deps.sh
     ```
 
 4. Generate build rules
+    ```shell
+    # Debug build
+    gn gen out/Default
+
+    # or Release build
+    gn gen out/Default --args='is_debug=false'
+    ```
 
     _Windows users_: Please use __x64 Native Tools Command Prompt for VS2017__. The clang version comes with the project is 9.0.0, hence incompatible with VS2019. In addition, environmental variable `DEPOT_TOOLS_WIN_TOOLSCHAIN` has to be set to `0` and `GYP_MSVS_VERSION` has to be set to `2017`.
-    
-    ```shell
-    gn gen out/Default
-    ```
+
 
 5. Compile
     ```shell
-    ninja -C out/Default peerconnection_serverless
+    ninja -C out/Default peerconnection_challenge_client
     ```
     For Windows users, we also provide a GUI version. You may compile it via
     ```shell
-    ninja -C out/Default peerconnection_serverless_win_gui
+    ninja -C out/Default peerconnection_challenge_client
     ```
-    
+
 ## Demo
 
 AlphaRTC consists of many different components. `peerconnection_serverless` is an application for demo purposes that comes with AlphaRTC. It establishes RTC communication with another peer without the need of a server.
@@ -300,7 +305,7 @@ If you want to use the ONNXInfer as the bandwidth estimator, you should specify 
 
 ## Who Are We
 
-The OpenNetLab is an open-networking research community. Our members are from Microsoft Research Asia, Tsinghua Univeristy, Peking University, Nanjing University, KAIST, Seoul National University, National University of Singapore, SUSTech, Shanghai Jiaotong Univerisity. 
+The OpenNetLab is an open-networking research community. Our members are from Microsoft Research Asia, Tsinghua Univeristy, Peking University, Nanjing University, KAIST, Seoul National University, National University of Singapore, SUSTech, Shanghai Jiaotong Univerisity.
 
 ## WebRTC
 
