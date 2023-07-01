@@ -11,9 +11,6 @@
         }
     },
     "bwe_feedback_duration": 200,
-    "onnx": {
-        "onnx_model_path": "onnx-model.onnx"
-    },
     "video_source": {
         "video_disabled": {
             "enabled": false
@@ -42,6 +39,7 @@
         "enabled": false
     },
     "logging": {
-        "enabled": false
+        "enabled": true,
+        "log_output_path": "sender.log"
     }
 }

@@ -11,9 +11,6 @@
         }
     },
     "bwe_feedback_duration": 200,
-    "onnx": {
-        "onnx_model_path": "onnx-model.onnx"
-    },
     "video_source": {
         "video_disabled": {
             "enabled": true
@@ -22,11 +19,7 @@
             "enabled": false
         },
         "video_file": {
-            "enabled": false,
-            "height": 240,
-            "width": 320,
-            "fps": 10,
-            "file_path": "testmedia/test.yuv"
+            "enabled": false
         }
     },
     "audio_source": {
@@ -52,6 +45,6 @@
     },
     "logging": {
         "enabled": true,
-        "log_output_path": "webrtc.log"
+        "log_output_path": "receiver.log"
     }
 }
