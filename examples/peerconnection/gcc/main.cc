@@ -157,6 +157,9 @@ class VideoRenderer : public rtc::VideoSinkInterface<webrtc::VideoFrame> {
   ~VideoRenderer() { track_->RemoveSink(this); }
   void OnFrame(const webrtc::VideoFrame& frame) {
     callback_->OnFrameCallback(frame);
+
+    // Rendered a frame
+    RTC_LOG(INFO) << "FRAME RENDERING: " << rtc::TimeMicros();
   }
 
  private:
