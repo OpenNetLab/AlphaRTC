@@ -200,7 +200,7 @@ void FrameGeneratorCapturer::InsertFrame() {
     }
 
     // Generated a frame
-    RTC_LOG(INFO) << "FRAME GENERATION: " << rtc::TimeMicros();
+    RTC_LOG(INFO) << "FRAME GENERATED: " << rtc::TimeMicros();
 
     TestVideoCapturer::OnFrame(frame);
   }

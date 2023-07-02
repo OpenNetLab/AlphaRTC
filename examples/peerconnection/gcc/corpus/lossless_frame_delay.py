@@ -6,33 +6,38 @@ import numpy as np
 
 
 def main(args):
-    generated_frames = []
-    with open(args.s, 'r') as send_log:
-        for line in send_log:
-            if 'FRAME GENERATION' in line:
-                generated_frames.append(int(line.split()[-1]))
+    transmitted_frames = []
+    sender_dropped_frames = 0
+    with open(args.s, 'r') as sender_log:
+        for line in sender_log:
+            if 'FRAME GENERATED' in line:
+                transmitted_frames.append(int(line.split()[-1]))
+            elif 'FRAME DROPPED' in line:
+                transmitted_frames.pop()
+                sender_dropped_frames += 1
 
     rendered_frames = []
-    with open(args.r, 'r') as recv_log:
-        for line in recv_log:
-            if 'FRAME RENDERING' in line:
+    with open(args.r, 'r') as receiver_log:
+        for line in receiver_log:
+            if 'FRAME RENDERED' in line:
                 rendered_frames.append(int(line.split()[-1]))
 
-    print(f'Generated {len(generated_frames)} frames')
+    print(f'Transmitted {len(transmitted_frames)} frames (and dropped {sender_dropped_frames} frames)')
     print(f'Rendered {len(rendered_frames)} frames')
 
     delays = []
-    i = 0  # index of generated_frames
-    for j in range(len(rendered_frames)):
-        if i > len(generated_frames):
-            sys.exit('ERROR: rendered more frames than generated')
+    for i in range(len(rendered_frames)):
+        if i >= len(transmitted_frames):
+            sys.exit('ERROR: rendered more frames than transmitted')
 
-        delay = rendered_frames[j] - generated_frames[i]
+        delay = rendered_frames[i] - transmitted_frames[i]
+        if delay < 0:
+            sys.exit('ERROR: delay cannot be negative')
+
         delays.append(delay)
-        i += 1
 
-    print('Median per-frame delay (ms):', np.median(delays))
-    print('P95 per-frame delay (ms):', np.percentile(delays, 95))
+    print('Median per-frame delay (us):', np.median(delays))
+    print('P95 per-frame delay (us):', np.percentile(delays, 95))
 
 
 if __name__ == '__main__':

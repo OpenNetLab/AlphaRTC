@@ -159,7 +159,7 @@ class VideoRenderer : public rtc::VideoSinkInterface<webrtc::VideoFrame> {
     callback_->OnFrameCallback(frame);
 
     // Rendered a frame
-    RTC_LOG(INFO) << "FRAME RENDERING: " << rtc::TimeMicros();
+    RTC_LOG(INFO) << "FRAME RENDERED: " << rtc::TimeMicros();
   }
 
  private:
