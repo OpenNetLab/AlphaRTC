@@ -57,7 +57,7 @@ wget https://github.com/OpenNetLab/AlphaRTC/releases/latest/download/alphartc.ta
 docker load -i alphartc.tar.gz
 ```
 
-Ubuntu 18.04 or 20.04 is the only officially supported distro at this moment. For other distros, you may be able to compile your own binary, or use our pre-provided Docker images.
+Ubuntu 18.04, 20.04, and 22.04 are the only officially supported distros at this moment. For other distros, you may be able to compile your own binary, or use our pre-provided Docker images.
 
 ## Compilation
 
@@ -111,8 +111,10 @@ Note: all commands below work for both Linux (sh) and Windows (pwsh), unless oth
     cd AlphaRTC
     gclient sync
     mv src/* .
-    ./build/install-build-deps.sh
     ```
+
+   Next, run `./install-build-deps.sh` to install build dependencies (it is copied from a more recent WebRTC repo because
+   `build/install-build-deps.sh` only supports Ubuntu <=20.04).
 
 4. Generate build rules
     ```shell
