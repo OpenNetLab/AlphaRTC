@@ -1119,8 +1119,8 @@ void VideoStreamEncoder::MaybeEncodeVideoFrame(const VideoFrame& video_frame,
     accumulated_update_rect_is_valid_ &= pending_frame_->has_update_rect();
   }
 
+  /*
   if (DropDueToSize(video_frame.size())) {
-    RTC_LOG(LS_INFO) << "FRAME DROPPED: Too large for target bitrate.";
     stream_resource_manager_.OnFrameDroppedDueToSize();
     // Storing references to a native buffer risks blocking frame capture.
     if (video_frame.video_frame_buffer()->type() !=
@@ -1135,6 +1135,7 @@ void VideoStreamEncoder::MaybeEncodeVideoFrame(const VideoFrame& video_frame,
     }
     return;
   }
+  */
   stream_resource_manager_.OnMaybeEncodeFrame();
 
   if (EncoderPaused()) {
