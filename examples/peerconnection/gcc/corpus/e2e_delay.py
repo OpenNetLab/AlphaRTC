@@ -12,7 +12,7 @@ def main(args):
             if 'E2E FRAME DELAY' in line:
                 delays.append(int(line.split()[-1]))
 
-    print(f'Delay measurement count: {len(delays)}')
+    print('Delay measurement count:', len(delays))
     print('Median per-frame delay (ms):', np.median(delays))
     print('P95 per-frame delay (ms):', np.percentile(delays, 95))
 
