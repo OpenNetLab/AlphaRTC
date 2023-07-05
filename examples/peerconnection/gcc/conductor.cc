@@ -78,9 +78,9 @@ class FrameGeneratorTrackSource : public webrtc::VideoTrackSource {
   static rtc::scoped_refptr<FrameGeneratorTrackSource> Create(
       std::shared_ptr<rtc::Event> audio_started_) {
     auto alphaCCConfig = webrtc::GetAlphaCCConfig();
-    // Creat an FrameGenerator, responsible for reading yuv files
-    std::unique_ptr<webrtc::test::FrameGeneratorInterface> yuv_frame_generator(
-        webrtc::test::CreateFromYuvFileFrameGenerator(
+    // Creat an FrameGenerator, responsible for reading y4m files
+    std::unique_ptr<webrtc::test::FrameGeneratorInterface> y4m_frame_generator(
+        webrtc::test::CreateFromY4mFileFrameGenerator(
             std::vector<std::string>{
                 alphaCCConfig->video_file_path}, /* file_path */
             alphaCCConfig->video_width,          /*video_width */
@@ -91,7 +91,7 @@ class FrameGeneratorTrackSource : public webrtc::VideoTrackSource {
     std::unique_ptr<webrtc::test::FrameGeneratorCapturer> capturer(
         new webrtc::test::FrameGeneratorCapturer(
             webrtc::Clock::GetRealTimeClock(),        /* clock */
-            std::move(yuv_frame_generator),           /* frame_generator */
+            std::move(y4m_frame_generator),           /* frame_generator */
             alphaCCConfig->video_fps,                 /* target_fps*/
             *webrtc::CreateDefaultTaskQueueFactory())); /* task_queue_factory */
 
