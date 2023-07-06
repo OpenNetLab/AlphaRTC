@@ -6,38 +6,34 @@ import numpy as np
 
 
 def main(args):
-    transmitted_frames = []
-    sender_dropped_frames = 0
+    read_frames = []
     with open(args.s, 'r') as sender_log:
         for line in sender_log:
-            if 'FRAME GENERATED' in line:
-                transmitted_frames.append(int(line.split()[-1]))
-            elif 'FRAME DROPPED' in line:
-                transmitted_frames.pop()
-                sender_dropped_frames += 1
+            if 'FRAME READ' in line:
+                read_frames.append(int(line.split()[-1]))
 
-    rendered_frames = []
+    write_frames = []
     with open(args.r, 'r') as receiver_log:
         for line in receiver_log:
-            if 'FRAME RENDERED' in line:
-                rendered_frames.append(int(line.split()[-1]))
+            if 'FRAME WRITE' in line:
+                write_frames.append(int(line.split()[-1]))
 
-    print(f'Transmitted {len(transmitted_frames)} frames (and dropped {sender_dropped_frames} frames)')
-    print(f'Rendered {len(rendered_frames)} frames')
+    print(f'Read {len(read_frames)} frames')
+    print(f'Wrote {len(write_frames)} frames')
 
     delays = []
-    for i in range(len(rendered_frames)):
-        if i >= len(transmitted_frames):
-            sys.exit('ERROR: rendered more frames than transmitted')
+    for i in range(len(write_frames)):
+        if i >= len(read_frames):
+            sys.exit('ERROR: wrote more frames than read')
 
-        delay = rendered_frames[i] - transmitted_frames[i]
+        delay = write_frames[i] - read_frames[i]
         if delay < 0:
             sys.exit('ERROR: delay cannot be negative')
 
         delays.append(delay)
 
-    print('Median per-frame delay (us):', np.median(delays))
-    print('P95 per-frame delay (us):', np.percentile(delays, 95))
+    print('Median per-frame delay (ms): {:.2f}'.format(np.median(delays) / 1000))
+    print('P95 per-frame delay (ms): {:.2f}'.format(np.percentile(delays, 95) / 1000))
 
 
 if __name__ == '__main__':

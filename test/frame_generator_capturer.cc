@@ -199,9 +199,6 @@ void FrameGeneratorCapturer::InsertFrame() {
       first_frame_capture_time_ = frame.ntp_time_ms();
     }
 
-    // Generated a frame
-    RTC_LOG(INFO) << "FRAME GENERATED: " << rtc::TimeMicros();
-
     TestVideoCapturer::OnFrame(frame);
   }
 }

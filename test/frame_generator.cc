@@ -22,6 +22,8 @@
 #include "rtc_base/bind.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/keep_ref_until_done.h"
+#include "rtc_base/logging.h"
+#include "rtc_base/time_utils.h"
 #include "test/frame_utils.h"
 
 namespace webrtc {
@@ -246,6 +248,10 @@ FrameGeneratorInterface::VideoFrameData Y4mFileGenerator::NextFrame() {
   }
   if (++current_display_count_ >= frame_display_count_)
     current_display_count_ = 0;
+
+
+  // Read a frame from Y4M
+  RTC_LOG(INFO) << "FRAME READ: " << rtc::TimeMicros();
 
   return VideoFrameData(last_read_buffer_, update_rect);
 }
