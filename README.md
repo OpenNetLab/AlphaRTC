@@ -101,12 +101,22 @@ To compile AlphaRTC, please refer to the following steps
 
 3. Build Docker images
 
-   ``` shell
-   cd AlphaRTC
-   make all
-   ```
+    1. Change line 18, 19 of `AlphaRTC/dockers/Dockerfile.compile` to [your own proxy port](https://github.com/alanhg/others-note/issues/503)
 
-   You should then be able to see two Docker images, `alphartc` and `alphartc-compile` using `sudo docker images`
+        ```Dockerfile
+        # in `AlphaRTC/dockers/Dockerfile.compile`
+        ENV HTTP_PROXY "http://127.0.0.1:<your_proxy_port>"
+        ENV HTTPS_PROXY "http://127.0.0.1:<your_proxy_port>"
+        ```
+
+    2. Compile AlphaRTC (about 10min+)
+   
+        ``` shell
+        cd AlphaRTC
+        make all
+        ```
+
+    You should then be able to see two Docker images, `alphartc` and `alphartc-compile` using `sudo docker images`
 
 ### Option 2: Compile from Scratch
 
