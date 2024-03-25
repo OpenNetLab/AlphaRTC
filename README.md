@@ -35,11 +35,26 @@
     </tr>
 </table>
 
+
 ## Motivation
 
 AlphaRTC is a fork of Google's WebRTC project using ML-based bandwidth estimation, delivered by the OpenNetLab team. By equipping WebRTC with a more accurate bandwidth estimator, our mission is to eventually increase the quality of transmission.
 
 AlphaRTC replaces Google Congestion Control (GCC) with two customized congestion control interfaces, PyInfer and ONNXInfer. The PyInfer provides an opportunity to load external bandwidth estimator written by Python. The external bandwidth estimator could be based on ML framework, like PyTorch or TensorFlow, or a pure Python algorithm without any dependencies. And the ONNXInfer is an ML-powered bandwidth estimator, which takes in an ONNX model to make bandwidth estimation more accurate. ONNXInfer is proudly powered by Microsoft's [ONNXRuntime](https://github.com/microsoft/onnxruntime).
+
+Please cite the following paper to introduce AlphaRTC if you are preparing a publication:
+
+```latex
+@inproceedings{eo2022opennetlab,
+  title={Opennetlab: Open platform for rl-based congestion control for real-time communications},
+  author={Eo, Jeongyoon and Niu, Zhixiong and Cheng, Wenxue and Yan, Francis Y and Gao, Rui and Kardhashi, Jorina and Inglis, Scott and Revow, Michael and Chun, Byung-Gon and Cheng, Peng and others},
+  booktitle={Proceedings of the 6th Asia-Pacific Workshop on Networking},
+  pages={70--75},
+  year={2022}
+}
+```
+
+
 
 ## Environment
 
