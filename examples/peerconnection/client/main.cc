@@ -14,12 +14,12 @@
 #include <shellapi.h>  // must come after windows.h
 // clang-format on
 
+#include <cstdlib>
 #include <string>
 #include <vector>
 
 #include "absl/flags/parse.h"
 #include "examples/peerconnection/client/conductor.h"
-#include "examples/peerconnection/client/flag_defs.h"
 #include "examples/peerconnection/client/main_wnd.h"
 #include "examples/peerconnection/client/peer_connection_client.h"
 #include "rtc_base/checks.h"
@@ -97,7 +97,8 @@ int PASCAL wWinMain(HINSTANCE instance,
   if ((absl::GetFlag(FLAGS_port) < 1) || (absl::GetFlag(FLAGS_port) > 65535)) {
     printf("Error: %i is not a valid port.\n", absl::GetFlag(FLAGS_port));
     return -1;
-  }
+  };
+  auto config = webrtc::GetAlphaCCConfig();
 
   const std::string server = absl::GetFlag(FLAGS_server);
   MainWnd wnd(server.c_str(), absl::GetFlag(FLAGS_port),
@@ -111,7 +112,7 @@ int PASCAL wWinMain(HINSTANCE instance,
   PeerConnectionClient client;
   rtc::scoped_refptr<Conductor> conductor(
       new rtc::RefCountedObject<Conductor>(&client, &wnd));
-
+ 
   // Main loop.
   MSG msg;
   BOOL gm;

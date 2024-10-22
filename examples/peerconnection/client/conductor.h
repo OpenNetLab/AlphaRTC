@@ -17,10 +17,12 @@
 #include <string>
 #include <vector>
 
+#include "api/alphacc_config.h"
 #include "api/media_stream_interface.h"
 #include "api/peer_connection_interface.h"
 #include "examples/peerconnection/client/main_wnd.h"
 #include "examples/peerconnection/client/peer_connection_client.h"
+#include "pc/test/fake_video_track_source.h"
 
 namespace webrtc {
 class VideoCaptureModule;
@@ -129,6 +131,8 @@ class Conductor : public webrtc::PeerConnectionObserver,
   MainWindow* main_wnd_;
   std::deque<std::string*> pending_messages_;
   std::string server_;
+  const webrtc::AlphaCCConfig* alphacc_config_;
+  std::shared_ptr<rtc::Event> audio_started_;
 };
 
 #endif  // EXAMPLES_PEERCONNECTION_CLIENT_CONDUCTOR_H_

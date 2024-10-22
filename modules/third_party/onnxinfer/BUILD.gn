@@ -1,0 +1,9 @@
+config("onnxinfer_import") {
+  lib_dirs = [ "./lib" ]
+  libs = [ "onnxinfer" ]
+  visibility = [ "onnxinfer" ]
+}
+
+group("onnxinfer") {
+  public_configs = [ ":onnxinfer_import" ]
+}

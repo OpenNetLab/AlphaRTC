@@ -49,7 +49,8 @@ rtc_library("remote_bitrate_estimator") {
     "../../api/units:timestamp",
     "../../modules:module_api",
     "../../modules:module_api_public",
-    "../../modules/congestion_controller/goog_cc:link_capacity_estimator",
+    # Revision for enabling AlphaCC and disabling GCC
+    "../../modules/congestion_controller/alpha_cc:link_capacity_estimator",    
     "../../modules/rtp_rtcp:rtp_rtcp_format",
     "../../rtc_base:checks",
     "../../rtc_base:rtc_base_approved",
@@ -61,7 +62,13 @@ rtc_library("remote_bitrate_estimator") {
     "../../system_wrappers:metrics",
     "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/types:optional",
+    "//modules/third_party/statcollect:stat_collect",
+    "//modules/third_party/cmdinfer:cmdinfer"
   ]
+
+  if (is_linux) {
+    deps += [ "//modules/third_party/onnxinfer:onnxinfer" ]
+  }
 }
 
 if (!build_with_chromium) {

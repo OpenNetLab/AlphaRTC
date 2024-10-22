@@ -525,6 +525,18 @@ template("rtc_source_set") {
     if (defined(invoker.public_configs)) {
       public_configs += invoker.public_configs
     }
+    # TODO(zegan|zhongyang xia): Move alphartc_config as a external module
+    if (defined(assert_no_deps)) {
+      temp_assert_no_deps = []
+      foreach(deps, assert_no_deps) {
+        if (deps != "//:poison_rtc_json")
+        {
+          temp_assert_no_deps += [ deps ]
+        }
+      }
+      assert_no_deps = []
+      assert_no_deps = temp_assert_no_deps
+    }
   }
 }
 
@@ -711,6 +723,18 @@ template("rtc_library") {
     }
     if (defined(invoker.public_configs)) {
       public_configs += invoker.public_configs
+    }
+    # TODO(zegan|zhongyang xia): Move alphartc_config as a external module
+    if (defined(assert_no_deps)) {
+      temp_assert_no_deps = []
+      foreach(deps, assert_no_deps) {
+        if (deps != "//:poison_rtc_json")
+        {
+          temp_assert_no_deps += [ deps ]
+        }
+      }
+      assert_no_deps = []
+      assert_no_deps = temp_assert_no_deps
     }
   }
 }

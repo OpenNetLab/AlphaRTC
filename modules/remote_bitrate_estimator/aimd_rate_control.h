@@ -18,7 +18,8 @@
 #include "api/transport/webrtc_key_value_config.h"
 #include "api/units/data_rate.h"
 #include "api/units/timestamp.h"
-#include "modules/congestion_controller/goog_cc/link_capacity_estimator.h"
+// Revision for enabling AlphaCC and disabling GCC
+#include "modules/congestion_controller/alpha_cc/link_capacity_estimator.h"
 #include "modules/remote_bitrate_estimator/include/bwe_defines.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 

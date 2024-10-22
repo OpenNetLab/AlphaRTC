@@ -24,6 +24,7 @@
 #include "rtc_base/network_route.h"
 #include "rtc_base/thread_annotations.h"
 #include "rtc_base/thread_checker.h"
+#include "modules/rtp_rtcp/source/rtcp_packet/app.h"
 
 namespace webrtc {
 
@@ -40,6 +41,11 @@ struct PacketFeedback {
   // The network route that this packet is associated with.
   rtc::NetworkRoute network_route;
 };
+
+namespace rtcp {
+  class TransportFeedback;
+  class App;
+}  // namespace rtcp
 
 class InFlightBytesTracker {
  public:

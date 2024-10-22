@@ -1,0 +1,24 @@
+FROM ubuntu:18.04
+
+RUN apt-get update && apt-get install -y \
+    git curl wget python libglib2.0-dev clang ninja-build
+
+# Add ONL user
+ARG USER=onl
+ARG UID
+ARG GUID
+
+RUN groupadd -f -r -g ${GUID} g${USER}
+RUN useradd ${USER} -l -u ${UID} -g ${GUID} -m -s /bin/bash || true
+
+# Download depot_tools
+ARG DEPOT_TOOLS=/opt/depot_tools
+ARG DOCKER_WORKDIR=/app/AlphaRTC/
+
+RUN git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git ${DEPOT_TOOLS}
+RUN chown ${USER} -R ${DEPOT_TOOLS}
+ENV PATH="${DEPOT_TOOLS}/:${PATH}"
+
+WORKDIR "${DOCKER_WORKDIR}/"
+
+USER ${USER}

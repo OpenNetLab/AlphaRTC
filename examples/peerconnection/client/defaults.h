@@ -20,6 +20,9 @@ extern const char kVideoLabel[];
 extern const char kStreamId[];
 extern const uint16_t kDefaultServerPort;
 
+// The value of auto close time for disabling auto close 
+extern const int kAutoCloseDisableValue;
+
 std::string GetEnvVarOrDefault(const char* env_var_name,
                                const char* default_value);
 std::string GetPeerConnectionString();

@@ -119,6 +119,10 @@ rtc_library("libjingle_peerconnection_api") {
   visibility = [ "*" ]
   cflags = []
   sources = [
+    "async_resolver_factory.h",
+    "alphacc_config.cc",
+    "alphacc_config.h",
+    "bitrate_constraints.h",
     "candidate.cc",
     "candidate.h",
     "crypto_params.h",
@@ -179,6 +183,7 @@ rtc_library("libjingle_peerconnection_api") {
     "crypto:options",
     "neteq:neteq_api",
     "rtc_event_log",
+    "../rtc_base:rtc_json",
     "task_queue",
     "transport:bitrate_settings",
     "transport:datagram_transport_interface",

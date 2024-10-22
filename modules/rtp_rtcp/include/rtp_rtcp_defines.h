@@ -27,6 +27,7 @@
 #include "api/transport/network_types.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/remote_estimate.h"
 #include "system_wrappers/include/clock.h"
+#include "rtc_base/logging.h"
 
 #define RTCP_CNAME_SIZE 256  // RFC 3550 page 44, including null termination
 #define IP_PACKET_SIZE 1500  // we assume ethernet
@@ -35,8 +36,12 @@ namespace webrtc {
 class RtpPacket;
 namespace rtcp {
 class TransportFeedback;
-}
+class App;
+}  // namespace rtcp
 
+const uint8_t kAppPacketSubType = 1;
+const uint32_t kAppPacketName = ((uint32_t)'r' << 24) | ((uint32_t)'a' << 16) |
+                                ((uint32_t)'t' << 8) | (uint32_t)'e';
 const int kVideoPayloadTypeFrequency = 90000;
 
 // TODO(bugs.webrtc.org/6458): Remove this when all the depending projects are
@@ -248,6 +253,7 @@ class TransportFeedbackObserver {
 
   virtual void OnAddPacket(const RtpPacketSendInfo& packet_info) = 0;
   virtual void OnTransportFeedback(const rtcp::TransportFeedback& feedback) = 0;
+  virtual void OnApplicationPacket(const rtcp::App& app){}
 };
 
 // Interface for PacketRouter to send rtcp feedback on behalf of

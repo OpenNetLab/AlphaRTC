@@ -15,7 +15,8 @@
 
 #include "absl/strings/match.h"
 #include "absl/types/optional.h"
-#include "api/transport/goog_cc_factory.h"
+// Revision for enabling AlphaCC and disabling GCC
+#include "api/transport/alpha_cc_factory.h"
 #include "api/transport/network_types.h"
 #include "api/units/data_rate.h"
 #include "api/units/time_delta.h"
@@ -561,6 +562,19 @@ void RtpTransportControllerSend::OnRemoteNetworkEstimate(
     RTC_DCHECK_RUN_ON(&task_queue_);
     if (controller_)
       PostUpdates(controller_->OnNetworkStateEstimate(estimate));
+  });
+}
+
+void RtpTransportControllerSend::OnApplicationPacket(const rtcp::App& app) {
+  if (app.sub_type() != kAppPacketSubType || app.name() != kAppPacketName) {
+    return;
+  }
+  const BweMessage bwe = *reinterpret_cast<const BweMessage*>(app.data());
+  task_queue_.PostTask([this, bwe]() {
+    RTC_DCHECK_RUN_ON(&task_queue_);
+    if (controller_) {
+      PostUpdates(controller_->OnReceiveBwe(bwe));
+    }
   });
 }
 

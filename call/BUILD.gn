@@ -153,7 +153,8 @@ rtc_library("rtp_sender") {
     "../api:transport_api",
     "../api/rtc_event_log",
     "../api/transport:field_trial_based_config",
-    "../api/transport:goog_cc",
+    # Revision for enabling AlphaCC and disabling GCC
+    "../api/transport:alpha_cc",
     "../api/transport:network_control",
     "../api/transport:webrtc_key_value_config",
     "../api/units:data_rate",

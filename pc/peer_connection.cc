@@ -903,6 +903,8 @@ bool PeerConnectionInterface::RTCConfiguration::operator==(
     absl::optional<bool> use_datagram_transport_for_data_channels_receive_only;
     absl::optional<CryptoOptions> crypto_options;
     bool offer_extmap_allow_mixed;
+    absl::optional<std::string> onnx_model_path;
+    int rate_update_ms;
     std::string turn_logging_id;
     bool enable_implicit_rollback;
     absl::optional<bool> allow_codec_switching;
@@ -971,10 +973,8 @@ bool PeerConnectionInterface::RTCConfiguration::operator==(
              o.use_datagram_transport_for_data_channels_receive_only &&
          crypto_options == o.crypto_options &&
          offer_extmap_allow_mixed == o.offer_extmap_allow_mixed &&
-         turn_logging_id == o.turn_logging_id &&
-         enable_implicit_rollback == o.enable_implicit_rollback &&
-         allow_codec_switching == o.allow_codec_switching &&
-         enable_simulcast_stats == o.enable_simulcast_stats;
+         onnx_model_path == o.onnx_model_path &&
+         rate_update_ms == o.rate_update_ms;
 }
 
 bool PeerConnectionInterface::RTCConfiguration::operator!=(
