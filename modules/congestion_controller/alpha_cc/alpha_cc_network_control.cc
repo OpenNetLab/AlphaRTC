@@ -46,6 +46,8 @@ GoogCcNetworkController::GoogCcNetworkController(NetworkControllerConfig config,
                                                 : &trial_based_config_),
       safe_reset_on_route_change_("Enabled"),
       safe_reset_acknowledged_rate_("ack"),
+      last_received_bandwidth_estimate_(DataRate::KilobitsPerSec(300)),
+      last_received_pacing_rate_(300000),
       use_min_allocatable_as_lower_bound_(
           IsNotDisabled(key_value_config_, "WebRTC-Bwe-MinAllocAsLowerBound")),
       initial_config_(config),
@@ -94,7 +96,38 @@ NetworkControlUpdate GoogCcNetworkController::OnSentPacket(
 
 NetworkControlUpdate GoogCcNetworkController::OnStreamsConfig(
     StreamsConfig msg) {
-  return GetDefaultState(msg.at_time);
+  RTC_LOG(LS_INFO) << "AlphaCCNetworkController::OnStreamsConfig";
+  NetworkControlUpdate update;
+  update.target_rate = TargetTransferRate();
+  update.target_rate->network_estimate.at_time = msg.at_time;
+  update.target_rate->network_estimate.bandwidth = last_received_bandwidth_estimate_;
+  update.target_rate->network_estimate.loss_rate_ratio =
+      last_estimated_fraction_loss_ / 255.0;
+  update.target_rate->network_estimate.round_trip_time = TimeDelta::Millis(last_estimated_rtt_ms_);
+
+  TimeDelta default_bwe_period = TimeDelta::Seconds(3);  // the default is 3sec
+  update.target_rate->network_estimate.bwe_period = default_bwe_period;
+  update.target_rate->at_time = msg.at_time;
+  update.target_rate->target_rate = last_received_bandwidth_estimate_;
+
+  //*-----Set pacing & padding_rate-----*//
+  int32_t default_pacing_rate = last_received_pacing_rate_;   // default:300000;=> 750000 bps = 750 kbps
+  int32_t default_padding_rate = 0;  // default: 0bps = 0kbps
+  DataRate pacing_rate = DataRate::BitsPerSec(default_pacing_rate * pacing_factor_);
+  DataRate padding_rate = DataRate::BitsPerSec(default_padding_rate);
+  PacerConfig message;
+  message.at_time = msg.at_time;
+  message.time_window = TimeDelta::Seconds(1);
+  message.data_window = pacing_rate * message.time_window;
+  message.pad_window = padding_rate * message.time_window;
+
+  update.pacer_config = message;
+
+  // *-----Set congestion_window-----*//
+  update.congestion_window = current_data_window_;
+
+  return update;
+  // return GetDefaultState(msg.at_time);
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnReceivedPacket(
@@ -174,12 +207,14 @@ NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
   update.target_rate->network_estimate.bwe_period = default_bwe_period;
   update.target_rate->at_time = Timestamp::Millis(bwe.timestamp_ms);
   update.target_rate->target_rate = bandwidth;
+  last_received_bandwidth_estimate_ = bandwidth;
 
   //*-----Set pacing & padding_rate-----*//
   int32_t default_pacing_rate = static_cast<int32_t>(bwe.pacing_rate); 
   int32_t default_padding_rate = 0;  // default: 0bps = 0kbps
   DataRate pacing_rate = DataRate::BitsPerSec(default_pacing_rate * pacing_factor_);
   DataRate padding_rate = DataRate::BitsPerSec(default_padding_rate);
+  last_received_pacing_rate_ = default_pacing_rate;
   PacerConfig msg;
   msg.at_time = Timestamp::Millis(bwe.timestamp_ms);
   msg.time_window = TimeDelta::Seconds(1);

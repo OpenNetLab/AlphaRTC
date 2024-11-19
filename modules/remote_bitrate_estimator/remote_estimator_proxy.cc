@@ -86,9 +86,10 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   }
   rtc::CritScope cs(&lock_);
   media_ssrc_ = header.ssrc;
-  OnPacketArrival(header.extension.transportSequenceNumber, arrival_time_ms,
-                  header.extension.feedback_request);
-
+  if (!header.extension.transportSequenceNumber) {
+    OnPacketArrival(header.extension.transportSequenceNumber, arrival_time_ms,
+                    header.extension.feedback_request);
+  }
   //--- ONNXInfer: Input the per-packet info to ONNXInfer module ---
   uint32_t send_time_ms =
       GetTtimeFromAbsSendtime(header.extension.absoluteSendTime);
