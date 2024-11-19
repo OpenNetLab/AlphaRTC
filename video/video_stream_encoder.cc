@@ -1068,9 +1068,10 @@ void VideoStreamEncoder::MaybeEncodeVideoFrame(const VideoFrame& video_frame,
     last_frame_info_ = VideoFrameInfo(video_frame.width(), video_frame.height(),
                                       video_frame.is_texture());
     RTC_LOG(LS_INFO) << "Video frame parameters changed: dimensions="
-                     << last_frame_info_->width << "x"
-                     << last_frame_info_->height
-                     << ", texture=" << last_frame_info_->is_texture << ".";
+                 << last_frame_info_->width << "x"
+                 << last_frame_info_->height
+                 << ", texture=" << last_frame_info_->is_texture 
+                 << " at time= " << clock_->TimeInMilliseconds() << "ms.";
     // Force full frame update, since resolution has changed.
     accumulated_update_rect_ =
         VideoFrame::UpdateRect{0, 0, video_frame.width(), video_frame.height()};
