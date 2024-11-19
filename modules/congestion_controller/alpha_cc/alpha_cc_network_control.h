@@ -71,10 +71,11 @@ class GoogCcNetworkController : public NetworkControllerInterface {
   const WebRtcKeyValueConfig* const key_value_config_;
   FieldTrialFlag safe_reset_on_route_change_;
   FieldTrialFlag safe_reset_acknowledged_rate_;
+  DataRate last_received_bandwidth_estimate_= DataRate::Zero();
+  int32_t last_received_pacing_rate_ = 0;
   const bool use_min_allocatable_as_lower_bound_;
 
   absl::optional<NetworkControllerConfig> initial_config_;
-
   DataRate min_target_rate_ = DataRate::Zero();
   DataRate min_data_rate_ = DataRate::Zero();
   DataRate max_data_rate_ = DataRate::PlusInfinity();

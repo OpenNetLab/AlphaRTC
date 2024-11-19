@@ -14,6 +14,7 @@
 #include <memory>
 #include <vector>
 
+#include "api/media_types.h"
 #include "api/transport/field_trial_based_config.h"
 #include "api/transport/network_control.h"
 #include "modules/include/module.h"
@@ -44,7 +45,11 @@ class ReceiveSideCongestionController : public CallStatsObserver,
   virtual void OnReceivedPacket(int64_t arrival_time_ms,
                                 size_t payload_size,
                                 const RTPHeader& header);
-
+  void OnReceivedPacketWithType(int64_t arrival_time_ms,
+                                size_t payload_size,
+                                const RTPHeader& header,
+                                MediaType media_type);
+    
   void SetSendPeriodicFeedback(bool send_periodic_feedback);
   // TODO(nisse): Delete these methods, design a more specific interface.
   virtual RemoteBitrateEstimator* GetRemoteBitrateEstimator(bool send_side_bwe);

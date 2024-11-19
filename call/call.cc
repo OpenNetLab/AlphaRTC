@@ -1378,7 +1378,7 @@ void Call::NotifyBweOfReceivedPacket(const RtpPacketReceived& packet,
   }
   // For audio, we only support send side BWE.
   if (media_type == MediaType::VIDEO ||
-      (media_type == MediaType::AUDIO && use_send_side_bwe)) ||
+      (media_type == MediaType::AUDIO && use_send_side_bwe) ||
       (use_send_side_bwe && header.extension.hasTransportSequenceNumber)) {
     receive_side_cc_.OnReceivedPacketWithType(
         packet.arrival_time_ms(), packet.payload_size() + packet.padding_size(),
