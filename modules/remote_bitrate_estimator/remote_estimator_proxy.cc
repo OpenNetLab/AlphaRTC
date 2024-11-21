@@ -86,7 +86,7 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   }
   rtc::CritScope cs(&lock_);
   media_ssrc_ = header.ssrc;
-  if (!header.extension.transportSequenceNumber) {
+  if (header.extension.hasTransportSequenceNumber) {
     OnPacketArrival(header.extension.transportSequenceNumber, arrival_time_ms,
                     header.extension.feedback_request);
   }
@@ -136,6 +136,7 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
 
   // Save per-packet info locally on receiving
   auto res = stats_collect_.StatsCollect(
+      header.extension.hasTransportSequenceNumber,
       pacing_rate, padding_rate, header.payloadType,
                               header.sequenceNumber, send_time_ms, header.ssrc,
                               header.paddingLength, header.headerLength,

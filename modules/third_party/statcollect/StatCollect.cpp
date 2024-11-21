@@ -93,6 +93,7 @@ namespace StatCollect {
                 SC_NEW_MEMORY_FAIL     if the new memory fail
     */ 
     SCResult StatsCollectModule::StatsCollect(
+        bool               hastransportSequenceNumber,
         double             pacerPacingRate,
         double             pacerPaddingRate,
         //Packet Info
@@ -132,6 +133,7 @@ namespace StatCollect {
         void* resultPtr;
         if (collectType_ == SC_TYPE_STRUCT) {
             struct CollectInfo* collectInfoPtr = StatsCollectByStruct(
+                hastransportSequenceNumber,
                 pacerPacingRate,
                 pacerPaddingRate,
                 payloadType,
@@ -175,6 +177,7 @@ namespace StatCollect {
         }
         else if (collectType_ == SC_TYPE_JSON) {
             std::string collectInfoJson = StatsCollectByJSON(
+                hastransportSequenceNumber,
                 pacerPacingRate,
                 pacerPaddingRate,
                 payloadType,
@@ -246,6 +249,7 @@ namespace StatCollect {
                SC_NEW_MEMORY_FAIL     if the new memory fail
     */
     SCResult StatsCollectModule::StatsCollect(
+        bool               hastransportSequenceNumber,
         double             pacerPacingRate,
         double             pacerPaddingRate,
         //Packet Info
@@ -263,6 +267,7 @@ namespace StatCollect {
         void* resultPtr;
         if (collectType_ == SC_TYPE_STRUCT) {
             struct CollectInfo* collectInfoPtr = StatsCollectByStruct(
+                hastransportSequenceNumber,
                 pacerPacingRate,
                 pacerPaddingRate,
                 payloadType,
@@ -306,6 +311,7 @@ namespace StatCollect {
         }
         else if (collectType_ == SC_TYPE_JSON) {
             std::string collectInfoJson = StatsCollectByJSON(
+                hastransportSequenceNumber,
                 pacerPacingRate,
                 pacerPaddingRate,
                 payloadType,
@@ -399,6 +405,7 @@ namespace StatCollect {
     */
 
     struct CollectInfo* StatsCollectModule::StatsCollectByStruct(
+        bool               hastransportSequenceNumber,
         double             pacerPacingRate,
         double             pacerPaddingRate,
         //Packet Info
@@ -441,7 +448,7 @@ namespace StatCollect {
         if (CollectInfoPtr == NULL) {
             return NULL;
         }
-        
+        CollectInfoPtr->hastransportSequenceNumber = hastransportSequenceNumber;
         CollectInfoPtr->pacerPacingRate = pacerPacingRate;
         CollectInfoPtr->pacerPaddingRate = pacerPaddingRate;
         CollectInfoPtr->packetInfo.header.payloadType = payloadType;
@@ -526,6 +533,7 @@ namespace StatCollect {
      ** return: json string format   if successfully
      */
     std::string StatsCollectModule::StatsCollectByJSON(
+        bool               hastransportSequenceNumber,
         double             pacerPacingRate,
         double             pacerPaddingRate,
         //Packet Info
@@ -565,6 +573,7 @@ namespace StatCollect {
         
         using json = nlohmann::json;
         json CollectInfoJson;
+        CollectInfoJson["hastransportSequenceNumber"]                              = hastransportSequenceNumber;
         CollectInfoJson["pacerPacingRate"]                                         = pacerPacingRate;
         CollectInfoJson["pacerPaddingRate"]                                        = pacerPaddingRate;
         CollectInfoJson["packetInfo"]["header"]["payloadType"]                     = payloadType;
@@ -615,7 +624,7 @@ namespace StatCollect {
 
         using json = nlohmann::json;
         json CollectInfoJson;
-            
+        CollectInfoJson["hastransportSequenceNumber"]                              = CollectInfoPtr->hastransportSequenceNumber;
         CollectInfoJson["pacerPacingRate"]                                         = CollectInfoPtr->pacerPacingRate;
         CollectInfoJson["pacerPaddingRate"]                                        = CollectInfoPtr->pacerPaddingRate;
         CollectInfoJson["packetInfo"]["header"]["payloadType"]                     = CollectInfoPtr->packetInfo.header.payloadType;
