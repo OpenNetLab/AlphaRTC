@@ -96,7 +96,6 @@ NetworkControlUpdate GoogCcNetworkController::OnSentPacket(
 
 NetworkControlUpdate GoogCcNetworkController::OnStreamsConfig(
     StreamsConfig msg) {
-  RTC_LOG(LS_INFO) << "AlphaCCNetworkController::OnStreamsConfig";
   NetworkControlUpdate update;
   update.target_rate = TargetTransferRate();
   update.target_rate->network_estimate.at_time = msg.at_time;
@@ -192,6 +191,9 @@ NetworkControlUpdate GoogCcNetworkController::GetDefaultState(
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnReceiveBwe(BweMessage bwe) {
+  RTC_LOG(LS_INFO) << "OnReceiveBwe: " << bwe.target_rate << " bps"
+                   << " at time " << bwe.timestamp_ms << " ms"
+                   << " pacing rate: " << bwe.pacing_rate << " bps";
   int32_t default_bitrate_bps = static_cast<int32_t>(bwe.target_rate);  // default: 300000 bps = 300 kbps
   DataRate bandwidth = DataRate::BitsPerSec(default_bitrate_bps);
   TimeDelta rtt = TimeDelta::Millis(last_estimated_rtt_ms_);

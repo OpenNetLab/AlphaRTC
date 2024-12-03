@@ -124,6 +124,8 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
     }
     bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
     bwe.timestamp_ms = clock_->TimeInMilliseconds();
+    RTC_LOG(LS_INFO) << "Send back BWE estimation: " << estimation
+                      << " at time: " << bwe.timestamp_ms;
     SendbackBweEstimation(bwe);
   }
 
@@ -199,6 +201,7 @@ void RemoteEstimatorProxy::OnBitrateChanged(int bitrate_bps) {
       0.5 + kTwccReportSize * 8.0 * 1000.0 /
                 rtc::SafeClamp(send_config_.bandwidth_fraction * bitrate_bps,
                                kMinTwccRate, kMaxTwccRate));
+  RTC_LOG(LS_INFO) << "New bandwidth send interval: " << send_interval_ms_ << "ms";
 }
 
 void RemoteEstimatorProxy::SetSendPeriodicFeedback(
