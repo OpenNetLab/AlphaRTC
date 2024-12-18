@@ -412,6 +412,7 @@ void VideoStreamEncoder::SetStartBitrate(int start_bitrate_bps) {
 
 void VideoStreamEncoder::ConfigureEncoder(VideoEncoderConfig config,
                                           size_t max_data_payload_length) {
+  RTC_LOG(LS_INFO) << "ConfigureEncoder config.codec_type: " << config.codec_type;
   encoder_queue_.PostTask(
       [this, config = std::move(config), max_data_payload_length]() mutable {
         RTC_DCHECK_RUN_ON(&encoder_queue_);
@@ -524,7 +525,8 @@ void VideoStreamEncoder::ReconfigureEncoder() {
   encoder_bitrate_limits_ =
       encoder_->GetEncoderInfo().GetEncoderBitrateLimitsForResolution(
           last_frame_info_->width * last_frame_info_->height);
-
+  RTC_LOG(LS_INFO) << "last frame info width: " << last_frame_info_->width
+                   << ", height: " << last_frame_info_->height;
   if (streams.size() == 1 && encoder_bitrate_limits_) {
     // Bitrate limits can be set by app (in SDP or RtpEncodingParameters) or/and
     // can be provided by encoder. In presence of both set of limits, the final
@@ -555,8 +557,11 @@ void VideoStreamEncoder::ReconfigureEncoder() {
       streams.back().target_bitrate_bps =
           std::min(streams.back().target_bitrate_bps,
                    encoder_bitrate_limits_->max_bitrate_bps);
+      RTC_LOG(LS_INFO) << "stream min_bitrate_bps: " << streams.back().min_bitrate_bps
+                       << ", max_bitrate_bps: " << streams.back().max_bitrate_bps
+                       << ", target_bitrate_bps: " << streams.back().target_bitrate_bps;
     } else {
-      RTC_LOG(LS_WARNING) << "Bitrate limits provided by encoder"
+      RTC_LOG(LS_INFO) << "Bitrate limits provided by encoder"
                           << " (min="
                           << encoder_bitrate_limits_->min_bitrate_bps
                           << ", max="
@@ -572,7 +577,7 @@ void VideoStreamEncoder::ReconfigureEncoder() {
   if (!VideoCodecInitializer::SetupCodec(encoder_config_, streams, &codec)) {
     RTC_LOG(LS_ERROR) << "Failed to create encoder configuration.";
   }
-
+  RTC_LOG(LS_INFO) << "ReConfigureEncoder encoder_config_.codec_type: " << encoder_config_.codec_type;
   char log_stream_buf[4 * 1024];
   rtc::SimpleStringBuilder log_stream(log_stream_buf);
   log_stream << "ReconfigureEncoder:\n";
