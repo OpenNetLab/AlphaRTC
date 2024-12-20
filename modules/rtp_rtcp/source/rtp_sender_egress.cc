@@ -144,7 +144,14 @@ void RtpSenderEgress::SendPacket(RtpPacketToSend* packet,
   // data after rtp header may be corrupted if these packets are protected by
   // the FEC.
   int64_t diff_ms = now_ms - packet->capture_time_ms();
-  int pktype = packet->packet_type()==RtpPacketMediaType::kAudio?0:(packet->packet_type()==RtpPacketMediaType::kVideo?1:-1);
+  int pktype;
+  if (packet->packet_type() == RtpPacketMediaType::kAudio) {
+    pktype = 0;
+  } else if (packet->packet_type() == RtpPacketMediaType::kVideo) {
+    pktype = 1;
+  } else {
+    pktype = -1;
+  }
   RTC_LOG(LS_INFO) << "RtpSenderEgress::SendPacket: packet ssrc: " << packet->Ssrc()
                        << ", sequence number: " << packet->SequenceNumber()
                        << ", timestamp: " << packet->Timestamp()

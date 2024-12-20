@@ -126,7 +126,6 @@ NetworkControlUpdate GoogCcNetworkController::OnStreamsConfig(
   update.congestion_window = current_data_window_;
 
   return update;
-  // return GetDefaultState(msg.at_time);
 }
 
 NetworkControlUpdate GoogCcNetworkController::OnReceivedPacket(
