@@ -130,6 +130,7 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
 
   // Save per-packet info locally on receiving
   auto res = stats_collect_.StatsCollect(
+      header.extension.hasTransportSequenceNumber,
       pacing_rate, padding_rate, header.payloadType,
                               header.sequenceNumber, send_time_ms, header.ssrc,
                               header.paddingLength, header.headerLength,
@@ -144,7 +145,7 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
     RTC_LOG(LS_ERROR) << "Save data failed";
   }
 
-  // RTC_LOG(LS_INFO) << out_data;
+  RTC_LOG(LS_INFO) << out_data;
 
   // if (network_state_estimator_ && header.extension.hasAbsoluteSendTime) {
   //   PacketResult packet_result;

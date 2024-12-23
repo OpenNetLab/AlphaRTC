@@ -79,6 +79,8 @@ int32_t VideoRenderFrames::AddFrame(VideoFrame&& new_frame) {
 
   last_render_time_ms_ = new_frame.render_time_ms();
   incoming_frames_.emplace_back(std::move(new_frame));
+  RTC_LOG(LS_INFO) << "Frame added to render queue, timestamp="
+                   << last_render_time_ms_ << " ms";
 
   if (incoming_frames_.size() > kMaxIncomingFramesBeforeLogged) {
     RTC_LOG(LS_WARNING) << "Stored incoming frames: "
