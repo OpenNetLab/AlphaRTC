@@ -339,13 +339,18 @@ std::map<BitrateAllocatorObserver*, int> AllocateBitrates(
   // streams.
   if (!EnoughBitrateForAllObservers(allocatable_tracks, bitrate,
                                     sum_min_bitrates))
+  {
+    RTC_LOG(LS_INFO) << "Not enough for all observers to get an allocation";
     return LowRateAllocation(allocatable_tracks, bitrate);
-
+  }
   // All observers will get their min bitrate plus a share of the rest. This
   // share is allocated to each observer based on its bitrate_priority.
   if (bitrate <= sum_max_bitrates)
+  {
+    RTC_LOG(LS_INFO) << "All observers will get their min bitrate plus a share of the rest";
     return NormalRateAllocation(allocatable_tracks, bitrate, sum_min_bitrates);
-
+  }
+  RTC_LOG(LS_INFO) << "All observers will get their max bitrate";
   // All observers will get up to transmission_max_bitrate_multiplier_ x max.
   return MaxRateAllocation(allocatable_tracks, bitrate, sum_max_bitrates);
 }
@@ -440,7 +445,9 @@ void BitrateAllocator::OnNetworkEstimateChanged(TargetTransferRate msg) {
     if (allocated_bitrate > 0)
       config.media_ratio = MediaRatio(allocated_bitrate, protection_bitrate);
     config.allocated_bitrate_bps = allocated_bitrate;
+    RTC_LOG(LS_INFO) << "BitrateAllocator allocated " << allocated_bitrate << " bps.";
   }
+  RTC_LOG(LS_INFO) << "BitrateAllocator finished allocation.";
   UpdateAllocationLimits();
 }
 

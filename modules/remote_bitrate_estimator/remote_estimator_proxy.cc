@@ -86,9 +86,10 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
   }
   rtc::CritScope cs(&lock_);
   media_ssrc_ = header.ssrc;
-  OnPacketArrival(header.extension.transportSequenceNumber, arrival_time_ms,
-                  header.extension.feedback_request);
-
+  if (header.extension.hasTransportSequenceNumber) {
+    OnPacketArrival(header.extension.transportSequenceNumber, arrival_time_ms,
+                    header.extension.feedback_request);
+  }
   //--- ONNXInfer: Input the per-packet info to ONNXInfer module ---
   uint32_t send_time_ms =
       GetTtimeFromAbsSendtime(header.extension.absoluteSendTime);
@@ -123,6 +124,8 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
     }
     bwe.pacing_rate = bwe.padding_rate = bwe.target_rate = estimation;
     bwe.timestamp_ms = clock_->TimeInMilliseconds();
+    RTC_LOG(LS_INFO) << "Send back BWE estimation: " << estimation
+                      << " at time: " << bwe.timestamp_ms;
     SendbackBweEstimation(bwe);
   }
 
@@ -135,6 +138,7 @@ void RemoteEstimatorProxy::IncomingPacket(int64_t arrival_time_ms,
 
   // Save per-packet info locally on receiving
   auto res = stats_collect_.StatsCollect(
+      header.extension.hasTransportSequenceNumber,
       pacing_rate, padding_rate, header.payloadType,
                               header.sequenceNumber, send_time_ms, header.ssrc,
                               header.paddingLength, header.headerLength,
@@ -197,6 +201,7 @@ void RemoteEstimatorProxy::OnBitrateChanged(int bitrate_bps) {
       0.5 + kTwccReportSize * 8.0 * 1000.0 /
                 rtc::SafeClamp(send_config_.bandwidth_fraction * bitrate_bps,
                                kMinTwccRate, kMaxTwccRate));
+  RTC_LOG(LS_INFO) << "New bandwidth send interval: " << send_interval_ms_ << "ms";
 }
 
 void RemoteEstimatorProxy::SetSendPeriodicFeedback(

@@ -249,6 +249,11 @@ bool VideoAdapter::AdaptFrameResolution(int in_width,
     *cropped_height =
         std::min(in_height, static_cast<int>(in_width / requested_aspect));
   }
+  RTC_LOG(LS_INFO) << "FindScale of Video Frame:" 
+                  << " cropped_width: " << *cropped_width
+                  << " cropped_height: " << *cropped_height
+                  << " target_pixel_count: " << target_pixel_count 
+                  << " max_pixel_count: " << max_pixel_count;
   const Fraction scale =
       FindScale(*cropped_width, *cropped_height, target_pixel_count,
                 max_pixel_count, variable_start_scale_factor_);

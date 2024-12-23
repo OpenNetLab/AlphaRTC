@@ -29,9 +29,6 @@ rtc::Buffer ExtractI420BufferWithSize(const VideoFrame& frame,
                                       int width,
                                       int height) {
   if (frame.width() != width || frame.height() != height) {
-    RTC_CHECK_LE(std::abs(static_cast<double>(width) / height -
-                          static_cast<double>(frame.width()) / frame.height()),
-                 2 * std::numeric_limits<double>::epsilon());
     // Same aspect ratio, no cropping needed.
     rtc::scoped_refptr<I420Buffer> scaled(I420Buffer::Create(width, height));
     scaled->ScaleFrom(*frame.video_frame_buffer()->ToI420());

@@ -146,6 +146,19 @@ void ReceiveSideCongestionController::OnReceivedPacket(
   }
 }
 
+void ReceiveSideCongestionController::OnReceivedPacketWithType(
+    int64_t arrival_time_ms,
+    size_t payload_size,
+    const RTPHeader& header,
+    MediaType media_type) {
+  if (media_type == MediaType::AUDIO) {
+    remote_estimator_proxy_.IncomingPacket(arrival_time_ms, payload_size, header);
+  }
+  else {
+    OnReceivedPacket(arrival_time_ms, payload_size, header);
+  }
+}
+
 void ReceiveSideCongestionController::SetSendPeriodicFeedback(
     bool send_periodic_feedback) {
   remote_estimator_proxy_.SetSendPeriodicFeedback(send_periodic_feedback);
