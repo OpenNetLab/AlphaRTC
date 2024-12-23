@@ -647,6 +647,8 @@ void RtpTransportControllerSend::PostUpdates(NetworkControlUpdate update) {
     pacer()->CreateProbeCluster(probe.target_data_rate, probe.id);
   }
   if (update.target_rate) {
+    RTC_LOG(LS_INFO) << "PostUpdates SetTargetRate: " << update.target_rate->target_rate.bps()
+                      << ", PostUpdates SetTargetRate Time: " << Timestamp::Millis(clock_->TimeInMilliseconds()).ms();
     control_handler_->SetTargetRate(*update.target_rate);
     UpdateControlState();
   }

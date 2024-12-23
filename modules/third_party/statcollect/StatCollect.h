@@ -190,6 +190,7 @@ namespace StatCollect {
     struct CollectInfo {
         PacketInfo packetInfo;
         MediaInfo mediaInfo;
+        bool      hastransportSequenceNumber;
         double    pacerPacingRate;
         double    pacerPaddingRate;
     };
@@ -266,6 +267,7 @@ namespace StatCollect {
                     SC_NEW_MEMORY_FAIL     if the new memory fail
         */
         SCResult StatsCollect(
+            bool               hastransportSequenceNumber,
             double             pacerPacingRate,
             double             pacerPaddingRate,
             //Packet Info
@@ -329,6 +331,7 @@ namespace StatCollect {
                     SC_NEW_MEMORY_FAIL     if the new memory fail
         */
         SCResult StatsCollect(
+            bool               hastransportSequenceNumber,
             double             pacerPacingRate,
             double             pacerPaddingRate,
             //Packet Info
@@ -391,6 +394,7 @@ namespace StatCollect {
                     NULL                         if failed.
         */
         struct CollectInfo* StatsCollectByStruct(
+            bool               hastransportSequenceNumber,
             double             pacerPacingRate,
             double             pacerPaddingRate,
             //Packet Info
@@ -474,6 +478,7 @@ namespace StatCollect {
          ** return: json string format   if successfully
         */
         std::string StatsCollectByJSON(
+            bool               hastransportSequenceNumber,
             double             pacerPacingRate,
             double             pacerPaddingRate,
             //Packet Info
