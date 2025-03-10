@@ -258,7 +258,7 @@ bool IsCodecBlacklistedForSimulcast(const std::string& codec_name) {
 static int GetMaxDefaultVideoBitrateKbps(int width,
                                          int height,
                                          bool is_screenshare) {
-  return 50000
+  return 50000;
   // int max_bitrate;
   // if (width * height <= 320 * 240) {
   //   max_bitrate = 600;
