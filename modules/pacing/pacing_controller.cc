@@ -14,6 +14,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <chrono>
 
 #include "absl/strings/match.h"
 #include "modules/pacing/bitrate_prober.h"
@@ -557,6 +558,10 @@ void PacingController::ProcessPackets() {
 
     data_sent += packet_size;
 
+    auto currentTime = std::chrono::system_clock::now();
+    auto timeSinceEpoch = currentTime.time_since_epoch();
+    long long milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(timeSinceEpoch).count();
+    RTC_LOG(INFO) << "RTP Sending a packet at: " << milliseconds <<" of size:" <<packet_size.bytes();
     // Send done, update send/process time to the target send time.
     OnPacketSent(packet_type, packet_size, target_send_time);
     if (recommended_probe_size && data_sent > *recommended_probe_size)

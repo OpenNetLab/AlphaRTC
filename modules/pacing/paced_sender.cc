@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <utility>
 #include <vector>
+#include <chrono>
 
 #include "absl/memory/memory.h"
 #include "absl/strings/match.h"
@@ -112,6 +113,11 @@ void PacedSender::SetPacingRates(DataRate pacing_rate, DataRate padding_rate) {
 void PacedSender::EnqueuePackets(
     std::vector<std::unique_ptr<RtpPacketToSend>> packets) {
   {
+    auto currentTime = std::chrono::system_clock::now();
+    auto timeSinceEpoch = currentTime.time_since_epoch();
+    long long milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(timeSinceEpoch).count();
+
+    RTC_LOG(INFO) << milliseconds<< " enqueuing packets: "<< packets.size();
     rtc::CritScope cs(&critsect_);
     for (auto& packet : packets) {
       pacing_controller_.EnqueuePacket(std::move(packet));

@@ -16,6 +16,7 @@
 #include <memory>
 #include <numeric>
 #include <utility>
+#include <chrono>
 
 #include "absl/algorithm/container.h"
 #include "absl/types/optional.h"
@@ -848,6 +849,11 @@ void VideoStreamEncoder::OnFrame(const VideoFrame& video_frame) {
   incoming_frame.set_timestamp(
       kMsToRtpTimestamp * static_cast<uint32_t>(incoming_frame.ntp_time_ms()));
 
+  auto currentTime = std::chrono::system_clock::now();
+  auto timeSinceEpoch = currentTime.time_since_epoch();
+  long long milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(timeSinceEpoch).count();
+
+
   if (incoming_frame.ntp_time_ms() <= last_captured_timestamp_) {
     // We don't allow the same capture time for two frames, drop this one.
     RTC_LOG(LS_WARNING) << "Same/old NTP timestamp ("
@@ -859,6 +865,8 @@ void VideoStreamEncoder::OnFrame(const VideoFrame& video_frame) {
       accumulated_update_rect_.Union(incoming_frame.update_rect());
       accumulated_update_rect_is_valid_ &= incoming_frame.has_update_rect();
     });
+    RTC_LOG(INFO) << "FRAME ENCODER DROPPED FRAME BECAUSE OF SAME CAPTURE TIME: " << milliseconds;
+
     return;
   }
 
@@ -871,6 +879,8 @@ void VideoStreamEncoder::OnFrame(const VideoFrame& video_frame) {
   last_captured_timestamp_ = incoming_frame.ntp_time_ms();
 
   int64_t post_time_us = rtc::TimeMicros();
+  RTC_LOG(INFO) << "FRAME ENCODER GOT FRAME: " << milliseconds << " frame id: " << incoming_frame.id() << " " << post_time_us << " size: " << incoming_frame.size();
+
   ++posted_frames_waiting_for_encode_;
 
   encoder_queue_.PostTask(
@@ -1068,10 +1078,9 @@ void VideoStreamEncoder::MaybeEncodeVideoFrame(const VideoFrame& video_frame,
     last_frame_info_ = VideoFrameInfo(video_frame.width(), video_frame.height(),
                                       video_frame.is_texture());
     RTC_LOG(LS_INFO) << "Video frame parameters changed: dimensions="
-                      << last_frame_info_->width << "x"
-                      << last_frame_info_->height
-                      << ", texture=" << last_frame_info_->is_texture 
-                      << " at time= " << clock_->TimeInMilliseconds() << "ms.";
+                     << last_frame_info_->width << "x"
+                     << last_frame_info_->height
+                     << ", texture=" << last_frame_info_->is_texture << ".";
     // Force full frame update, since resolution has changed.
     accumulated_update_rect_ =
         VideoFrame::UpdateRect{0, 0, video_frame.width(), video_frame.height()};
@@ -1092,6 +1101,7 @@ void VideoStreamEncoder::MaybeEncodeVideoFrame(const VideoFrame& video_frame,
 
   int64_t now_ms = clock_->TimeInMilliseconds();
   if (pending_encoder_reconfiguration_) {
+    RTC_LOG(LS_INFO) << "Encoder not configured, configuring now.";
     ReconfigureEncoder();
     last_parameters_update_ms_.emplace(now_ms);
   } else if (!last_parameters_update_ms_ ||
@@ -1120,8 +1130,8 @@ void VideoStreamEncoder::MaybeEncodeVideoFrame(const VideoFrame& video_frame,
     accumulated_update_rect_is_valid_ &= pending_frame_->has_update_rect();
   }
 
-  /*
   if (DropDueToSize(video_frame.size())) {
+    RTC_LOG(LS_INFO) << "Dropping frame. Too large for target bitrate.";
     stream_resource_manager_.OnFrameDroppedDueToSize();
     // Storing references to a native buffer risks blocking frame capture.
     if (video_frame.video_frame_buffer()->type() !=
@@ -1136,7 +1146,6 @@ void VideoStreamEncoder::MaybeEncodeVideoFrame(const VideoFrame& video_frame,
     }
     return;
   }
-  */
   stream_resource_manager_.OnMaybeEncodeFrame();
 
   if (EncoderPaused()) {
@@ -1317,6 +1326,16 @@ void VideoStreamEncoder::EncodeVideoFrame(const VideoFrame& video_frame,
   }
   accumulated_update_rect_is_valid_ = true;
 
+  auto currentTime = std::chrono::system_clock::now();
+  auto timeSinceEpoch = currentTime.time_since_epoch();
+  long long milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(timeSinceEpoch).count();
+
+  if (out_frame.has_update_rect()){
+    RTC_LOG(INFO) << "FRAME HAS UPDATE RECT: " << milliseconds << " " << time_when_posted_us;
+  } else {
+    RTC_LOG(INFO) << "FRAME DOES NOT HAVE UPDATE RECT: " << milliseconds << " " << time_when_posted_us;
+  }
+
   TRACE_EVENT_ASYNC_STEP0("webrtc", "Video", video_frame.render_time_ms(),
                           "Encode");
 
@@ -1431,6 +1450,11 @@ EncodedImageCallback::Result VideoStreamEncoder::OnEncodedImage(
   const size_t spatial_idx = encoded_image.SpatialIndex().value_or(0);
   EncodedImage image_copy(encoded_image);
 
+  auto currentTime = std::chrono::system_clock::now();
+  auto timeSinceEpoch = currentTime.time_since_epoch();
+  long long milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(timeSinceEpoch).count();
+  int64_t this_frame_id = 0;
+
   frame_encode_metadata_writer_.FillTimingInfo(spatial_idx, &image_copy);
 
   std::unique_ptr<RTPFragmentationHeader> fragmentation_copy =
@@ -1510,6 +1534,7 @@ EncodedImageCallback::Result VideoStreamEncoder::OnEncodedImage(
           std::make_unique<CodecSpecificInfo>(*codec_specific_info);
       GenericFrameInfo& generic_info = *codec_info_copy->generic_frame_info;
       generic_info.frame_id = next_frame_id_++;
+      this_frame_id = generic_info.frame_id;
 
       if (encoder_buffer_state_.size() <= static_cast<size_t>(simulcast_id)) {
         RTC_LOG(LS_ERROR) << "At most " << encoder_buffer_state_.size()
@@ -1562,7 +1587,9 @@ EncodedImageCallback::Result VideoStreamEncoder::OnEncodedImage(
   if (temporal_index == kNoTemporalIdx) {
     temporal_index = 0;
   }
-
+  
+  RTC_LOG(INFO) << "ENCODED FRAME AT: " << milliseconds << " size: " << frame_size.bytes() << " frame id: " << this_frame_id << " encoder latency: " << image_copy.timing_.encode_finish_ms - image_copy.timing_.encode_start_ms;
+ 
   RunPostEncode(image_copy, rtc::TimeMicros(), temporal_index, frame_size);
 
   if (result.error == Result::OK) {
@@ -1769,7 +1796,7 @@ void VideoStreamEncoder::RunPostEncode(const EncodedImage& encoded_image,
         rtc::kNumMicrosecsPerMillisec *
         (encoded_image.timing_.encode_finish_ms -
          encoded_image.timing_.encode_start_ms);
-  }
+   }
 
   // Run post encode tasks, such as overuse detection and frame rate/drop
   // stats for internal encoders.

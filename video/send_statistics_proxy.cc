@@ -15,6 +15,7 @@
 #include <cmath>
 #include <limits>
 #include <utility>
+#include <chrono>
 
 #include "absl/strings/match.h"
 #include "api/video/video_codec_constants.h"
@@ -1069,20 +1070,28 @@ void SendStatisticsProxy::OnIncomingFrame(int width, int height) {
 
 void SendStatisticsProxy::OnFrameDropped(DropReason reason) {
   rtc::CritScope lock(&crit_);
+  auto currentTime = std::chrono::system_clock::now();
+  auto timeSinceEpoch = currentTime.time_since_epoch();
+  long long milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(timeSinceEpoch).count();
   switch (reason) {
     case DropReason::kSource:
+      RTC_LOG(INFO) << "Frame Dropped by capturer: " <<milliseconds;
       ++stats_.frames_dropped_by_capturer;
       break;
     case DropReason::kEncoderQueue:
+      RTC_LOG(INFO) << "Frame Dropped by encoder queue: " << milliseconds;
       ++stats_.frames_dropped_by_encoder_queue;
       break;
     case DropReason::kEncoder:
+      RTC_LOG(INFO) << "Frame Dropped by encoder: " << milliseconds;
       ++stats_.frames_dropped_by_encoder;
       break;
     case DropReason::kMediaOptimization:
+      RTC_LOG(INFO) << "Frame Dropped by rate limiter: " << milliseconds;
       ++stats_.frames_dropped_by_rate_limiter;
       break;
     case DropReason::kCongestionWindow:
+      RTC_LOG(INFO) << "Frame Dropped by congestion window: " << milliseconds;
       ++stats_.frames_dropped_by_congestion_window;
       break;
   }

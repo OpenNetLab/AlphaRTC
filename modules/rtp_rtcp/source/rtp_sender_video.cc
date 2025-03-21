@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <chrono>
 
 #include "absl/algorithm/container.h"
 #include "absl/memory/memory.h"
@@ -408,6 +409,12 @@ bool RTPSenderVideo::SendVideo(
 
   if (payload.empty())
     return false;
+  
+  auto currentTime = std::chrono::system_clock::now();
+  auto timeSinceEpoch = currentTime.time_since_epoch();
+  long long milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(timeSinceEpoch).count();
+
+  RTC_LOG(INFO) << "RTP Starting sending the frame: " << milliseconds;
 
   int32_t retransmission_settings = retransmission_settings_;
   if (codec_type == VideoCodecType::kVideoCodecH264) {
