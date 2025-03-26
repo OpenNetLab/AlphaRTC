@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <utility>
+#include <chrono>
 
 #include "modules/video_coding/include/video_codec_interface.h"
 #include "rtc_base/checks.h"
@@ -938,7 +939,11 @@ void ReceiveStatisticsProxy::OnRenderedFrame(
     if (delay_ms >= 0) {
       content_specific_stats->e2e_delay_counter.Add(delay_ms);
 
-      RTC_LOG(INFO) << "E2E FRAME DELAY: " << delay_ms;
+      auto currentTime = std::chrono::system_clock::now();
+      auto timeSinceEpoch = currentTime.time_since_epoch();
+      long long milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(timeSinceEpoch).count();
+
+      RTC_LOG(INFO) << milliseconds << "E2E FRAME DELAY: " << delay_ms;
     }
   }
 
