@@ -943,7 +943,7 @@ void ReceiveStatisticsProxy::OnRenderedFrame(
       auto timeSinceEpoch = currentTime.time_since_epoch();
       long long milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(timeSinceEpoch).count();
 
-      RTC_LOG(INFO) << milliseconds << "E2E FRAME DELAY: " << delay_ms;
+      RTC_LOG(INFO) << milliseconds << " E2E FRAME DELAY: " << delay_ms;
     }
   }
 
